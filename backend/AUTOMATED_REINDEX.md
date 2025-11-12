@@ -91,9 +91,9 @@ finagent> /reindex --clear
 ```
 
 This will:
-1. Clear all existing indexes
-2. Auto-initialize uninitialized documents
-3. Rebuild complete index
+1. Clear all existing indexes and metadata
+2. Auto-initialize all documents with LLM
+3. Rebuild complete index and TOC from scratch
 
 ### Combine Flags
 
