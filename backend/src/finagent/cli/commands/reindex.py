@@ -63,7 +63,7 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
 
         console.print(f"[green]✅ 找到 {len(documents)} 個文件[/green]\n")
 
-        # Check for uninitialized documents and prompt for initialization
+        # Auto-initialize uninitialized documents with LLM
         if prompt_init:
             uninitialized_docs = []
             for doc in documents:
@@ -71,34 +71,83 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
                     uninitialized_docs.append(doc)
 
             if uninitialized_docs:
-                console.print(f"[yellow]發現 {len(uninitialized_docs)} 個未初始化的文件[/yellow]")
-                console.print("[dim]建議先初始化文件描述以提升檢索準確度[/dim]\n")
+                console.print(f"[cyan]🤖 發現 {len(uninitialized_docs)} 個未初始化的文件[/cyan]")
+                console.print(f"[dim]使用 LLM 自動分析並初始化元資料...[/dim]")
+                console.print(f"[yellow]提示: 按 ESC 鍵取消當前文件的初始化[/yellow]\n")
 
-                from rich.prompt import Confirm
+                from finagent.document_processing.metadata_generator import MetadataGenerator
 
-                for doc in uninitialized_docs:
-                    filename = doc.metadata.get("filename", "unknown")
-                    console.print(f"[bold]文件:[/bold] {filename}")
+                # Initialize with progress bar
+                initialized_count = 0
+                failed_count = 0
 
-                    should_init = Confirm.ask(
-                        f"是否要初始化此文件？",
-                        default=True
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                    console=console,
+                ) as progress:
+                    init_task = progress.add_task(
+                        "[cyan]🤖 初始化文件元資料...",
+                        total=len(uninitialized_docs)
                     )
 
-                    if should_init:
+                    generator = MetadataGenerator()
+
+                    for doc in uninitialized_docs:
+                        filename = doc.metadata.get("filename", "unknown")
+                        progress.update(
+                            init_task,
+                            description=f"[cyan]🤖 分析: {filename[:40]}..."
+                        )
+
                         try:
-                            # Use relative path for init with LLM
-                            relative_path = Path(doc.source).relative_to(docs_path)
-                            init_document_with_llm(str(relative_path))
+                            # Generate metadata with LLM
+                            metadata = generator.generate_metadata(
+                                doc_id=doc.id,
+                                filename=filename,
+                                content=doc.content
+                            )
+
+                            # Save metadata
+                            metadata_store.add_metadata(metadata)
+                            initialized_count += 1
+
+                            progress.update(
+                                init_task,
+                                advance=1,
+                                description=f"[green]✓ 已初始化: {filename[:40]}..."
+                            )
+
+                        except KeyboardInterrupt:
+                            # User pressed ESC - skip this document
+                            failed_count += 1
+                            progress.update(
+                                init_task,
+                                advance=1,
+                                description=f"[yellow]⏭️  已跳過: {filename[:40]}..."
+                            )
+                            continue
+
                         except Exception as e:
-                            console.print(f"[red]初始化失敗: {str(e)}[/red]")
-                            console.print("[yellow]將繼續索引但不包含元資料[/yellow]\n")
-                    else:
-                        console.print("[yellow]跳過初始化，將以原始文件內容索引[/yellow]\n")
+                            # LLM error - skip this document
+                            failed_count += 1
+                            progress.update(
+                                init_task,
+                                advance=1,
+                                description=f"[red]✗ 失敗: {filename[:40]}..."
+                            )
+                            continue
+
+                console.print()
+                console.print(f"[green]✅ 初始化完成: {initialized_count} 個文件[/green]")
+                if failed_count > 0:
+                    console.print(f"[yellow]⚠️  跳過: {failed_count} 個文件[/yellow]")
+                console.print()
 
                 # Reload metadata store after initializations
                 metadata_store = DocumentMetadataStore()
-                console.print()
 
         # Index documents with progress bar
         total_chunks = 0

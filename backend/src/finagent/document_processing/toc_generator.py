@@ -1,4 +1,4 @@
-"""Table of Contents generator for document collection."""
+"""Compact, grep-friendly Table of Contents generator."""
 
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -7,8 +7,15 @@ from datetime import datetime
 from finagent.document_processing.metadata_store import DocumentMetadataStore, DocumentMetadata
 
 
-class TableOfContents:
-    """Generates and maintains a table of contents for the document collection."""
+class CompactTableOfContents:
+    """
+    Generates compact, grep-friendly table of contents.
+
+    Format designed for:
+    - Easy grepping (one line per document)
+    - Compact display
+    - Machine-readable structure
+    """
 
     def __init__(self, output_path: Optional[str] = None):
         """
@@ -23,10 +30,12 @@ class TableOfContents:
 
     def generate(self) -> str:
         """
-        Generate complete table of contents.
+        Generate compact table of contents.
 
-        Returns:
-            Table of contents as markdown string
+        Format:
+        - Header with stats
+        - One-line-per-document index (grep-friendly)
+        - Compact details section
         """
         all_metadata = self.metadata_store.get_all_metadata()
 
@@ -50,62 +59,55 @@ class TableOfContents:
 
         # Generate markdown
         lines = []
-        lines.append("# 文件目錄 (Table of Contents)")
+
+        # Header
+        lines.append("# 文件目錄")
         lines.append("")
-        lines.append(f"**最後更新:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append(f"**總文件數:** {len(all_metadata)}")
+        lines.append(f"更新: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        lines.append(f"總數: {len(all_metadata)} 份")
         lines.append("")
 
-        # Statistics
-        lines.append("## 📊 統計資訊")
+        # Statistics (compact table)
+        lines.append("## 📊 統計")
         lines.append("")
-        lines.append("| 文件類型 | 數量 |")
-        lines.append("|---------|------|")
-        for doc_type, docs in sorted(by_type.items(), key=lambda x: len(x[1]), reverse=True):
-            lines.append(f"| {doc_type} | {len(docs)} |")
+        stats_line = " | ".join([f"{dt}: {len(docs)}" for dt, docs in sorted(by_type.items(), key=lambda x: len(x[1]), reverse=True)])
+        lines.append(stats_line)
         lines.append("")
 
-        # Quick Reference Table (compact overview)
-        lines.append("## 📋 快速索引")
+        # Grep-friendly index (one line per document)
+        lines.append("## 📋 文件索引 (Grep-Friendly)")
         lines.append("")
-        lines.append("| 檔名 | 類型 | 日期 | 關鍵摘要 |")
-        lines.append("|------|------|------|----------|")
+        lines.append("```")
+        lines.append("# Format: FILENAME | TYPE | DATE | AUTHORITY | INSTITUTIONS | PENALTY | VIOLATIONS | KEYWORDS")
+        lines.append("#")
 
         for meta in sorted(all_metadata, key=lambda m: m.date if m.date else "0000-00-00", reverse=True):
-            filename = meta.filename[:30] + "..." if len(meta.filename) > 33 else meta.filename
-            doc_type = meta.document_type[:8] + "..." if len(meta.document_type) > 10 else meta.document_type
-            date = meta.date if meta.date else "未設定"
+            # Create compact one-line entry
+            parts = [
+                meta.filename,
+                meta.document_type,
+                meta.date or "-",
+                meta.issuing_authority or "-",
+                ";".join(meta.related_institutions) or "-",
+                meta.penalty_amount or "-",
+                ";".join(meta.violation_types) or "-",
+                ";".join(meta.keywords[:5]) if meta.keywords else "-",  # Limit to 5 keywords
+            ]
 
-            # Create compact summary
-            summary_parts = []
-            if meta.related_institutions:
-                summary_parts.append(meta.related_institutions[0])
-            if meta.penalty_amount:
-                summary_parts.append(f"罰{meta.penalty_amount}")
-            if meta.violation_types:
-                summary_parts.append(meta.violation_types[0])
+            line = " | ".join(parts)
+            lines.append(line)
 
-            summary = ", ".join(summary_parts[:2]) if summary_parts else "-"
-            summary = summary[:25] + "..." if len(summary) > 28 else summary
-
-            lines.append(f"| {filename} | {doc_type} | {date} | {summary} |")
-
+        lines.append("```")
         lines.append("")
 
-        # Detailed sections by document type
-        lines.append("## 📚 詳細目錄")
+        # Compact details by type
+        lines.append("## 📚 分類明細")
         lines.append("")
 
         # Define preferred order
         type_order = [
-            "裁罰書",
-            "判決書",
-            "法規條文",
-            "監管公告",
-            "新聞報導",
-            "銀行聲明",
-            "分析報告",
-            "其他"
+            "裁罰書", "判決書", "法規條文", "監管公告",
+            "新聞報導", "銀行聲明", "分析報告", "其他"
         ]
 
         # Process types in preferred order
@@ -114,90 +116,90 @@ class TableOfContents:
                 continue
 
             docs = by_type[doc_type]
-            lines.append(f"### {doc_type} ({len(docs)} 份)")
+            lines.append(f"### {doc_type} ({len(docs)})")
             lines.append("")
 
-            for idx, meta in enumerate(docs, 1):
-                lines.append(f"#### {idx}. {meta.filename}")
-                lines.append("")
-                lines.append(f"**描述:** {meta.description}")
-                lines.append("")
+            for meta in docs:
+                # Compact one-line summary
+                summary_parts = [
+                    f"**{meta.filename}**",
+                    f"`{meta.date or '無日期'}`",
+                ]
 
-                # Document details
-                details = []
-                if meta.date:
-                    details.append(f"- **日期:** {meta.date}")
                 if meta.issuing_authority:
-                    details.append(f"- **發布機關:** {meta.issuing_authority}")
+                    summary_parts.append(f"{meta.issuing_authority}")
+
                 if meta.related_institutions:
-                    details.append(f"- **相關機構:** {', '.join(meta.related_institutions)}")
+                    summary_parts.append(f"[{', '.join(meta.related_institutions[:2])}]")
+
                 if meta.penalty_amount:
-                    details.append(f"- **裁罰金額:** {meta.penalty_amount}")
+                    summary_parts.append(f"💰{meta.penalty_amount}")
+
                 if meta.violation_types:
-                    details.append(f"- **違規類型:** {', '.join(meta.violation_types)}")
-                if meta.keywords:
-                    details.append(f"- **關鍵字:** {', '.join(meta.keywords)}")
+                    summary_parts.append(f"⚠️{', '.join(meta.violation_types[:2])}")
 
-                if details:
-                    lines.extend(details)
-                    lines.append("")
+                line = " · ".join(summary_parts)
+                lines.append(f"- {line}")
 
-                lines.append(f"**文件ID:** `{meta.doc_id}`")
+                # Description (if not too long)
+                if len(meta.description) <= 100:
+                    lines.append(f"  > {meta.description}")
+                else:
+                    lines.append(f"  > {meta.description[:97]}...")
+
                 lines.append("")
-                lines.append("---")
-                lines.append("")
 
-        # Process remaining types not in preferred order
+            lines.append("")
+
+        # Process remaining types
         remaining_types = set(by_type.keys()) - set(type_order)
         for doc_type in sorted(remaining_types):
             docs = by_type[doc_type]
-            lines.append(f"### {doc_type} ({len(docs)} 份)")
+            lines.append(f"### {doc_type} ({len(docs)})")
             lines.append("")
 
-            for idx, meta in enumerate(docs, 1):
-                lines.append(f"#### {idx}. {meta.filename}")
-                lines.append("")
-                lines.append(f"**描述:** {meta.description}")
-                lines.append("")
+            for meta in docs:
+                summary_parts = [
+                    f"**{meta.filename}**",
+                    f"`{meta.date or '無日期'}`",
+                ]
 
-                # Document details
-                details = []
-                if meta.date:
-                    details.append(f"- **日期:** {meta.date}")
-                if meta.issuing_authority:
-                    details.append(f"- **發布機關:** {meta.issuing_authority}")
                 if meta.related_institutions:
-                    details.append(f"- **相關機構:** {', '.join(meta.related_institutions)}")
-                if meta.keywords:
-                    details.append(f"- **關鍵字:** {', '.join(meta.keywords)}")
+                    summary_parts.append(f"[{', '.join(meta.related_institutions[:2])}]")
 
-                if details:
-                    lines.extend(details)
-                    lines.append("")
+                line = " · ".join(summary_parts)
+                lines.append(f"- {line}")
 
-                lines.append(f"**文件ID:** `{meta.doc_id}`")
+                if len(meta.description) <= 100:
+                    lines.append(f"  > {meta.description}")
+                else:
+                    lines.append(f"  > {meta.description[:97]}...")
+
                 lines.append("")
-                lines.append("---")
-                lines.append("")
 
-        # Usage notes
-        lines.append("## 💡 使用說明")
+            lines.append("")
+
+        # Grep guide
+        lines.append("---")
         lines.append("")
-        lines.append("此目錄由系統自動生成，提供文件集合的概覽。")
+        lines.append("## 🔍 使用 Grep 搜尋")
         lines.append("")
-        lines.append("**查詢文件:**")
-        lines.append("- 使用 **快速索引** 快速瀏覽所有文件")
-        lines.append("- 使用 **詳細目錄** 查看完整文件資訊")
-        lines.append("- 使用文件ID可直接定位文件")
+        lines.append("```bash")
+        lines.append("# 搜尋特定機構")
+        lines.append("grep '玉山' TABLE_OF_CONTENTS.md")
         lines.append("")
-        lines.append("**工作流程代理:**")
-        lines.append("- 可先讀取此目錄了解可用文件")
-        lines.append("- 根據需求選擇相關文件進行詳細分析")
-        lines.append("- 使用文件ID和檔名定位具體文件")
+        lines.append("# 搜尋特定日期")
+        lines.append("grep '2020-' TABLE_OF_CONTENTS.md")
         lines.append("")
-        lines.append("**更新時機:**")
-        lines.append("- 執行 `/init` 初始化文件後自動更新")
-        lines.append("- 執行 `/reindex` 索引文件時自動更新")
+        lines.append("# 搜尋特定類型")
+        lines.append("grep '裁罰書' TABLE_OF_CONTENTS.md")
+        lines.append("")
+        lines.append("# 搜尋裁罰金額")
+        lines.append("grep '億元' TABLE_OF_CONTENTS.md")
+        lines.append("")
+        lines.append("# 搜尋違規類型")
+        lines.append("grep '洗錢防制' TABLE_OF_CONTENTS.md")
+        lines.append("```")
         lines.append("")
 
         return "\n".join(lines)
@@ -205,18 +207,17 @@ class TableOfContents:
     def _generate_empty_toc(self) -> str:
         """Generate TOC for empty collection."""
         lines = []
-        lines.append("# 文件目錄 (Table of Contents)")
+        lines.append("# 文件目錄")
         lines.append("")
-        lines.append(f"**最後更新:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append(f"**總文件數:** 0")
+        lines.append(f"更新: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        lines.append(f"總數: 0 份")
         lines.append("")
         lines.append("## 📋 目前無文件")
         lines.append("")
-        lines.append("請使用以下步驟新增文件：")
+        lines.append("請執行以下步驟新增文件：")
         lines.append("")
         lines.append("1. 將文件放置到 `data/documents/` 目錄")
-        lines.append("2. 執行 `/init` 初始化文件描述")
-        lines.append("3. 執行 `/reindex` 建立索引")
+        lines.append("2. 執行 `/reindex` 自動初始化並建立索引")
         lines.append("")
         return "\n".join(lines)
 
@@ -274,3 +275,7 @@ class TableOfContents:
             "by_authority": by_authority,
             "date_range": date_range,
         }
+
+
+# Alias for backward compatibility
+TableOfContents = CompactTableOfContents
