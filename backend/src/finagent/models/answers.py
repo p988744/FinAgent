@@ -43,6 +43,12 @@ class LegalAnswer(BaseModel):
         description="Comparison with similar cases (判例比較)"
     )
 
+    final_answer: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Concise final answer summarizing the key result (最終答案)"
+    )
+
     # Citations
     citations: List[LegalCitation] = Field(
         ...,

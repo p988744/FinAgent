@@ -93,6 +93,16 @@ def format_legal_answer(answer: LegalAnswer):
 
             console.print()
 
+    # Final answer (highlighted)
+    if answer.final_answer:
+        console.print(Panel(
+            f"[bold green]{answer.final_answer}[/bold green]",
+            title="[green]✓ 最終答案[/green]",
+            border_style="green",
+            padding=(1, 2)
+        ))
+        console.print()
+
     # Confidence score with visual bar
     confidence_info = format_confidence_score(answer.confidence_score)
     console.print(confidence_info)

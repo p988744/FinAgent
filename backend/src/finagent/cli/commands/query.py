@@ -1,5 +1,6 @@
 """Query execution command handlers."""
 
+import asyncio
 import json
 from typing import Optional
 
@@ -7,12 +8,23 @@ from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner
 
-from finagent.cli.api_client import ApiClient
+from finagent.agents.orchestrator import AgentOrchestrator
 from finagent.cli.formatters.answer import format_legal_answer, format_answer_json, format_answer_markdown
 from finagent.models.answers import LegalAnswer
 from finagent.models.queries import Query
 
 console = Console()
+
+# Initialize orchestrator globally (singleton)
+_orchestrator = None
+
+
+def get_orchestrator() -> AgentOrchestrator:
+    """Get or create orchestrator instance."""
+    global _orchestrator
+    if _orchestrator is None:
+        _orchestrator = AgentOrchestrator()
+    return _orchestrator
 
 
 def execute_query(
@@ -23,7 +35,7 @@ def execute_query(
     end_date: Optional[str] = None
 ) -> Optional[LegalAnswer]:
     """
-    Execute a legal research query.
+    Execute a legal research query using the orchestrator directly.
 
     Args:
         query_text: The query text
@@ -45,18 +57,20 @@ def execute_query(
             end_date=end_date
         )
 
-        # Create API client
-        client = ApiClient()
+        # Get orchestrator
+        orchestrator = get_orchestrator()
 
-        # Show loading spinner
+        # Show loading spinner and execute query
         with Live(Spinner("dots", text="正在處理查詢..."), console=console):
-            # Execute query
-            answer = client.submit_query_sync(query)
+            # Execute query through LangGraph workflow
+            answer = asyncio.run(orchestrator.process_query(query))
 
         return answer
 
     except Exception as e:
         console.print(f"[red]查詢錯誤: {str(e)}[/red]")
+        import traceback
+        traceback.print_exc()
         return None
 
 
