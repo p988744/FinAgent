@@ -19,95 +19,27 @@ This system uses a multi-agent architecture to help legal professionals and rese
 - ✅ Multi-agent research system (Planning, Action, Answer agents)
 - ✅ RAG-based document analysis with vector search
 - ✅ Taiwan legal citation formatting
-- ✅ **Interactive CLI (REPL) Interface** - NEW!
-- ✅ Web-based user interface
-- ✅ Docker deployment
+- ✅ **Interactive CLI (REPL) Interface**
+- ✅ LLM-powered document metadata extraction
+- ✅ Automated document indexing with progress tracking
 
 ## Tech Stack
 
-**Backend:**
 - Python 3.11+
-- FastAPI
-- LangChain
-- OpenAI GPT-4
+- LangChain + LangGraph (Multi-agent orchestration)
+- OpenAI GPT-4 / Local LLM support (via OpenAI-compatible API)
 - Chroma Vector Database
+- Rich CLI with prompt-toolkit
 - uv Package Manager
-
-**Frontend:**
-- Next.js 14 (App Router)
-- TypeScript
-- React 18
-- Tailwind CSS
 
 ## Quick Start
 
 ### Prerequisites
 
 - Python 3.11+
-- Node.js 18+
-- Docker & Docker Compose (optional)
-- OpenAI API Key
+- OpenAI API Key (or local LLM like Ollama)
 
-### Option 1: CLI Interface (Recommended for Research)
-
-**Interactive REPL Mode:**
-
-```bash
-cd backend
-
-# Install dependencies
-uv sync
-
-# Set up environment
-cp .env.example .env
-# Edit .env with your OpenAI API key
-
-# Start backend API
-uv run uvicorn finagent.main:app --reload
-
-# In a new terminal, start CLI
-uv run finagent
-
-# You'll see:
-# finagent>
-# Now you can type queries directly in Traditional Chinese!
-```
-
-**Single Query Mode:**
-
-```bash
-# Quick query without entering REPL
-uv run finagent query "玉山銀行洗錢防制裁罰"
-
-# With options
-uv run finagent query "2020年金管會裁罰" --max-results 10 --format json
-```
-
-📖 **See [CLI_GUIDE.md](CLI_GUIDE.md) for complete CLI documentation**
-
-### Option 2: Docker (Recommended for Full Stack)
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd finagent
-
-# Set up environment variables
-cp backend/.env.example backend/.env
-# Edit backend/.env with your OpenAI API key
-
-# Start all services
-docker-compose up --build
-
-# Access the application
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:8000
-# API Docs: http://localhost:8000/docs
-```
-
-### Option 3: Local Development (Web Interface)
-
-**Backend:**
+### Installation
 
 ```bash
 cd backend
@@ -121,29 +53,33 @@ uv sync
 # Set up environment
 cp .env.example .env
 # Edit .env with your OpenAI API key
-
-# Run the server
-uv run uvicorn finagent.main:app --reload
-
-# API available at http://localhost:8000
 ```
 
-**Frontend:**
+### Usage
+
+**Interactive REPL Mode (Recommended):**
 
 ```bash
-cd frontend
+uv run finagent
 
-# Install dependencies
-npm install
+# You'll see:
+# finagent>
+# Now you can type queries directly in Traditional Chinese!
 
-# Set up environment
-cp .env.example .env.local
-
-# Run development server
-npm run dev
-
-# App available at http://localhost:3000
+# Example queries:
+finagent> 玉山銀行洗錢防制裁罰
+finagent> 2020年金管會裁罰案件
+finagent> /help  # Show all commands
 ```
+
+**Single Query Mode:**
+
+```bash
+# Quick query without entering REPL
+uv run finagent query "玉山銀行洗錢防制裁罰"
+```
+
+📖 **See [CLI_GUIDE.md](CLI_GUIDE.md) for complete CLI documentation**
 
 ## Development
 
@@ -162,11 +98,12 @@ git commit -m "feat: add my feature"
 git push origin feature/my-feature
 ```
 
-### Backend Development
+### Development Commands
 
 ```bash
-# Run tests
 cd backend
+
+# Run tests
 uv run pytest
 
 # Run with coverage
@@ -182,43 +119,23 @@ uv run ruff check src/
 uv run mypy src/
 ```
 
-### Frontend Development
-
-```bash
-cd frontend
-
-# Run tests
-npm test
-
-# Lint
-npm run lint
-
-# Build
-npm run build
-```
-
 ## Project Structure
 
 ```
 finagent/
-├── backend/          # Python backend with FastAPI
+├── backend/          # Python backend
 │   ├── src/
 │   │   └── finagent/ # Main package (src layout)
+│   │       ├── cli/  # CLI interface
+│   │       ├── agents/ # Multi-agent system
+│   │       ├── document_processing/ # RAG pipeline
+│   │       └── tools/ # Research tools
 │   ├── tests/        # Test suite
-│   └── data/         # Local data storage
-├── frontend/         # Next.js frontend
-│   └── src/
-│       ├── app/      # App router pages
-│       └── components/ # React components
-├── docker/           # Docker configurations
+│   ├── data/         # Local data storage
+│   └── model_config.yml # LLM model configuration
 └── docs/             # Documentation
 ```
 
-## API Documentation
-
-Once the backend is running, visit:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
 
 ## Documentation
 
