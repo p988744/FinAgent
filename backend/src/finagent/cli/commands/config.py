@@ -218,18 +218,43 @@ def show_config():
     table.add_column("設定項目", style="white", width=25)
     table.add_column("目前值", style="cyan")
 
-    # LLM provider
+    # Chat/Completion LLM provider
     if settings.use_local_llm:
-        table.add_row("LLM 提供者", "[yellow]本地 LLM[/yellow]")
-        table.add_row("本地 LLM URL", settings.local_llm_base_url)
-        table.add_row("本地 LLM 模型", settings.local_llm_model)
-        table.add_row("本地 LLM API Key", "***" if settings.local_llm_api_key else "[red]未設定[/red]")
+        table.add_row("聊天 LLM 提供者", "[yellow]本地 LLM[/yellow]")
+        table.add_row("  ├─ URL", settings.local_llm_base_url)
+        table.add_row("  ├─ 模型", settings.local_llm_model)
+        table.add_row("  └─ API Key", "***" if settings.local_llm_api_key else "[red]未設定[/red]")
     else:
-        table.add_row("LLM 提供者", "[green]OpenAI[/green]")
-        table.add_row("OpenAI 模型", settings.openai_model)
-        table.add_row("OpenAI API Key", "***" if settings.openai_api_key else "[red]未設定[/red]")
+        table.add_row("聊天 LLM 提供者", "[green]OpenAI[/green]")
+        table.add_row("  ├─ 模型", settings.openai_model)
+        table.add_row("  └─ API Key", "***" if settings.openai_api_key else "[red]未設定[/red]")
 
-    table.add_row("嵌入模型", settings.openai_embedding_model)
+    # Embedding provider
+    table.add_row("", "")  # Spacer
+    if settings.use_local_embedding:
+        table.add_row("嵌入模型提供者", "[yellow]本地嵌入模型[/yellow]")
+        table.add_row("  ├─ 模型", settings.local_embedding_model)
+
+        # Show URL and API key if different from LLM
+        embedding_url = settings.local_embedding_base_url or settings.local_llm_base_url
+        embedding_key = settings.local_embedding_api_key or settings.local_llm_api_key
+
+        if settings.local_embedding_base_url:
+            table.add_row("  ├─ URL", embedding_url)
+        else:
+            table.add_row("  ├─ URL", f"{embedding_url} [dim](共用 LLM)[/dim]")
+
+        if settings.local_embedding_api_key:
+            table.add_row("  └─ API Key", "***")
+        else:
+            table.add_row("  └─ API Key", "[dim]*** (共用 LLM)[/dim]")
+    else:
+        table.add_row("嵌入模型提供者", "[green]OpenAI[/green]")
+        table.add_row("  ├─ 模型", settings.openai_embedding_model)
+        table.add_row("  └─ API Key", "***" if settings.openai_api_key else "[red]未設定[/red]")
+
+    # Other settings
+    table.add_row("", "")  # Spacer
     table.add_row("溫度 (Temperature)", str(settings.openai_temperature))
 
     console.print()

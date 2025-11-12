@@ -20,14 +20,18 @@ class EmbeddingGenerator:
             model: Embedding model (default from settings)
             api_key: API key (default from settings)
         """
-        # Check if using local LLM
-        self.use_local = settings.use_local_llm
+        # Check if using local embedding model
+        self.use_local = settings.use_local_embedding
 
         if self.use_local and settings.local_embedding_model:
             # Use local embedding model
             self.model = model or settings.local_embedding_model
-            self.api_key = api_key or settings.local_llm_api_key
-            base_url = settings.local_llm_base_url
+
+            # Use separate embedding endpoint if configured, otherwise fall back to LLM endpoint
+            base_url = settings.local_embedding_base_url or settings.local_llm_base_url
+
+            # Use separate embedding API key if configured, otherwise fall back to LLM API key
+            self.api_key = api_key or settings.local_embedding_api_key or settings.local_llm_api_key
         else:
             # Use OpenAI
             self.model = model or settings.openai_embedding_model
