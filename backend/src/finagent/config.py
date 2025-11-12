@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     local_llm_base_url: str = Field(default="http://localhost:11434/v1", description="Local LLM base URL (OpenAI-compatible)")
     local_llm_api_key: str = Field(default="ollama", description="Local LLM API key (can be any string for local models)")
     local_llm_model: str = Field(default="qwen2.5:7b", description="Local LLM model name")
+    local_embedding_model: str = Field(default="", description="Local embedding model name (if using local embeddings)")
 
     # Vector Database (Chroma)
     chroma_persist_directory: str = Field(

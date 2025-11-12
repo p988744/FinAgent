@@ -71,14 +71,8 @@ backend/data/documents/
 *.pdf
 
 # Next.js / Frontend
-frontend/.next/
-frontend/out/
-frontend/node_modules/
-frontend/build/
-frontend/.turbo/
 
 # Node
-node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

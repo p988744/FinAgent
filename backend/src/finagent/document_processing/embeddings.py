@@ -17,15 +17,30 @@ class EmbeddingGenerator:
         Initialize embedding generator.
 
         Args:
-            model: OpenAI embedding model (default from settings)
-            api_key: OpenAI API key (default from settings)
+            model: Embedding model (default from settings)
+            api_key: API key (default from settings)
         """
-        self.model = model or settings.openai_embedding_model
-        self.api_key = api_key or settings.openai_api_key
+        # Check if using local LLM
+        self.use_local = settings.use_local_llm
+
+        if self.use_local and settings.local_embedding_model:
+            # Use local embedding model
+            self.model = model or settings.local_embedding_model
+            self.api_key = api_key or settings.local_llm_api_key
+            base_url = settings.local_llm_base_url
+        else:
+            # Use OpenAI
+            self.model = model or settings.openai_embedding_model
+            self.api_key = api_key or settings.openai_api_key
+            base_url = None
 
         # Initialize clients
-        self.client = OpenAI(api_key=self.api_key)
-        self.async_client = AsyncOpenAI(api_key=self.api_key)
+        if base_url:
+            self.client = OpenAI(api_key=self.api_key, base_url=base_url)
+            self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=base_url)
+        else:
+            self.client = OpenAI(api_key=self.api_key)
+            self.async_client = AsyncOpenAI(api_key=self.api_key)
 
     def generate_embedding(self, text: str) -> List[float]:
         """
@@ -157,6 +172,11 @@ class EmbeddingGenerator:
             "text-embedding-3-small": 1536,
             "text-embedding-3-large": 3072,
             "text-embedding-ada-002": 1536,
+            # Common local embedding models
+            "bge-m3": 1024,
+            "bge-large-zh": 1024,
+            "bge-base-zh": 768,
+            "multilingual-e5-large": 1024,
         }
 
         return model_dimensions.get(self.model, 1536)
