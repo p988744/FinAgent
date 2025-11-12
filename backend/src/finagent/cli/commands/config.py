@@ -14,8 +14,8 @@ from finagent.config import settings, reload_settings
 console = Console()
 
 
-# OpenAI model choices
-OPENAI_MODELS = [
+# Default OpenAI model choices (fallback if API call fails)
+DEFAULT_OPENAI_MODELS = [
     "gpt-4o",
     "gpt-4o-mini",
     "gpt-4-turbo",
@@ -23,11 +23,116 @@ OPENAI_MODELS = [
     "gpt-3.5-turbo",
 ]
 
-OPENAI_EMBEDDING_MODELS = [
+DEFAULT_OPENAI_EMBEDDING_MODELS = [
     "text-embedding-3-small",
     "text-embedding-3-large",
     "text-embedding-ada-002",
 ]
+
+
+def get_available_openai_models(api_key: str) -> list:
+    """
+    Fetch available OpenAI models from API.
+
+    Args:
+        api_key: OpenAI API key
+
+    Returns:
+        List of available model IDs
+    """
+    if not api_key or api_key == "":
+        return DEFAULT_OPENAI_MODELS
+
+    try:
+        import httpx
+
+        response = httpx.get(
+            "https://api.openai.com/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=5.0
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            all_models = [model["id"] for model in data.get("data", [])]
+
+            # Filter for chat models (gpt-*)
+            chat_models = [
+                m for m in all_models
+                if m.startswith("gpt-") and not m.startswith("gpt-3.5-turbo-instruct")
+            ]
+
+            # Sort by preference: gpt-4o variants first, then gpt-4, then gpt-3.5
+            priority_order = ["gpt-4o", "gpt-4", "gpt-3.5"]
+
+            def sort_key(model):
+                for i, prefix in enumerate(priority_order):
+                    if model.startswith(prefix):
+                        return (i, model)
+                return (len(priority_order), model)
+
+            chat_models.sort(key=sort_key)
+
+            # Limit to top 10 most relevant models
+            return chat_models[:10] if chat_models else DEFAULT_OPENAI_MODELS
+        else:
+            console.print(f"[dim]無法取得模型列表（使用預設列表）[/dim]")
+            return DEFAULT_OPENAI_MODELS
+
+    except Exception as e:
+        console.print(f"[dim]無法連接 OpenAI API（使用預設列表）[/dim]")
+        return DEFAULT_OPENAI_MODELS
+
+
+def get_available_embedding_models(api_key: str) -> list:
+    """
+    Fetch available OpenAI embedding models from API.
+
+    Args:
+        api_key: OpenAI API key
+
+    Returns:
+        List of available embedding model IDs
+    """
+    if not api_key or api_key == "":
+        return DEFAULT_OPENAI_EMBEDDING_MODELS
+
+    try:
+        import httpx
+
+        response = httpx.get(
+            "https://api.openai.com/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=5.0
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            all_models = [model["id"] for model in data.get("data", [])]
+
+            # Filter for embedding models
+            embedding_models = [
+                m for m in all_models
+                if "embedding" in m
+            ]
+
+            # Sort: text-embedding-3 first, then text-embedding-ada
+            def sort_key(model):
+                if "text-embedding-3" in model:
+                    return (0, model)
+                elif "text-embedding-ada" in model:
+                    return (1, model)
+                else:
+                    return (2, model)
+
+            embedding_models.sort(key=sort_key)
+
+            return embedding_models if embedding_models else DEFAULT_OPENAI_EMBEDDING_MODELS
+        else:
+            return DEFAULT_OPENAI_EMBEDDING_MODELS
+
+    except Exception:
+        return DEFAULT_OPENAI_EMBEDDING_MODELS
 
 
 def show_config():
@@ -128,20 +233,25 @@ def configure_llm():
         else:
             llm_api_key = Prompt.ask("OpenAI API Key", password=True)
 
+        # Fetch available OpenAI models
+        console.print()
+        console.print("[cyan]正在取得可用模型列表...[/cyan]")
+        available_models = get_available_openai_models(llm_api_key)
+
         # OpenAI model
         console.print()
         console.print("[bold]可用的 OpenAI 模型:[/bold]")
-        for idx, model in enumerate(OPENAI_MODELS, 1):
+        for idx, model in enumerate(available_models, 1):
             current = " [green](目前)[/green]" if model == settings.openai_model else ""
             console.print(f"  {idx}. {model}{current}")
         console.print()
 
         model_choice = Prompt.ask(
             "請選擇模型",
-            choices=[str(i) for i in range(1, len(OPENAI_MODELS) + 1)],
-            default="2"  # gpt-4o-mini
+            choices=[str(i) for i in range(1, len(available_models) + 1)],
+            default="2"  # gpt-4o-mini usually at index 2
         )
-        llm_model = OPENAI_MODELS[int(model_choice) - 1]
+        llm_model = available_models[int(model_choice) - 1]
 
         # Dummy values for local LLM (not used)
         llm_url = settings.local_llm_base_url
@@ -156,18 +266,24 @@ def configure_llm():
         console.print("[dim]未來版本將支援本地嵌入模型[/dim]")
         console.print()
 
+    # Fetch available embedding models (use existing API key)
+    embedding_api_key = llm_api_key if not use_local else settings.openai_api_key
+    console.print("[cyan]正在取得可用嵌入模型列表...[/cyan]")
+    available_embeddings = get_available_embedding_models(embedding_api_key)
+
+    console.print()
     console.print("[bold]可用的嵌入模型:[/bold]")
-    for idx, model in enumerate(OPENAI_EMBEDDING_MODELS, 1):
+    for idx, model in enumerate(available_embeddings, 1):
         current = " [green](目前)[/green]" if model == settings.openai_embedding_model else ""
         console.print(f"  {idx}. {model}{current}")
     console.print()
 
     embedding_choice = Prompt.ask(
         "請選擇嵌入模型",
-        choices=[str(i) for i in range(1, len(OPENAI_EMBEDDING_MODELS) + 1)],
-        default="1"  # text-embedding-3-small
+        choices=[str(i) for i in range(1, len(available_embeddings) + 1)],
+        default="1"  # text-embedding-3-small usually at index 1
     )
-    embedding_model = OPENAI_EMBEDDING_MODELS[int(embedding_choice) - 1]
+    embedding_model = available_embeddings[int(embedding_choice) - 1]
 
     # Summary
     console.print()
