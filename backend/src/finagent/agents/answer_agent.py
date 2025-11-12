@@ -29,11 +29,20 @@ class AnswerAgent:
 
     def __init__(self, model: str = "gpt-4o-mini"):
         """Initialize answer agent with LLM."""
-        self.llm = ChatOpenAI(
-            model=model,
-            api_key=settings.openai_api_key,
-            temperature=0.3,  # Balanced creativity for synthesis
-        )
+        # Use local LLM if configured
+        if settings.use_local_llm:
+            self.llm = ChatOpenAI(
+                model=settings.local_llm_model,
+                api_key=settings.local_llm_api_key,
+                base_url=settings.local_llm_base_url,
+                temperature=0.3,
+            )
+        else:
+            self.llm = ChatOpenAI(
+                model=model,
+                api_key=settings.openai_api_key,
+                temperature=0.3,  # Balanced creativity for synthesis
+            )
 
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", self._get_system_prompt()),

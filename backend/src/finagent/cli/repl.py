@@ -20,6 +20,7 @@ from finagent.cli.commands.query import execute_query
 from finagent.cli.commands.history import QueryHistory
 from finagent.cli.commands.help import show_help
 from finagent.cli.commands.reindex import execute_reindex
+from finagent.cli.commands.config import handle_config_command
 from finagent.cli.formatters.answer import format_legal_answer
 
 console = Console()
@@ -72,6 +73,7 @@ class ReplSession:
 **常用指令：**
 - 直接輸入查詢或使用 `/query <文字>`
 - `/help` - 顯示所有可用指令
+- `/config llm` - 設定 LLM (OpenAI 或本地模型)
 - `/history` - 查看查詢歷史
 - `/reindex` - 重新索引文件
 - `/exit` - 離開程式
@@ -164,7 +166,7 @@ class ReplSession:
 
         # Config command
         if command == "/config":
-            self.show_config()
+            handle_config_command(args)
             return True
 
         # Reindex command
@@ -275,25 +277,6 @@ class ReplSession:
         # TODO: Implement export functionality
         console.print(f"[yellow]匯出功能尚未實作 (格式: {format})[/yellow]")
 
-    def show_config(self):
-        """Display current configuration."""
-        from finagent.config import get_settings
-
-        settings = get_settings()
-
-        table = Table(title="系統設定", show_header=True, header_style="bold cyan")
-        table.add_column("設定項目", style="white")
-        table.add_column("值", style="cyan")
-
-        table.add_row("API 端點", settings.BACKEND_URL if hasattr(settings, 'BACKEND_URL') else "http://localhost:8000")
-        table.add_row("OpenAI 模型", settings.OPENAI_MODEL)
-        table.add_row("嵌入模型", settings.OPENAI_EMBEDDING_MODEL)
-        table.add_row("環境", settings.APP_ENV)
-        table.add_row("日誌層級", settings.LOG_LEVEL)
-
-        console.print()
-        console.print(table)
-        console.print()
 
     def run(self):
         """Run the REPL loop."""

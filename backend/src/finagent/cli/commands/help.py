@@ -51,12 +51,13 @@ def show_help():
 | `/reindex` | 重新索引文件（增量更新） |
 | `/reindex --clear` | 清空並重新建立完整索引 |
 
-## 其他指令
+## 設定與管理
 
 | 指令 | 說明 |
 |------|------|
+| `/config` | 顯示目前 LLM 設定 |
+| `/config llm` | 設定 LLM (OpenAI 或本地 LLM) |
 | `/export <格式>` | 匯出結果 (markdown, json) |
-| `/config` | 顯示系統設定 |
 
 ## 快捷鍵
 

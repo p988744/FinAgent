@@ -32,11 +32,17 @@ class Settings(BaseSettings):
 
     # OpenAI / LLM
     openai_api_key: str = Field(default="", description="OpenAI API key")
-    openai_model: str = Field(default="gpt-4-turbo-preview", description="OpenAI model name")
+    openai_model: str = Field(default="gpt-4o-mini", description="OpenAI model name")
     openai_embedding_model: str = Field(
         default="text-embedding-3-small", description="OpenAI embedding model"
     )
     openai_temperature: float = Field(default=0.0, description="LLM temperature")
+
+    # Local LLM (OpenAI-compatible API)
+    use_local_llm: bool = Field(default=False, description="Use local LLM instead of OpenAI")
+    local_llm_base_url: str = Field(default="http://localhost:11434/v1", description="Local LLM base URL (OpenAI-compatible)")
+    local_llm_api_key: str = Field(default="ollama", description="Local LLM API key (can be any string for local models)")
+    local_llm_model: str = Field(default="qwen2.5:7b", description="Local LLM model name")
 
     # Vector Database (Chroma)
     chroma_persist_directory: str = Field(
