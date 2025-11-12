@@ -1,9 +1,8 @@
 """Legal citation models."""
 
-from datetime import date
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 
 class CitationAuthority(str, Enum):
@@ -45,8 +44,8 @@ class LegalCitation(BaseModel):
     )
 
     # Optional metadata
-    date: Optional[date] = Field(None, description="Document date")
-    url: Optional[HttpUrl] = Field(None, description="Document URL")
+    date: Optional[str] = Field(None, description="Document date (YYYY-MM-DD)")
+    url: Optional[str] = Field(None, description="Document URL")
     page_number: Optional[str] = Field(None, description="Page number if applicable")
     section: Optional[str] = Field(None, description="Section reference (e.g., '第三章A節')")
 

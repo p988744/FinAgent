@@ -1,8 +1,7 @@
 """Document-related models."""
 
-from datetime import date
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 
 class EnforcementAction(BaseModel):
@@ -19,9 +18,9 @@ class EnforcementAction(BaseModel):
     sub_agency: Optional[str] = Field(None, description="Sub-agency (e.g., '銀行局')")
 
     # Dates
-    action_date: date = Field(..., description="Date of enforcement action")
-    violation_start_date: Optional[date] = Field(None, description="Start of violation period")
-    violation_end_date: Optional[date] = Field(None, description="End of violation period")
+    action_date: str = Field(..., description="Date of enforcement action (YYYY-MM-DD)")
+    violation_start_date: Optional[str] = Field(None, description="Start of violation period (YYYY-MM-DD)")
+    violation_end_date: Optional[str] = Field(None, description="End of violation period (YYYY-MM-DD)")
 
     # Violation details
     violation_types: List[str] = Field(
@@ -39,7 +38,7 @@ class EnforcementAction(BaseModel):
     status: str = Field(default="已結案", description="Case status")
 
     # Document
-    document_url: Optional[HttpUrl] = Field(None, description="URL to official document")
+    document_url: Optional[str] = Field(None, description="URL to official document")
     summary: str = Field(..., max_length=2000, description="Brief summary of the action")
 
     class Config:
@@ -72,7 +71,7 @@ class DocumentMetadata(BaseModel):
 
     # Case information
     case_number: Optional[str] = Field(None, description="Case number")
-    filing_date: Optional[date] = Field(None, description="Filing date")
+    filing_date: Optional[str] = Field(None, description="Filing date (YYYY-MM-DD)")
 
     # Key dates and amounts
     key_dates: List[Dict[str, Any]] = Field(
@@ -101,7 +100,7 @@ class CourtJudgment(BaseModel):
 
     case_number: str = Field(..., description="Case number (e.g., '110年金上字第15號')")
     court_name: str = Field(..., description="Court name (e.g., '最高法院')")
-    judgment_date: date = Field(..., description="Judgment date")
+    judgment_date: str = Field(..., description="Judgment date (YYYY-MM-DD)")
     case_type: str = Field(..., description="Case type (e.g., '金', '上訴')")
 
     # Parties
@@ -111,7 +110,7 @@ class CourtJudgment(BaseModel):
     # Content
     main_text: str = Field(..., description="Main text (主文)")
     case_summary: str = Field(..., description="Case summary (案由)")
-    judgment_url: Optional[HttpUrl] = Field(None, description="URL to judgment")
+    judgment_url: Optional[str] = Field(None, description="URL to judgment")
 
 
 class PrecedentCase(BaseModel):
@@ -119,7 +118,7 @@ class PrecedentCase(BaseModel):
 
     case_id: str = Field(..., description="Case identifier")
     case_name: str = Field(..., description="Case name")
-    date: date = Field(..., description="Case date")
+    date: str = Field(..., description="Case date (YYYY-MM-DD)")
     jurisdiction: str = Field(..., description="Jurisdiction/court")
 
     # Details
