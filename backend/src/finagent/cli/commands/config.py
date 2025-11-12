@@ -62,6 +62,22 @@ def get_available_openai_models(api_key: str) -> list:
                 if m.startswith("gpt-") and not m.startswith("gpt-3.5-turbo-instruct")
             ]
 
+            # Remove dated versions (e.g., gpt-4o-2024-08-06 → gpt-4o)
+            # Keep only canonical model names without date suffixes
+            canonical_models = {}
+            for model in chat_models:
+                # Check if model has date suffix (YYYY-MM-DD)
+                import re
+                # Remove date pattern like -2024-08-06, -0125, etc.
+                canonical = re.sub(r'-\d{4}(-\d{2}){0,2}$', '', model)
+
+                # Prefer shorter canonical names (e.g., gpt-4o over gpt-4o-2024-08-06)
+                if canonical not in canonical_models or len(model) < len(canonical_models[canonical]):
+                    canonical_models[canonical] = model
+
+            # Use the canonical names
+            chat_models = list(canonical_models.keys())
+
             # Sort by preference: gpt-4o variants first, then gpt-4, then gpt-3.5
             priority_order = ["gpt-4o", "gpt-4", "gpt-3.5"]
 
@@ -115,6 +131,19 @@ def get_available_embedding_models(api_key: str) -> list:
                 m for m in all_models
                 if "embedding" in m
             ]
+
+            # Remove dated versions (e.g., text-embedding-3-small-2024-01 → text-embedding-3-small)
+            import re
+            canonical_embeddings = {}
+            for model in embedding_models:
+                # Remove date pattern
+                canonical = re.sub(r'-\d{4}(-\d{2}){0,2}$', '', model)
+
+                # Prefer shorter canonical names
+                if canonical not in canonical_embeddings or len(model) < len(canonical_embeddings[canonical]):
+                    canonical_embeddings[canonical] = model
+
+            embedding_models = list(canonical_embeddings.keys())
 
             # Sort: text-embedding-3 first, then text-embedding-ada
             def sort_key(model):
