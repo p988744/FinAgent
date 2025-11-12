@@ -26,6 +26,9 @@ dependencies = [
     "python-multipart>=0.0.6",
     "aiofiles>=23.2.0",
     "python-dotenv>=1.0.0",
+    "click>=8.1.7",
+    "rich>=13.7.0",
+    "prompt-toolkit>=3.0.43",
 ]
 
 [project.optional-dependencies]
@@ -38,6 +41,9 @@ dev = [
     "mypy>=1.8.0",
     "httpx>=0.26.0",
 ]
+
+[project.scripts]
+finagent = "finagent.cli.main:cli"
 
 [build-system]
 requires = ["hatchling"]

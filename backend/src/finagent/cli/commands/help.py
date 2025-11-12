@@ -1,0 +1,76 @@
+"""Help command handler."""
+
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.markdown import Markdown
+
+console = Console()
+
+
+def show_help():
+    """Display help information."""
+
+    help_text = """
+# FinAgent CLI 指令說明
+
+## 基本指令
+
+| 指令 | 說明 |
+|------|------|
+| `/help`, `/h`, `/?` | 顯示此說明 |
+| `/exit`, `/quit`, `/q!` | 離開程式 |
+| `/clear`, `/cls` | 清除螢幕 |
+
+## 查詢指令
+
+| 指令 | 說明 |
+|------|------|
+| `/query <文字>`, `/q <文字>` | 執行法律研究查詢 |
+| `<直接輸入文字>` | 直接輸入查詢（自動使用 /query） |
+
+**範例：**
+```
+/query 玉山銀行洗錢防制裁罰
+2020年金管會裁罰案件
+國泰世華銀行法規違規
+```
+
+## 歷史與結果
+
+| 指令 | 說明 |
+|------|------|
+| `/history`, `/hist` | 顯示查詢歷史 |
+| `/citations`, `/cite` | 顯示最後查詢的引用清單 |
+| `/cite <編號>` | 查看特定引用詳情（尚未實作） |
+
+## 文件管理
+
+| 指令 | 說明 |
+|------|------|
+| `/reindex` | 重新索引文件（增量更新） |
+| `/reindex --clear` | 清空並重新建立完整索引 |
+
+## 其他指令
+
+| 指令 | 說明 |
+|------|------|
+| `/export <格式>` | 匯出結果 (markdown, json) |
+| `/config` | 顯示系統設定 |
+
+## 快捷鍵
+
+- `Ctrl+C` - 取消當前操作
+- `Ctrl+D` - 離開程式
+- `↑/↓` - 瀏覽歷史指令
+- `Tab` - 自動完成指令
+
+## 提示
+
+1. 使用 **繁體中文** 進行查詢以獲得最佳結果
+2. 可以指定特定銀行、日期範圍或監管機構
+3. 查詢結果包含正式法律引用和信心評分
+4. 所有事實陳述都有來源引用
+    """
+
+    console.print(Panel(Markdown(help_text), border_style="cyan", title="說明", padding=(1, 2)))

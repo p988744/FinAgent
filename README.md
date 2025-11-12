@@ -19,6 +19,7 @@ This system uses a multi-agent architecture to help legal professionals and rese
 - ✅ Multi-agent research system (Planning, Action, Answer agents)
 - ✅ RAG-based document analysis with vector search
 - ✅ Taiwan legal citation formatting
+- ✅ **Interactive CLI (REPL) Interface** - NEW!
 - ✅ Web-based user interface
 - ✅ Docker deployment
 
@@ -47,7 +48,44 @@ This system uses a multi-agent architecture to help legal professionals and rese
 - Docker & Docker Compose (optional)
 - OpenAI API Key
 
-### Option 1: Docker (Recommended)
+### Option 1: CLI Interface (Recommended for Research)
+
+**Interactive REPL Mode:**
+
+```bash
+cd backend
+
+# Install dependencies
+uv sync
+
+# Set up environment
+cp .env.example .env
+# Edit .env with your OpenAI API key
+
+# Start backend API
+uv run uvicorn finagent.main:app --reload
+
+# In a new terminal, start CLI
+uv run finagent
+
+# You'll see:
+# finagent>
+# Now you can type queries directly in Traditional Chinese!
+```
+
+**Single Query Mode:**
+
+```bash
+# Quick query without entering REPL
+uv run finagent query "玉山銀行洗錢防制裁罰"
+
+# With options
+uv run finagent query "2020年金管會裁罰" --max-results 10 --format json
+```
+
+📖 **See [CLI_GUIDE.md](CLI_GUIDE.md) for complete CLI documentation**
+
+### Option 2: Docker (Recommended for Full Stack)
 
 ```bash
 # Clone the repository
@@ -67,7 +105,7 @@ docker-compose up --build
 # API Docs: http://localhost:8000/docs
 ```
 
-### Option 2: Local Development
+### Option 3: Local Development (Web Interface)
 
 **Backend:**
 
@@ -184,7 +222,9 @@ Once the backend is running, visit:
 
 ## Documentation
 
+- **[CLI Usage Guide](CLI_GUIDE.md)** - Complete CLI documentation with examples
 - [MVP Implementation Plan](MVP_PLAN.md)
+- [Quickstart Guide](QUICKSTART.md)
 - [Claude AI Context](CLAUDE.md)
 - [Original Specification](法律研究代理系統規格書.md)
 
