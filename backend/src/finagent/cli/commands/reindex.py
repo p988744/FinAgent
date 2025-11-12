@@ -47,11 +47,12 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
         )
         metadata_store = DocumentMetadataStore()
 
-        # Clear collection if requested
+        # Clear collection and metadata if requested
         if clear_existing:
-            console.print("[yellow]🗑️  清空現有索引...[/yellow]")
+            console.print("[yellow]🗑️  清空現有索引和元資料...[/yellow]")
             indexer.clear_collection()
-            console.print("[green]✅ 索引已清空[/green]\n")
+            metadata_store.clear_all()
+            console.print("[green]✅ 索引和元資料已清空[/green]\n")
 
         # Load all TXT files (recursively)
         console.print("[cyan]📄 載入文件...[/cyan]")

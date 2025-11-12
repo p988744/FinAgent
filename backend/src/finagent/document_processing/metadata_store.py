@@ -153,6 +153,16 @@ class DocumentMetadataStore:
             return True
         return False
 
+    def clear_all(self) -> None:
+        """
+        Clear all metadata from store.
+
+        This removes all stored metadata and saves the empty state.
+        Useful when doing a full reindex with --clear flag.
+        """
+        self.metadata.clear()
+        self._save()
+
     def update_metadata(
         self,
         doc_id: str,
