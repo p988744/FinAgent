@@ -16,16 +16,18 @@ from finagent.document_processing import (
     DocumentIndexer,
 )
 from finagent.document_processing.metadata_store import DocumentMetadataStore
+from finagent.cli.commands.init import init_document_interactive
 
 console = Console()
 
 
-def reindex_documents(clear_existing: bool = False) -> tuple[int, int]:
+def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) -> tuple[int, int]:
     """
     Reindex all documents in the data/documents directory.
 
     Args:
         clear_existing: Whether to clear the existing collection first
+        prompt_init: Whether to prompt for metadata initialization if not present
 
     Returns:
         Tuple of (total_documents, total_chunks)
@@ -59,6 +61,43 @@ def reindex_documents(clear_existing: bool = False) -> tuple[int, int]:
             return 0, 0
 
         console.print(f"[green]✅ 找到 {len(documents)} 個文件[/green]\n")
+
+        # Check for uninitialized documents and prompt for initialization
+        if prompt_init:
+            uninitialized_docs = []
+            for doc in documents:
+                if not metadata_store.get_metadata(doc.id):
+                    uninitialized_docs.append(doc)
+
+            if uninitialized_docs:
+                console.print(f"[yellow]發現 {len(uninitialized_docs)} 個未初始化的文件[/yellow]")
+                console.print("[dim]建議先初始化文件描述以提升檢索準確度[/dim]\n")
+
+                from rich.prompt import Confirm
+
+                for doc in uninitialized_docs:
+                    filename = doc.metadata.get("filename", "unknown")
+                    console.print(f"[bold]文件:[/bold] {filename}")
+
+                    should_init = Confirm.ask(
+                        f"是否要初始化此文件？",
+                        default=True
+                    )
+
+                    if should_init:
+                        try:
+                            # Use relative path for init
+                            relative_path = Path(doc.source).relative_to(docs_path)
+                            init_document_interactive(str(relative_path))
+                        except Exception as e:
+                            console.print(f"[red]初始化失敗: {str(e)}[/red]")
+                            console.print("[yellow]將繼續索引但不包含元資料[/yellow]\n")
+                    else:
+                        console.print("[yellow]跳過初始化，將以原始文件內容索引[/yellow]\n")
+
+                # Reload metadata store after initializations
+                metadata_store = DocumentMetadataStore()
+                console.print()
 
         # Index documents with progress bar
         total_chunks = 0
@@ -131,8 +170,14 @@ def reindex_documents(clear_existing: bool = False) -> tuple[int, int]:
         raise
 
 
-def execute_reindex(clear: bool = False):
-    """Execute reindex command from CLI."""
+def execute_reindex(clear: bool = False, skip_init: bool = False):
+    """
+    Execute reindex command from CLI.
+
+    Args:
+        clear: Whether to clear existing index first
+        skip_init: Whether to skip initialization prompts
+    """
     console.print()
 
     if clear:
@@ -155,7 +200,10 @@ def execute_reindex(clear: bool = False):
     console.print("[bold cyan]🚀 開始重新索引文件...[/bold cyan]\n")
 
     try:
-        indexed, chunks = reindex_documents(clear_existing=clear)
+        indexed, chunks = reindex_documents(
+            clear_existing=clear,
+            prompt_init=not skip_init
+        )
 
         # Show summary
         console.print()

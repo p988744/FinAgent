@@ -178,9 +178,11 @@ class ReplSession:
 
         # Reindex command
         if command == "/reindex":
-            # Check if --clear flag is provided
-            clear = args.strip().lower() in ["--clear", "-c", "clear"]
-            execute_reindex(clear=clear)
+            # Parse flags
+            args_lower = args.strip().lower()
+            clear = "--clear" in args_lower or "-c" in args_lower or args_lower == "clear"
+            skip_init = "--skip-init" in args_lower or "--no-init" in args_lower
+            execute_reindex(clear=clear, skip_init=skip_init)
             return True
 
         # Unknown command
