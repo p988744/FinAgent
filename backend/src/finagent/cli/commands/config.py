@@ -10,6 +10,7 @@ from rich.prompt import Prompt, Confirm
 from rich.table import Table
 
 from finagent.config import settings, reload_settings
+from finagent.model_config_loader import get_model_config, reload_model_config
 
 console = Console()
 
@@ -32,7 +33,7 @@ DEFAULT_OPENAI_EMBEDDING_MODELS = [
 
 def get_available_openai_models(api_key: str) -> list:
     """
-    Fetch available OpenAI models from API.
+    Fetch available OpenAI models from API or model_config.yml.
 
     Args:
         api_key: OpenAI API key
@@ -40,8 +41,33 @@ def get_available_openai_models(api_key: str) -> list:
     Returns:
         List of available model IDs
     """
+    # Check if should use static list from model_config.yml
+    try:
+        model_config = get_model_config()
+        if model_config.use_static_model_list():
+            # Use models from model_config.yml only
+            models = model_config.get_openai_chat_models(
+                recommended_only=model_config.show_only_recommended()
+            )
+            return [m.id for m in models[:model_config.get_max_models_to_display()]]
+
+        # Check if should skip dynamic fetching
+        if not model_config.should_fetch_openai_models_dynamically():
+            models = model_config.get_openai_chat_models()
+            return [m.id for m in models[:model_config.get_max_models_to_display()]]
+    except FileNotFoundError:
+        # model_config.yml not found, use legacy behavior
+        pass
+    except Exception as e:
+        console.print(f"[dim]無法載入 model_config.yml: {e}[/dim]")
+
     if not api_key or api_key == "":
-        return DEFAULT_OPENAI_MODELS
+        try:
+            model_config = get_model_config()
+            models = model_config.get_openai_chat_models()
+            return [m.id for m in models[:10]]
+        except:
+            return DEFAULT_OPENAI_MODELS
 
     try:
         import httpx
@@ -102,7 +128,7 @@ def get_available_openai_models(api_key: str) -> list:
 
 def get_available_embedding_models(api_key: str) -> list:
     """
-    Fetch available OpenAI embedding models from API.
+    Fetch available OpenAI embedding models from API or model_config.yml.
 
     Args:
         api_key: OpenAI API key
@@ -110,8 +136,30 @@ def get_available_embedding_models(api_key: str) -> list:
     Returns:
         List of available embedding model IDs
     """
+    # Check if should use static list from model_config.yml
+    try:
+        model_config = get_model_config()
+        if model_config.use_static_model_list():
+            models = model_config.get_openai_embedding_models(
+                recommended_only=model_config.show_only_recommended()
+            )
+            return [m.id for m in models]
+
+        if not model_config.should_fetch_openai_models_dynamically():
+            models = model_config.get_openai_embedding_models()
+            return [m.id for m in models]
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        console.print(f"[dim]無法載入 model_config.yml: {e}[/dim]")
+
     if not api_key or api_key == "":
-        return DEFAULT_OPENAI_EMBEDDING_MODELS
+        try:
+            model_config = get_model_config()
+            models = model_config.get_openai_embedding_models()
+            return [m.id for m in models]
+        except:
+            return DEFAULT_OPENAI_EMBEDDING_MODELS
 
     try:
         import httpx
@@ -189,7 +237,10 @@ def show_config():
     console.print()
 
     # Show hints
-    console.print("[dim]提示: 使用 [cyan]/config llm[/cyan] 修改 LLM 設定[/dim]")
+    console.print("[dim]提示:[/dim]")
+    console.print("[dim]  • 使用 [cyan]/config llm[/cyan] 修改 LLM 設定[/dim]")
+    console.print("[dim]  • 使用 [cyan]/config reload[/cyan] 重新載入設定檔 (.env 和 model_config.yml)[/dim]")
+    console.print("[dim]  • 編輯 [cyan]model_config.yml[/cyan] 來自訂模型列表[/dim]")
     console.print()
 
 
@@ -421,16 +472,58 @@ def save_to_env(
                 f.write(f"{key}={value}\n")
 
 
+def reload_config():
+    """Reload configuration from .env and model_config.yml."""
+    console.print()
+    console.print("[cyan]正在重新載入設定...[/cyan]")
+
+    try:
+        # Reload .env settings
+        reload_settings()
+        console.print("[green]✓ 已重新載入 .env 設定[/green]")
+
+        # Reload model_config.yml
+        reload_model_config()
+        console.print("[green]✓ 已重新載入 model_config.yml[/green]")
+
+        # Reset orchestrator to use new config
+        try:
+            from finagent.cli.commands.query import reset_orchestrator
+            reset_orchestrator()
+            console.print("[green]✓ 已重置查詢引擎[/green]")
+        except Exception as e:
+            console.print(f"[yellow]⚠️  無法重置查詢引擎: {e}[/yellow]")
+
+        console.print()
+        console.print("[bold green]✅ 設定已重新載入！無需重啟 CLI[/bold green]")
+        console.print()
+
+        # Show new config
+        show_config()
+
+    except FileNotFoundError as e:
+        console.print(f"[red]✗ 找不到設定檔: {e}[/red]")
+    except Exception as e:
+        console.print(f"[red]✗ 重新載入失敗: {e}[/red]")
+        import traceback
+        console.print(f"[dim]{traceback.format_exc()}[/dim]")
+
+
 def handle_config_command(args: str):
     """
     Handle /config command.
 
     Args:
-        args: Command arguments ("llm" to configure, empty to show)
+        args: Command arguments
+          - "llm": Configure LLM settings interactively
+          - "reload": Reload configuration from files
+          - empty: Show current configuration
     """
     args = args.strip().lower()
 
     if args == "llm":
         configure_llm()
+    elif args == "reload":
+        reload_config()
     else:
         show_config()
