@@ -9,6 +9,10 @@ from finagent.document_processing.chunker import ChineseTextChunker
 from finagent.document_processing.embeddings import EmbeddingGenerator
 from finagent.document_processing.indexer import DocumentIndexer
 from finagent.document_processing.retriever import DocumentRetriever
+from finagent.document_processing.metadata_store import (
+    DocumentMetadataStore,
+    DocumentMetadata,
+)
 
 __all__ = [
     "DocumentLoader",
@@ -16,4 +20,6 @@ __all__ = [
     "EmbeddingGenerator",
     "DocumentIndexer",
     "DocumentRetriever",
+    "DocumentMetadataStore",
+    "DocumentMetadata",
 ]

@@ -15,6 +15,7 @@ from finagent.document_processing import (
     DocumentLoader,
     DocumentIndexer,
 )
+from finagent.document_processing.metadata_store import DocumentMetadataStore
 
 console = Console()
 
@@ -35,12 +36,13 @@ def reindex_documents(clear_existing: bool = False) -> tuple[int, int]:
         docs_path = base_dir / "data" / "documents"
         vector_db_path = base_dir / "data" / "vector_db"
 
-        # Initialize loader and indexer
+        # Initialize loader, indexer, and metadata store
         loader = DocumentLoader(base_path=str(docs_path))
         indexer = DocumentIndexer(
             collection_name="legal_documents",
             persist_directory=str(vector_db_path)
         )
+        metadata_store = DocumentMetadataStore()
 
         # Clear collection if requested
         if clear_existing:
@@ -87,14 +89,32 @@ def reindex_documents(clear_existing: bool = False) -> tuple[int, int]:
                     )
                     continue
 
+                # Load enhanced metadata if available
+                enhanced_metadata = metadata_store.get_metadata(doc.id)
+                if enhanced_metadata:
+                    # Merge enhanced metadata into document metadata
+                    doc.metadata.update({
+                        "description": enhanced_metadata.description,
+                        "document_type": enhanced_metadata.document_type,
+                        "keywords": ", ".join(enhanced_metadata.keywords),
+                        "date": enhanced_metadata.date or "",
+                        "issuing_authority": enhanced_metadata.issuing_authority or "",
+                        "related_institutions": ", ".join(enhanced_metadata.related_institutions),
+                        "penalty_amount": enhanced_metadata.penalty_amount or "",
+                        "violation_types": ", ".join(enhanced_metadata.violation_types),
+                    })
+
                 # Index document
                 try:
                     chunks = indexer.index_document(doc)
                     total_chunks += chunks
+
+                    # Show if enhanced metadata was used
+                    status_icon = "📋" if enhanced_metadata else "📄"
                     progress.update(
                         task,
                         advance=1,
-                        description=f"[green]✅ 已索引: {filename[:40]}... ({chunks} chunks)"
+                        description=f"[green]{status_icon} 已索引: {filename[:40]}... ({chunks} chunks)"
                     )
                 except Exception as e:
                     progress.update(

@@ -21,6 +21,7 @@ from finagent.cli.commands.history import QueryHistory
 from finagent.cli.commands.help import show_help
 from finagent.cli.commands.reindex import execute_reindex
 from finagent.cli.commands.config import handle_config_command
+from finagent.cli.commands.init import handle_init_command
 from finagent.cli.formatters.answer import format_legal_answer
 
 console = Console()
@@ -44,6 +45,7 @@ class ReplSession:
             "/citations", "/cite",
             "/export",
             "/config",
+            "/init",
             "/reindex",
             "/exit", "/quit", "/q!",
         ]
@@ -167,6 +169,11 @@ class ReplSession:
         # Config command
         if command == "/config":
             handle_config_command(args)
+            return True
+
+        # Init command
+        if command == "/init":
+            handle_init_command(args)
             return True
 
         # Reindex command
