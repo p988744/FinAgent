@@ -18,6 +18,7 @@ from finagent.document_processing.metadata_store import (
     DocumentMetadataStore,
     DocumentMetadata,
 )
+from finagent.document_processing.toc_generator import TableOfContents
 
 console = Console()
 
@@ -337,6 +338,17 @@ def init_document_interactive(filename: Optional[str] = None):
         console.print()
         console.print("[dim]提示: 這些資訊將在文件索引時加入，幫助提升檢索準確度[/dim]")
         console.print()
+
+        # Update table of contents
+        try:
+            console.print("[cyan]📖 更新文件目錄...[/cyan]")
+            toc = TableOfContents()
+            toc_path = toc.save()
+            console.print(f"[green]✅ 文件目錄已更新: {toc_path.name}[/green]")
+            console.print()
+        except Exception as e:
+            console.print(f"[yellow]⚠️  目錄更新失敗: {str(e)}[/yellow]")
+            console.print()
 
     except KeyboardInterrupt:
         console.print("\n[yellow]已取消[/yellow]\n")

@@ -16,6 +16,7 @@ from finagent.document_processing import (
     DocumentIndexer,
 )
 from finagent.document_processing.metadata_store import DocumentMetadataStore
+from finagent.document_processing.toc_generator import TableOfContents
 from finagent.cli.commands.init import init_document_interactive
 
 console = Console()
@@ -162,6 +163,16 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
                         description=f"[red]❌ 錯誤: {filename[:40]}..."
                     )
                     console.print(f"[red]  錯誤詳情: {str(e)}[/red]")
+
+        # Update table of contents after indexing
+        console.print()
+        console.print("[cyan]📖 更新文件目錄...[/cyan]")
+        try:
+            toc = TableOfContents()
+            toc_path = toc.save()
+            console.print(f"[green]✅ 文件目錄已更新: {toc_path.name}[/green]")
+        except Exception as e:
+            console.print(f"[yellow]⚠️  目錄更新失敗: {str(e)}[/yellow]")
 
         return len(documents) - skipped, total_chunks
 

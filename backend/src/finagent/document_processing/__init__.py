@@ -13,6 +13,7 @@ from finagent.document_processing.metadata_store import (
     DocumentMetadataStore,
     DocumentMetadata,
 )
+from finagent.document_processing.toc_generator import TableOfContents
 
 __all__ = [
     "DocumentLoader",
@@ -22,4 +23,5 @@ __all__ = [
     "DocumentRetriever",
     "DocumentMetadataStore",
     "DocumentMetadata",
+    "TableOfContents",
 ]
