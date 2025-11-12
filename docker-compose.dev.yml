@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: finagent-backend-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=development
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LOG_LEVEL=DEBUG
+      - API_RELOAD=true
+    volumes:
+      - ./backend/src:/app/src:delegated
+      - ./backend/data:/app/data:delegated
+    command: python -m uvicorn finagent.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - finagent-network
+
+  frontend:
+    image: node:18-alpine
+    container_name: finagent-frontend-dev
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app:delegated
+      - /app/node_modules
+      - /app/.next
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - backend
+    networks:
+      - finagent-network
+
+networks:
+  finagent-network:
+    driver: bridge

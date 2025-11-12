@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: finagent-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4-turbo-preview}
+      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CHROMA_PERSIST_DIRECTORY=/app/data/vector_db
+    volumes:
+      - ./backend/src:/app/src
+      - backend-data:/app/data
+    networks:
+      - finagent-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: finagent-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=production
+    depends_on:
+      - backend
+    networks:
+      - finagent-network
+    restart: unless-stopped
+
+volumes:
+  backend-data:
+    driver: local
+
+networks:
+  finagent-network:
+    driver: bridge
