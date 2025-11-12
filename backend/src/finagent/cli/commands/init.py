@@ -204,7 +204,7 @@ def init_document_with_llm(filename: Optional[str] = None):
                 metadata = generator.generate_metadata(
                     doc_id=doc.id,
                     filename=filename_display,
-                    content=doc.page_content
+                    content=doc.content
                 )
 
                 progress.update(task, completed=True)
