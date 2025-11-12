@@ -38,7 +38,7 @@ finagent> /reindex
 
 🤖 發現 5 個未初始化的文件
 使用 LLM 自動分析並初始化元資料...
-提示: 按 ESC 鍵取消當前文件的初始化
+提示: 按 Ctrl+C 取消整個操作
 
 ⠋ 🤖 初始化文件元資料... ███████████████░░░ 85%
 
@@ -52,7 +52,7 @@ finagent> /reindex
 ✅ **Benefits**:
 - Fully automated - no confirmations needed
 - Progress bar shows real-time status
-- Can press ESC to skip individual documents
+- Press Ctrl+C to cancel entire operation
 - Much faster for batch operations
 
 ## Usage
@@ -109,7 +109,7 @@ finagent> /reindex --clear --skip-init
 ```
 🤖 發現 10 個未初始化的文件
 使用 LLM 自動分析並初始化元資料...
-提示: 按 ESC 鍵取消當前文件的初始化
+提示: 按 Ctrl+C 取消整個操作
 
 ⠋ 🤖 分析: document_005.txt... ████████░░░░ 50%
 
@@ -143,19 +143,6 @@ Icons:
 - 📄 = Document without metadata
 
 ## Cancellation
-
-### Cancel Current Document
-
-Press **ESC** during initialization to skip the current document:
-
-```
-⠋ 🤖 分析: problematic_document.txt...
-
-# Press ESC here
-⏭️  已跳過: problematic_document.txt...
-
-# Continues with next document
-```
 
 ### Cancel Entire Operation
 
@@ -404,7 +391,7 @@ finagent> /reindex
 | **User interaction** | Confirm each document | One command |
 | **Speed** | Slow (wait for each) | Fast (automated) |
 | **Progress** | None | Real-time progress bar |
-| **Cancellation** | Ctrl+C only | ESC (per-doc) or Ctrl+C (all) |
+| **Cancellation** | Ctrl+C only | Ctrl+C (cancels all) |
 | **Error handling** | Stops on error | Auto-skip and continue |
 | **Resumable** | No | Yes (skips initialized) |
 | **TOC format** | Verbose | Compact & grep-friendly |
@@ -431,7 +418,7 @@ finagent> /reindex
 **Key improvements:**
 - ⚡ Fully automated initialization
 - 📊 Real-time progress display
-- 🎹 ESC to skip individual documents
+- ⏸️ Ctrl+C to cancel entire operation
 - 📋 Compact, grep-friendly TOC
 - ♻️ Resumable (skips already initialized)
 - 💰 Cost-effective (~NT$0.03 per document)
