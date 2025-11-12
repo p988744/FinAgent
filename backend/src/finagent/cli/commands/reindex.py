@@ -73,7 +73,7 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
             if uninitialized_docs:
                 console.print(f"[cyan]🤖 發現 {len(uninitialized_docs)} 個未初始化的文件[/cyan]")
                 console.print(f"[dim]使用 LLM 自動分析並初始化元資料...[/dim]")
-                console.print(f"[yellow]提示: 按 ESC 鍵取消當前文件的初始化[/yellow]\n")
+                console.print(f"[yellow]提示: 按 Ctrl+C 取消整個操作[/yellow]\n")
 
                 from finagent.document_processing.metadata_generator import MetadataGenerator
 
@@ -121,14 +121,10 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
                             )
 
                         except KeyboardInterrupt:
-                            # User pressed ESC - skip this document
-                            failed_count += 1
-                            progress.update(
-                                init_task,
-                                advance=1,
-                                description=f"[yellow]⏭️  已跳過: {filename[:40]}..."
-                            )
-                            continue
+                            # User pressed Ctrl+C - cancel entire operation
+                            console.print()
+                            console.print("[yellow]⏸️  操作已中斷[/yellow]")
+                            raise  # Re-raise to cancel entire operation
 
                         except Exception as e:
                             # LLM error - skip this document
