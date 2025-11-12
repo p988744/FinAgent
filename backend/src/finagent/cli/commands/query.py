@@ -27,6 +27,12 @@ def get_orchestrator() -> AgentOrchestrator:
     return _orchestrator
 
 
+def reset_orchestrator():
+    """Reset orchestrator to force reinitialization with new config."""
+    global _orchestrator
+    _orchestrator = None
+
+
 def execute_query(
     query_text: str,
     max_results: int = 5,

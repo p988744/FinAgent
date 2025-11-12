@@ -23,6 +23,7 @@ The interactive wizard will guide you through:
 2. Setting model name
 3. Configuring API credentials
 4. Selecting embedding model
+5. Automatic config reload (no restart required!)
 
 ### Configure via .env File
 
@@ -259,12 +260,12 @@ ollama list  # Verify model is available
 **Location:** `/Users/weifanliao/PycharmProjects/finagent/backend/.env`
 
 **Managed by:**
-- `/config llm` command (recommended)
-- Manual editing (advanced users)
+- `/config llm` command (recommended) - Auto-reloads config
+- Manual editing (advanced users) - Restart required
 
 **Applied when:**
-- CLI restart required after changing configuration
-- Settings loaded on startup
+- `/config llm`: Immediately applied (no restart needed)
+- Manual `.env` edit: Restart CLI to apply changes
 
 ## Environment Variables
 

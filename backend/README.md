@@ -169,6 +169,7 @@ The `/config llm` command will:
 1. Guide you through provider selection (OpenAI or Local LLM)
 2. Help you choose model and credentials
 3. Automatically save to `.env` file
+4. **Automatically reload configuration** (no restart required!)
 
 ---
 

@@ -80,3 +80,10 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
+
+
+def reload_settings():
+    """Reload settings from .env file."""
+    global settings
+    settings = Settings()
+    return settings

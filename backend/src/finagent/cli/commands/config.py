@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 from rich.table import Table
 
-from finagent.config import settings
+from finagent.config import settings, reload_settings
 
 console = Console()
 
@@ -205,9 +205,21 @@ def configure_llm():
 
     console.print()
     console.print("[green]✓ 設定已儲存到 .env 檔案[/green]")
+
+    # Reload configuration
+    console.print("[cyan]正在重新載入設定...[/cyan]")
+    reload_settings()
+
+    # Reset orchestrator to use new config
+    from finagent.cli.commands.query import reset_orchestrator
+    reset_orchestrator()
+
+    console.print("[green]✓ 設定已套用，無需重新啟動 CLI[/green]")
     console.print()
-    console.print("[yellow]⚠ 請重新啟動 CLI 以套用新設定[/yellow]")
-    console.print()
+
+    # Show new config
+    console.print("[bold]新的設定：[/bold]")
+    show_config()
 
 
 def save_to_env(
