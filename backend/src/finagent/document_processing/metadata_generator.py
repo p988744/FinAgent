@@ -49,15 +49,19 @@ class MetadataGenerator:
         reload_settings()
 
         # Initialize OpenAI client based on config
-        if settings.use_local_llm:
+        base_url = settings.effective_llm_base_url
+
+        if base_url:
+            # Custom endpoint
             self.client = OpenAI(
-                api_key=settings.local_llm_api_key,
-                base_url=settings.local_llm_base_url
+                api_key=settings.effective_llm_api_key,
+                base_url=base_url
             )
-            self.model = settings.local_llm_model
         else:
-            self.client = OpenAI(api_key=settings.openai_api_key)
-            self.model = settings.openai_model
+            # OpenAI default
+            self.client = OpenAI(api_key=settings.effective_llm_api_key)
+
+        self.model = settings.llm_model
 
     def generate_metadata(
         self,

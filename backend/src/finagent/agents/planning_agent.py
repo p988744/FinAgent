@@ -1,7 +1,7 @@
 """Planning Agent - Decomposes queries and creates research plans."""
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
@@ -22,21 +22,25 @@ class PlanningAgent:
     - Determine required data sources
     """
 
-    def __init__(self, model: str = "gpt-4o-mini"):
+    def __init__(self, model: Optional[str] = None):
         """Initialize planning agent with LLM."""
-        # Use local LLM if configured
-        if settings.use_local_llm:
+        effective_model = model or settings.llm_model
+        base_url = settings.effective_llm_base_url
+
+        if base_url:
+            # Custom endpoint
             self.llm = ChatOpenAI(
-                model=settings.local_llm_model,
-                api_key=settings.local_llm_api_key,
-                base_url=settings.local_llm_base_url,
-                temperature=0.2,
+                model=effective_model,
+                api_key=settings.effective_llm_api_key,
+                base_url=base_url,
+                temperature=settings.llm_temperature,
             )
         else:
+            # OpenAI default
             self.llm = ChatOpenAI(
-                model=model,
-                api_key=settings.openai_api_key,
-                temperature=0.2,  # Lower temperature for more focused planning
+                model=effective_model,
+                api_key=settings.effective_llm_api_key,
+                temperature=settings.llm_temperature,
             )
 
         self.prompt = ChatPromptTemplate.from_messages([

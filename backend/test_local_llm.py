@@ -18,27 +18,35 @@ from finagent.document_processing.embeddings import EmbeddingGenerator
 from openai import OpenAI
 
 
-def test_local_llm():
-    """Test local LLM connection."""
+def test_llm():
+    """Test LLM connection."""
     print("\n" + "=" * 60)
-    print("Testing Local LLM Connection")
+    print("Testing LLM Connection")
     print("=" * 60)
 
+    base_url = settings.effective_llm_base_url
     print(f"\n📋 Configuration:")
-    print(f"   Base URL: {settings.local_llm_base_url}")
-    print(f"   Model: {settings.local_llm_model}")
-    print(f"   API Key: {settings.local_llm_api_key[:10]}...")
+    print(f"   Provider: {'Custom endpoint' if base_url else 'OpenAI'}")
+    if base_url:
+        print(f"   Base URL: {base_url}")
+    print(f"   Model: {settings.llm_model}")
+    print(f"   API Key: {settings.effective_llm_api_key[:10]}...")
 
     try:
-        client = OpenAI(
-            base_url=settings.local_llm_base_url,
-            api_key=settings.local_llm_api_key
-        )
+        if base_url:
+            client = OpenAI(
+                base_url=base_url,
+                api_key=settings.effective_llm_api_key
+            )
+        else:
+            client = OpenAI(
+                api_key=settings.effective_llm_api_key
+            )
 
-        print(f"\n🔄 Sending test query to {settings.local_llm_model}...")
+        print(f"\n🔄 Sending test query to {settings.llm_model}...")
 
         response = client.chat.completions.create(
-            model=settings.local_llm_model,
+            model=settings.llm_model,
             messages=[
                 {"role": "user", "content": "請用繁體中文回答：台灣的首都是哪裡？"}
             ],
@@ -50,27 +58,30 @@ def test_local_llm():
 
         print(f"\n✅ LLM Response:")
         print(f"   {answer}")
-        print(f"\n✅ Local LLM connection successful!")
+        print(f"\n✅ LLM connection successful!")
 
         return True
 
     except Exception as e:
-        print(f"\n❌ Local LLM test failed: {e}")
+        print(f"\n❌ LLM test failed: {e}")
         import traceback
         traceback.print_exc()
         return False
 
 
-def test_local_embedding():
-    """Test local embedding model."""
+def test_embedding():
+    """Test embedding model."""
     print("\n" + "=" * 60)
-    print("Testing Local Embedding Model")
+    print("Testing Embedding Model")
     print("=" * 60)
 
+    base_url = settings.effective_embedding_base_url
     print(f"\n📋 Configuration:")
-    print(f"   Base URL: {settings.local_llm_base_url}")
-    print(f"   Embedding Model: {settings.local_embedding_model}")
-    print(f"   API Key: {settings.local_llm_api_key[:10]}...")
+    print(f"   Provider: {'Custom endpoint' if base_url else 'OpenAI'}")
+    if base_url:
+        print(f"   Base URL: {base_url}")
+    print(f"   Embedding Model: {settings.embedding_model}")
+    print(f"   API Key: {settings.effective_embedding_api_key[:10]}...")
 
     try:
         generator = EmbeddingGenerator()
@@ -103,7 +114,7 @@ def test_local_embedding():
         return True
 
     except Exception as e:
-        print(f"\n❌ Local embedding test failed: {e}")
+        print(f"\n❌ Embedding test failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -112,70 +123,40 @@ def test_local_embedding():
 def main():
     """Run all tests."""
     print("\n" + "=" * 60)
-    print("Local LLM & Embedding Model Test Suite")
+    print("LLM & Embedding Model Test Suite")
     print("=" * 60)
 
+    llm_base_url = settings.effective_llm_base_url
+    embedding_base_url = settings.effective_embedding_base_url
+
     print(f"\n📋 Settings:")
-    print(f"   Chat LLM Provider: {'Local' if settings.use_local_llm else 'OpenAI'}")
-    if settings.use_local_llm:
-        print(f"     ├─ URL: {settings.local_llm_base_url}")
-        print(f"     └─ Model: {settings.local_llm_model}")
+    print(f"   Chat LLM Provider: {'Custom endpoint' if llm_base_url else 'OpenAI'}")
+    if llm_base_url:
+        print(f"     ├─ URL: {llm_base_url}")
+    print(f"     └─ Model: {settings.llm_model}")
 
-    print(f"   Embedding Provider: {'Local' if settings.use_local_embedding else 'OpenAI'}")
-    if settings.use_local_embedding:
-        embedding_url = settings.local_embedding_base_url or settings.local_llm_base_url
-        print(f"     ├─ URL: {embedding_url}{' (shared with LLM)' if not settings.local_embedding_base_url else ''}")
-        print(f"     └─ Model: {settings.local_embedding_model}")
+    print(f"   Embedding Provider: {'Custom endpoint' if embedding_base_url else 'OpenAI'}")
+    if embedding_base_url:
+        shared = embedding_base_url == llm_base_url
+        print(f"     ├─ URL: {embedding_base_url}{' (shared with LLM)' if shared else ''}")
+    print(f"     └─ Model: {settings.embedding_model}")
 
-    if not settings.use_local_llm and not settings.use_local_embedding:
-        print("\n⚠️  Warning: Both USE_LOCAL_LLM and USE_LOCAL_EMBEDDING are False")
-        print("   This test is for local models. Set at least one to true.")
-        return
-
-    if settings.use_local_llm and not settings.local_llm_model:
-        print("\n⚠️  Warning: USE_LOCAL_LLM is True but LOCAL_LLM_MODEL is not set")
-        return
-
-    if settings.use_local_embedding and not settings.local_embedding_model:
-        print("\n⚠️  Warning: USE_LOCAL_EMBEDDING is True but LOCAL_EMBEDDING_MODEL is not set")
-        return
-
-    # Run tests based on configuration
-    llm_success = True
-    embedding_success = True
-
-    if settings.use_local_llm:
-        llm_success = test_local_llm()
-    else:
-        print("\n⏭️  Skipping LLM test (using OpenAI)")
-
-    if settings.use_local_embedding:
-        embedding_success = test_local_embedding()
-    else:
-        print("\n⏭️  Skipping embedding test (using OpenAI)")
+    # Run tests
+    llm_success = test_llm()
+    embedding_success = test_embedding()
 
     # Summary
     print("\n" + "=" * 60)
     print("Test Summary")
     print("=" * 60)
 
-    if settings.use_local_llm:
-        print(f"\n{'✅' if llm_success else '❌'} Local LLM: {'PASSED' if llm_success else 'FAILED'}")
-    else:
-        print(f"\n⏭️  Local LLM: SKIPPED (using OpenAI)")
+    print(f"\n{'✅' if llm_success else '❌'} LLM: {'PASSED' if llm_success else 'FAILED'}")
+    print(f"{'✅' if embedding_success else '❌'} Embedding: {'PASSED' if embedding_success else 'FAILED'}")
 
-    if settings.use_local_embedding:
-        print(f"{'✅' if embedding_success else '❌'} Local Embedding: {'PASSED' if embedding_success else 'FAILED'}")
-    else:
-        print(f"⏭️  Local Embedding: SKIPPED (using OpenAI)")
-
-    tests_run = (settings.use_local_llm or settings.use_local_embedding)
     all_passed = llm_success and embedding_success
 
-    if not tests_run:
-        print("\n⚠️  No local models configured. Using OpenAI for all services.")
-    elif all_passed:
-        print("\n🎉 All enabled tests passed! Your configuration is working correctly.")
+    if all_passed:
+        print("\n🎉 All tests passed! Your configuration is working correctly.")
     else:
         print("\n⚠️  Some tests failed. Please check the error messages above.")
 

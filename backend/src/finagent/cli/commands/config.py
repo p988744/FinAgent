@@ -218,44 +218,47 @@ def show_config():
     table.add_column("設定項目", style="white", width=25)
     table.add_column("目前值", style="cyan")
 
+    llm_base_url = settings.effective_llm_base_url
+    embedding_base_url = settings.effective_embedding_base_url
+
     # Chat/Completion LLM provider
-    if settings.use_local_llm:
-        table.add_row("聊天 LLM 提供者", "[yellow]本地 LLM[/yellow]")
-        table.add_row("  ├─ URL", settings.local_llm_base_url)
-        table.add_row("  ├─ 模型", settings.local_llm_model)
-        table.add_row("  └─ API Key", "***" if settings.local_llm_api_key else "[red]未設定[/red]")
+    if llm_base_url:
+        table.add_row("聊天 LLM 提供者", "[yellow]自訂端點[/yellow]")
+        table.add_row("  ├─ URL", llm_base_url)
+        table.add_row("  ├─ 模型", settings.llm_model)
+        table.add_row("  └─ API Key", "***" if settings.llm_api_key else "[red]未設定[/red]")
     else:
         table.add_row("聊天 LLM 提供者", "[green]OpenAI[/green]")
-        table.add_row("  ├─ 模型", settings.openai_model)
-        table.add_row("  └─ API Key", "***" if settings.openai_api_key else "[red]未設定[/red]")
+        table.add_row("  ├─ 模型", settings.llm_model)
+        table.add_row("  └─ API Key", "***" if settings.llm_api_key else "[red]未設定[/red]")
 
     # Embedding provider
     table.add_row("", "")  # Spacer
-    if settings.use_local_embedding:
-        table.add_row("嵌入模型提供者", "[yellow]本地嵌入模型[/yellow]")
-        table.add_row("  ├─ 模型", settings.local_embedding_model)
+    if embedding_base_url:
+        table.add_row("嵌入模型提供者", "[yellow]自訂端點[/yellow]")
+        table.add_row("  ├─ 模型", settings.embedding_model)
 
-        # Show URL and API key if different from LLM
-        embedding_url = settings.local_embedding_base_url or settings.local_llm_base_url
-        embedding_key = settings.local_embedding_api_key or settings.local_llm_api_key
+        # Show URL and API key
+        shared_url = embedding_base_url == llm_base_url
+        shared_key = settings.embedding_api_key == "" or settings.embedding_api_key == settings.llm_api_key
 
-        if settings.local_embedding_base_url:
-            table.add_row("  ├─ URL", embedding_url)
+        if shared_url:
+            table.add_row("  ├─ URL", f"{embedding_base_url} [dim](共用 LLM)[/dim]")
         else:
-            table.add_row("  ├─ URL", f"{embedding_url} [dim](共用 LLM)[/dim]")
+            table.add_row("  ├─ URL", embedding_base_url)
 
-        if settings.local_embedding_api_key:
-            table.add_row("  └─ API Key", "***")
-        else:
+        if shared_key:
             table.add_row("  └─ API Key", "[dim]*** (共用 LLM)[/dim]")
+        else:
+            table.add_row("  └─ API Key", "***")
     else:
         table.add_row("嵌入模型提供者", "[green]OpenAI[/green]")
-        table.add_row("  ├─ 模型", settings.openai_embedding_model)
-        table.add_row("  └─ API Key", "***" if settings.openai_api_key else "[red]未設定[/red]")
+        table.add_row("  ├─ 模型", settings.embedding_model)
+        table.add_row("  └─ API Key", "***" if settings.effective_embedding_api_key else "[red]未設定[/red]")
 
     # Other settings
     table.add_row("", "")  # Spacer
-    table.add_row("溫度 (Temperature)", str(settings.openai_temperature))
+    table.add_row("溫度 (Temperature)", str(settings.llm_temperature))
 
     console.print()
     console.print(table)
@@ -293,31 +296,31 @@ def configure_llm():
     # Step 2: Configure based on provider
     console.print()
     if use_local:
-        console.print("[bold]步驟 2/3: 設定本地 LLM[/bold]")
+        console.print("[bold]步驟 2/3: 設定自訂端點 LLM[/bold]")
         console.print()
 
-        # Local LLM URL
-        default_url = settings.local_llm_base_url
+        # LLM URL
+        default_url = settings.llm_base_url or "http://localhost:11434/v1"
         llm_url = Prompt.ask(
-            "本地 LLM URL (OpenAI 相容端點)",
+            "LLM URL (OpenAI 相容端點)",
             default=default_url
         )
 
-        # Local LLM model
-        default_model = settings.local_llm_model
+        # LLM model
+        default_model = settings.llm_model if settings.llm_base_url else "qwen2.5:7b"
         console.print()
         console.print("[dim]範例: qwen2.5:7b, llama3.1:8b, mistral:7b[/dim]")
         llm_model = Prompt.ask(
-            "本地 LLM 模型名稱",
+            "LLM 模型名稱",
             default=default_model
         )
 
-        # Local LLM API key (optional)
-        default_key = settings.local_llm_api_key or "ollama"
+        # LLM API key (optional)
+        default_key = settings.llm_api_key or "ollama"
         console.print()
         console.print("[dim]本地 LLM 通常不需要實際的 API 金鑰，可使用任意字串[/dim]")
         llm_api_key = Prompt.ask(
-            "本地 LLM API Key",
+            "LLM API Key",
             default=default_key
         )
 
@@ -326,7 +329,7 @@ def configure_llm():
         console.print()
 
         # OpenAI API key
-        current_key = settings.openai_api_key
+        current_key = settings.llm_api_key
         if current_key:
             console.print(f"[dim]目前 API Key: {current_key[:10]}...{current_key[-4:]}[/dim]")
             console.print()
@@ -347,7 +350,7 @@ def configure_llm():
         console.print()
         console.print("[bold]可用的 OpenAI 模型:[/bold]")
         for idx, model in enumerate(available_models, 1):
-            current = " [green](目前)[/green]" if model == settings.openai_model else ""
+            current = " [green](目前)[/green]" if model == settings.llm_model else ""
             console.print(f"  {idx}. {model}{current}")
         console.print()
 
@@ -358,28 +361,22 @@ def configure_llm():
         )
         llm_model = available_models[int(model_choice) - 1]
 
-        # Dummy values for local LLM (not used)
-        llm_url = settings.local_llm_base_url
+        # Empty URL for OpenAI (use default)
+        llm_url = ""
 
     # Step 3: Embedding model
     console.print()
     console.print("[bold]步驟 3/3: 設定嵌入模型[/bold]")
     console.print()
 
-    if use_local:
-        console.print("[yellow]注意: 本地 LLM 目前僅支援 OpenAI 嵌入模型[/yellow]")
-        console.print("[dim]未來版本將支援本地嵌入模型[/dim]")
-        console.print()
-
     # Fetch available embedding models (use existing API key)
-    embedding_api_key = llm_api_key if not use_local else settings.openai_api_key
     console.print("[cyan]正在取得可用嵌入模型列表...[/cyan]")
-    available_embeddings = get_available_embedding_models(embedding_api_key)
+    available_embeddings = get_available_embedding_models(llm_api_key)
 
     console.print()
     console.print("[bold]可用的嵌入模型:[/bold]")
     for idx, model in enumerate(available_embeddings, 1):
-        current = " [green](目前)[/green]" if model == settings.openai_embedding_model else ""
+        current = " [green](目前)[/green]" if model == settings.embedding_model else ""
         console.print(f"  {idx}. {model}{current}")
     console.print()
 
@@ -396,14 +393,14 @@ def configure_llm():
     console.print()
 
     if use_local:
-        console.print(f"LLM 提供者: [yellow]本地 LLM[/yellow]")
-        console.print(f"本地 LLM URL: [cyan]{llm_url}[/cyan]")
-        console.print(f"本地 LLM 模型: [cyan]{llm_model}[/cyan]")
-        console.print(f"本地 LLM API Key: [cyan]***[/cyan]")
+        console.print(f"LLM 提供者: [yellow]自訂端點[/yellow]")
+        console.print(f"LLM URL: [cyan]{llm_url}[/cyan]")
+        console.print(f"LLM 模型: [cyan]{llm_model}[/cyan]")
+        console.print(f"LLM API Key: [cyan]***[/cyan]")
     else:
         console.print(f"LLM 提供者: [green]OpenAI[/green]")
-        console.print(f"OpenAI 模型: [cyan]{llm_model}[/cyan]")
-        console.print(f"OpenAI API Key: [cyan]***[/cyan]")
+        console.print(f"LLM 模型: [cyan]{llm_model}[/cyan]")
+        console.print(f"LLM API Key: [cyan]***[/cyan]")
 
     console.print(f"嵌入模型: [cyan]{embedding_model}[/cyan]")
     console.print()
@@ -464,18 +461,17 @@ def save_to_env(
                     key, value = line.split("=", 1)
                     existing_config[key.strip()] = value.strip()
 
-    # Update configuration
-    if use_local:
-        existing_config["USE_LOCAL_LLM"] = "true"
-        existing_config["LOCAL_LLM_BASE_URL"] = llm_url
-        existing_config["LOCAL_LLM_MODEL"] = llm_model
-        existing_config["LOCAL_LLM_API_KEY"] = llm_api_key
-    else:
-        existing_config["USE_LOCAL_LLM"] = "false"
-        existing_config["OPENAI_MODEL"] = llm_model
-        existing_config["OPENAI_API_KEY"] = llm_api_key
+    # Update configuration with unified field names
+    existing_config["LLM_API_KEY"] = llm_api_key
+    existing_config["LLM_MODEL"] = llm_model
+    existing_config["LLM_BASE_URL"] = llm_url if use_local else ""
+    existing_config["EMBEDDING_MODEL"] = embedding_model
 
-    existing_config["OPENAI_EMBEDDING_MODEL"] = embedding_model
+    # Keep embedding API key and URL empty to share with LLM (default behavior)
+    if "EMBEDDING_API_KEY" not in existing_config:
+        existing_config["EMBEDDING_API_KEY"] = ""
+    if "EMBEDDING_BASE_URL" not in existing_config:
+        existing_config["EMBEDDING_BASE_URL"] = ""
 
     # Write back to .env
     with open(env_path, "w", encoding="utf-8") as f:
@@ -483,9 +479,10 @@ def save_to_env(
         f.write("# Auto-generated by /config command\n\n")
 
         # Group by category
-        f.write("# LLM Configuration\n")
-        llm_keys = ["USE_LOCAL_LLM", "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_EMBEDDING_MODEL",
-                    "LOCAL_LLM_BASE_URL", "LOCAL_LLM_MODEL", "LOCAL_LLM_API_KEY"]
+        f.write("# LLM Configuration (OpenAI-compatible API)\n")
+        f.write("# Works with OpenAI, Ollama, or any OpenAI-compatible endpoint\n")
+        llm_keys = ["LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "LLM_TEMPERATURE",
+                    "EMBEDDING_API_KEY", "EMBEDDING_BASE_URL", "EMBEDDING_MODEL"]
         for key in llm_keys:
             if key in existing_config:
                 f.write(f"{key}={existing_config[key]}\n")

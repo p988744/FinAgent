@@ -12,37 +12,27 @@ from finagent.config import settings
 class EmbeddingGenerator:
     """Generates embeddings for text using OpenAI API."""
 
-    def __init__(self, model: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(self, model: Optional[str] = None, api_key: Optional[str] = None, base_url: Optional[str] = None):
         """
         Initialize embedding generator.
 
         Args:
             model: Embedding model (default from settings)
             api_key: API key (default from settings)
+            base_url: Base URL (default from settings)
         """
-        # Check if using local embedding model
-        self.use_local = settings.use_local_embedding
-
-        if self.use_local and settings.local_embedding_model:
-            # Use local embedding model
-            self.model = model or settings.local_embedding_model
-
-            # Use separate embedding endpoint if configured, otherwise fall back to LLM endpoint
-            base_url = settings.local_embedding_base_url or settings.local_llm_base_url
-
-            # Use separate embedding API key if configured, otherwise fall back to LLM API key
-            self.api_key = api_key or settings.local_embedding_api_key or settings.local_llm_api_key
-        else:
-            # Use OpenAI
-            self.model = model or settings.openai_embedding_model
-            self.api_key = api_key or settings.openai_api_key
-            base_url = None
+        # Get configuration
+        self.model = model or settings.embedding_model
+        self.api_key = api_key or settings.effective_embedding_api_key
+        effective_base_url = base_url if base_url is not None else settings.effective_embedding_base_url
 
         # Initialize clients
-        if base_url:
-            self.client = OpenAI(api_key=self.api_key, base_url=base_url)
-            self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=base_url)
+        if effective_base_url:
+            # Custom endpoint (e.g., Ollama, local server)
+            self.client = OpenAI(api_key=self.api_key, base_url=effective_base_url)
+            self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=effective_base_url)
         else:
+            # OpenAI default
             self.client = OpenAI(api_key=self.api_key)
             self.async_client = AsyncOpenAI(api_key=self.api_key)
 

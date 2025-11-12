@@ -30,25 +30,18 @@ class Settings(BaseSettings):
         description="Allowed CORS origins",
     )
 
-    # OpenAI / LLM
-    openai_api_key: str = Field(default="", description="OpenAI API key")
-    openai_model: str = Field(default="gpt-4o-mini", description="OpenAI model name")
-    openai_embedding_model: str = Field(
-        default="text-embedding-3-small", description="OpenAI embedding model"
-    )
-    openai_temperature: float = Field(default=0.0, description="LLM temperature")
+    # LLM Configuration (OpenAI-compatible API)
+    # Works with OpenAI, Ollama, or any OpenAI-compatible endpoint
+    llm_api_key: str = Field(default="", description="LLM API key")
+    llm_base_url: str = Field(default="", description="LLM base URL (leave empty for OpenAI, or provide custom endpoint)")
+    llm_model: str = Field(default="gpt-4o-mini", description="LLM model name")
+    llm_temperature: float = Field(default=0.0, description="LLM temperature")
 
-    # Local LLM (OpenAI-compatible API)
-    # If provided, will override OpenAI for chat/completion
-    local_llm_base_url: str = Field(default="", description="Local LLM base URL (OpenAI-compatible, e.g., http://localhost:11434/v1)")
-    local_llm_api_key: str = Field(default="", description="Local LLM API key")
-    local_llm_model: str = Field(default="", description="Local LLM model name")
-
-    # Local Embedding (OpenAI-compatible API)
-    # If provided, will override OpenAI for embeddings
-    local_embedding_base_url: str = Field(default="", description="Local embedding base URL (leave empty to use local_llm_base_url)")
-    local_embedding_api_key: str = Field(default="", description="Local embedding API key (leave empty to use local_llm_api_key)")
-    local_embedding_model: str = Field(default="", description="Local embedding model name")
+    # Embedding Configuration (OpenAI-compatible API)
+    # Works with OpenAI, local embedding servers, or any OpenAI-compatible endpoint
+    embedding_api_key: str = Field(default="", description="Embedding API key (leave empty to use llm_api_key)")
+    embedding_base_url: str = Field(default="", description="Embedding base URL (leave empty to use llm_base_url)")
+    embedding_model: str = Field(default="text-embedding-3-small", description="Embedding model name")
 
     # Vector Database (Chroma)
     chroma_persist_directory: str = Field(
@@ -84,16 +77,34 @@ class Settings(BaseSettings):
         return self.app_env == "production"
 
     @property
+    def effective_llm_api_key(self) -> str:
+        """Get effective LLM API key."""
+        return self.llm_api_key
+
+    @property
+    def effective_llm_base_url(self) -> str:
+        """Get effective LLM base URL (empty string means use OpenAI default)."""
+        return self.llm_base_url
+
+    @property
+    def effective_embedding_api_key(self) -> str:
+        """Get effective embedding API key (falls back to LLM API key)."""
+        return self.embedding_api_key or self.llm_api_key
+
+    @property
+    def effective_embedding_base_url(self) -> str:
+        """Get effective embedding base URL (falls back to LLM base URL)."""
+        return self.embedding_base_url or self.llm_base_url
+
+    @property
     def use_local_llm(self) -> bool:
-        """Auto-detect if local LLM should be used based on config."""
-        return bool(self.local_llm_base_url and self.local_llm_model and self.local_llm_api_key)
+        """Check if using custom endpoint (not OpenAI)."""
+        return bool(self.llm_base_url)
 
     @property
     def use_local_embedding(self) -> bool:
-        """Auto-detect if local embedding should be used based on config."""
-        # Local embedding requires at least model name
-        # URL and API key can fall back to LLM settings
-        return bool(self.local_embedding_model)
+        """Check if using custom endpoint for embeddings (not OpenAI)."""
+        return bool(self.embedding_base_url or self.llm_base_url)
 
 
 # Global settings instance
