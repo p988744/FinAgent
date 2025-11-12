@@ -39,14 +39,16 @@ class Settings(BaseSettings):
     openai_temperature: float = Field(default=0.0, description="LLM temperature")
 
     # Local LLM (OpenAI-compatible API)
-    use_local_llm: bool = Field(default=False, description="Use local LLM instead of OpenAI for chat/completion")
-    use_local_embedding: bool = Field(default=False, description="Use local embedding model instead of OpenAI")
-    local_llm_base_url: str = Field(default="http://localhost:11434/v1", description="Local LLM base URL (OpenAI-compatible)")
-    local_llm_api_key: str = Field(default="ollama", description="Local LLM API key (can be any string for local models)")
-    local_llm_model: str = Field(default="qwen2.5:7b", description="Local LLM model name")
-    local_embedding_model: str = Field(default="", description="Local embedding model name (if using local embeddings)")
-    local_embedding_base_url: str = Field(default="", description="Local embedding base URL (if different from LLM base URL)")
-    local_embedding_api_key: str = Field(default="", description="Local embedding API key (if different from LLM API key)")
+    # If provided, will override OpenAI for chat/completion
+    local_llm_base_url: str = Field(default="", description="Local LLM base URL (OpenAI-compatible, e.g., http://localhost:11434/v1)")
+    local_llm_api_key: str = Field(default="", description="Local LLM API key")
+    local_llm_model: str = Field(default="", description="Local LLM model name")
+
+    # Local Embedding (OpenAI-compatible API)
+    # If provided, will override OpenAI for embeddings
+    local_embedding_base_url: str = Field(default="", description="Local embedding base URL (leave empty to use local_llm_base_url)")
+    local_embedding_api_key: str = Field(default="", description="Local embedding API key (leave empty to use local_llm_api_key)")
+    local_embedding_model: str = Field(default="", description="Local embedding model name")
 
     # Vector Database (Chroma)
     chroma_persist_directory: str = Field(
@@ -80,6 +82,18 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production mode."""
         return self.app_env == "production"
+
+    @property
+    def use_local_llm(self) -> bool:
+        """Auto-detect if local LLM should be used based on config."""
+        return bool(self.local_llm_base_url and self.local_llm_model and self.local_llm_api_key)
+
+    @property
+    def use_local_embedding(self) -> bool:
+        """Auto-detect if local embedding should be used based on config."""
+        # Local embedding requires at least model name
+        # URL and API key can fall back to LLM settings
+        return bool(self.local_embedding_model)
 
 
 # Global settings instance
