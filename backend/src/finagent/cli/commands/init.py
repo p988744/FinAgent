@@ -21,6 +21,8 @@ from finagent.document_processing.metadata_store import (
 from finagent.document_processing.toc_generator import TableOfContents
 from finagent.document_processing.metadata_generator import MetadataGenerator
 
+from finagent.cli.keyboard_handler import CancellationToken
+
 console = Console()
 
 
@@ -185,19 +187,27 @@ def init_document_with_llm(filename: Optional[str] = None):
                 console.print("[cyan]已取消[/cyan]\n")
                 return
 
-        # Generate metadata using LLM
+        # Generate metadata using LLM with cancellation support
         console.print(f"\n[cyan]🤖 使用 LLM 分析文件中...[/cyan]")
-        console.print(f"[dim]文件: {filename_display}[/dim]\n")
+        console.print(f"[dim]文件: {filename_display}[/dim]")
+        console.print(f"[yellow]提示: 按 ESC 鍵取消操作[/yellow]\n")
 
         try:
             from rich.progress import Progress, SpinnerColumn, TextColumn
 
-            with Progress(
+            # Create cancellation token for ESC key handling
+            token = CancellationToken()
+
+            with token, Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 console=console,
             ) as progress:
-                task = progress.add_task("[cyan]正在分析文件內容...", total=None)
+                task = progress.add_task("[cyan]正在分析文件內容... (ESC=取消)", total=None)
+
+                # Check if cancelled before starting
+                if token.is_cancelled():
+                    raise KeyboardInterrupt("操作已取消")
 
                 # Generate metadata
                 generator = MetadataGenerator()
@@ -206,6 +216,10 @@ def init_document_with_llm(filename: Optional[str] = None):
                     filename=filename_display,
                     content=doc.content
                 )
+
+                # Check if cancelled after generation
+                if token.is_cancelled():
+                    raise KeyboardInterrupt("操作已取消")
 
                 progress.update(task, completed=True)
 
