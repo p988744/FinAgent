@@ -19,6 +19,7 @@ from finagent.document_processing.metadata_store import (
     DocumentMetadata,
 )
 from finagent.document_processing.toc_generator import TableOfContents
+from finagent.document_processing.metadata_generator import MetadataGenerator
 
 console = Console()
 
@@ -117,15 +118,166 @@ def show_document_list():
         console.print()
 
 
-def init_document_interactive(filename: Optional[str] = None):
+def init_document_with_llm(filename: Optional[str] = None):
     """
-    Initialize document metadata interactively.
+    Initialize document metadata using LLM.
 
     Args:
         filename: Optional filename to initialize (if None, prompts user to select)
     """
     console.print()
-    console.print(Panel("[bold cyan]文件初始化精靈[/bold cyan]", border_style="cyan"))
+    console.print(Panel("[bold cyan]文件初始化（LLM 自動分析）[/bold cyan]", border_style="cyan"))
+    console.print()
+
+    # Setup paths
+    base_dir = Path.cwd()
+    docs_path = base_dir / "data" / "documents"
+    loader = DocumentLoader(base_path=str(docs_path))
+    metadata_store = DocumentMetadataStore()
+
+    try:
+        # Step 1: Select document
+        if filename:
+            # Try to load specified file
+            try:
+                doc = loader.load_txt(filename)
+            except FileNotFoundError:
+                console.print(f"[red]錯誤: 找不到文件 '{filename}'[/red]")
+                console.print(f"[dim]請確認文件位於: {docs_path}[/dim]")
+                console.print()
+                return
+        else:
+            # List available documents
+            documents = loader.load_directory(".", pattern="*.txt", recursive=True)
+
+            if not documents:
+                console.print("[yellow]未找到任何文件[/yellow]")
+                console.print(f"[dim]請將文件放置在: {docs_path}[/dim]")
+                console.print()
+                return
+
+            console.print("[bold]可用的文件:[/bold]")
+            for idx, doc in enumerate(documents, 1):
+                filename_display = doc.metadata.get("filename", "unknown")
+                metadata = metadata_store.get_metadata(doc.id)
+                status = "✓" if metadata else " "
+                console.print(f"  {idx}. [{status}] {filename_display}")
+            console.print()
+
+            # Prompt for selection
+            choice = Prompt.ask(
+                "請選擇要初始化的文件",
+                choices=[str(i) for i in range(1, len(documents) + 1)],
+            )
+            doc = documents[int(choice) - 1]
+
+        filename_display = doc.metadata.get("filename", "unknown")
+
+        # Check if already has metadata
+        existing_metadata = metadata_store.get_metadata(doc.id)
+        if existing_metadata:
+            console.print(f"\n[yellow]文件 '{filename_display}' 已有初始化資料[/yellow]")
+            console.print(f"描述: {existing_metadata.description}")
+            console.print()
+
+            update = Confirm.ask("是否要更新？", default=False)
+            if not update:
+                console.print("[cyan]已取消[/cyan]\n")
+                return
+
+        # Generate metadata using LLM
+        console.print(f"\n[cyan]🤖 使用 LLM 分析文件中...[/cyan]")
+        console.print(f"[dim]文件: {filename_display}[/dim]\n")
+
+        try:
+            from rich.progress import Progress, SpinnerColumn, TextColumn
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("[cyan]正在分析文件內容...", total=None)
+
+                # Generate metadata
+                generator = MetadataGenerator()
+                metadata = generator.generate_metadata(
+                    doc_id=doc.id,
+                    filename=filename_display,
+                    content=doc.page_content
+                )
+
+                progress.update(task, completed=True)
+
+            # Show generated metadata
+            console.print()
+            console.print(Panel("[bold green]✓ LLM 已生成元資料[/bold green]", border_style="green"))
+            console.print()
+            console.print(f"[bold]文件:[/bold] {filename_display}")
+            console.print(f"[bold]描述:[/bold] {metadata.description}")
+            console.print(f"[bold]類型:[/bold] {metadata.document_type}")
+            console.print(f"[bold]關鍵字:[/bold] {', '.join(metadata.keywords)}")
+
+            if metadata.date:
+                console.print(f"[bold]日期:[/bold] {metadata.date}")
+            if metadata.issuing_authority:
+                console.print(f"[bold]發布機關:[/bold] {metadata.issuing_authority}")
+            if metadata.related_institutions:
+                console.print(f"[bold]相關機構:[/bold] {', '.join(metadata.related_institutions)}")
+            if metadata.penalty_amount:
+                console.print(f"[bold]裁罰金額:[/bold] {metadata.penalty_amount}")
+            if metadata.violation_types:
+                console.print(f"[bold]違規類型:[/bold] {', '.join(metadata.violation_types)}")
+
+            console.print()
+
+            # Ask for confirmation
+            confirm = Confirm.ask("是否要儲存這些元資料？", default=True)
+            if not confirm:
+                console.print("[yellow]已取消，不儲存元資料[/yellow]\n")
+                return
+
+            # Save metadata
+            metadata_store.add_metadata(metadata)
+
+            console.print()
+            console.print("[green]✅ 元資料已儲存[/green]")
+            console.print()
+
+            # Update table of contents
+            try:
+                console.print("[cyan]📖 更新文件目錄...[/cyan]")
+                toc = TableOfContents()
+                toc_path = toc.save()
+                console.print(f"[green]✅ 文件目錄已更新: {toc_path.name}[/green]")
+                console.print()
+            except Exception as e:
+                console.print(f"[yellow]⚠️  目錄更新失敗: {str(e)}[/yellow]")
+                console.print()
+
+        except Exception as e:
+            console.print(f"\n[red]❌ LLM 分析失敗: {str(e)}[/red]")
+            console.print("[yellow]提示: 您可以使用 /init --manual 手動輸入元資料[/yellow]\n")
+            import traceback
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]已取消[/yellow]\n")
+    except Exception as e:
+        console.print(f"\n[red]錯誤: {str(e)}[/red]\n")
+        import traceback
+        console.print(f"[dim]{traceback.format_exc()}[/dim]")
+
+
+def init_document_interactive(filename: Optional[str] = None):
+    """
+    Initialize document metadata interactively (manual input).
+
+    Args:
+        filename: Optional filename to initialize (if None, prompts user to select)
+    """
+    console.print()
+    console.print(Panel("[bold cyan]文件初始化精靈（手動輸入）[/bold cyan]", border_style="cyan"))
     console.print()
 
     # Setup paths
@@ -365,12 +517,24 @@ def handle_init_command(args: str):
     Args:
         args: Command arguments
             - Empty: Show document list
-            - Filename: Initialize specific document
+            - Filename: Initialize specific document with LLM
             - "list": Show document list
+            - "--manual": Use manual input mode
+            - "<filename> --manual": Initialize specific document with manual input
     """
     args = args.strip()
 
+    # Check for flags
+    use_manual = "--manual" in args.lower()
+
+    # Remove flags from args
+    args = args.replace("--manual", "").strip()
+
     if not args or args == "list":
         show_document_list()
+    elif use_manual:
+        # Use manual input mode
+        init_document_interactive(filename=args if args else None)
     else:
-        init_document_interactive(filename=args)
+        # Use LLM mode (default)
+        init_document_with_llm(filename=args if args else None)

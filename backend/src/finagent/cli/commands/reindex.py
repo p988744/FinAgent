@@ -17,7 +17,7 @@ from finagent.document_processing import (
 )
 from finagent.document_processing.metadata_store import DocumentMetadataStore
 from finagent.document_processing.toc_generator import TableOfContents
-from finagent.cli.commands.init import init_document_interactive
+from finagent.cli.commands.init import init_document_with_llm
 
 console = Console()
 
@@ -87,9 +87,9 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
 
                     if should_init:
                         try:
-                            # Use relative path for init
+                            # Use relative path for init with LLM
                             relative_path = Path(doc.source).relative_to(docs_path)
-                            init_document_interactive(str(relative_path))
+                            init_document_with_llm(str(relative_path))
                         except Exception as e:
                             console.print(f"[red]初始化失敗: {str(e)}[/red]")
                             console.print("[yellow]將繼續索引但不包含元資料[/yellow]\n")
