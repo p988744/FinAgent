@@ -22,6 +22,7 @@ from finagent.cli.commands.init import handle_init_command
 from finagent.cli.commands.query import execute_query
 from finagent.cli.commands.reindex import execute_reindex
 from finagent.cli.formatters.answer import format_legal_answer
+from finagent.config_manager import get_config_manager
 
 console = Console()
 
@@ -94,6 +95,45 @@ class ReplSession:
         """
         console.print(Panel(Markdown(welcome_text), border_style="cyan", padding=(1, 2)))
         console.print()
+
+        # Display current configuration
+        self.show_current_config()
+
+    def show_current_config(self):
+        """Display current LLM and embedding configuration."""
+        try:
+            config_manager = get_config_manager()
+
+            # Get LLM configuration
+            llm_config = config_manager.get_active_llm_config()
+
+            # Get embedding configuration
+            embedding_config = config_manager.get_active_embedding_config()
+
+            console.print("[bold cyan]目前配置：[/bold cyan]")
+            console.print()
+
+            # Show LLM config source
+            if llm_config.get("source") == "database":
+                console.print(
+                    f"  [green]✓[/green] 使用資料庫預設配置: [bold]{llm_config.get('config_name')}[/bold]"
+                )
+            else:
+                console.print(f"  [yellow]![/yellow] 使用環境變數配置 (.env)")
+
+            console.print(f"  [dim]LLM 端點:[/dim] {llm_config['base_url']}")
+            console.print(f"  [dim]LLM 模型:[/dim] {llm_config['model']}")
+            console.print(f"  [dim]溫度:[/dim] {llm_config['temperature']}")
+            console.print()
+            console.print(f"  [dim]嵌入端點:[/dim] {embedding_config['base_url']}")
+            console.print(f"  [dim]嵌入模型:[/dim] {embedding_config['model']}")
+            console.print()
+            console.print("  [dim]使用 /config 指令可查看或更改配置[/dim]")
+            console.print()
+
+        except Exception as e:
+            console.print(f"[yellow]警告: 無法載入配置資訊 - {str(e)}[/yellow]")
+            console.print()
 
     def create_prompt_session(self) -> PromptSession:
         """Create prompt_toolkit session."""
