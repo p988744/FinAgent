@@ -3,6 +3,7 @@ Interactive REPL (Read-Eval-Print Loop) for FinAgent CLI.
 """
 
 import sys
+import uuid
 from datetime import datetime
 
 from prompt_toolkit import PromptSession
@@ -23,6 +24,7 @@ from finagent.cli.commands.query import execute_query
 from finagent.cli.commands.reindex import execute_reindex
 from finagent.cli.formatters.answer import format_legal_answer
 from finagent.config_manager import get_config_manager
+from finagent.database.db import Database
 
 console = Console()
 
@@ -31,6 +33,7 @@ class ReplSession:
     """Interactive REPL session for FinAgent."""
 
     def __init__(self):
+        self.session_id = str(uuid.uuid4())  # Generate unique session ID
         self.history = QueryHistory()
         self.prompt_history = InMemoryHistory()
         self.last_answer = None
@@ -119,7 +122,7 @@ class ReplSession:
                     f"  [green]✓[/green] 使用資料庫預設配置: [bold]{llm_config.get('config_name')}[/bold]"
                 )
             else:
-                console.print(f"  [yellow]![/yellow] 使用環境變數配置 (.env)")
+                console.print("  [yellow]![/yellow] 使用環境變數配置 (.env)")
 
             console.print(f"  [dim]LLM 端點:[/dim] {llm_config['base_url']}")
             console.print(f"  [dim]LLM 模型:[/dim] {llm_config['model']}")
@@ -240,11 +243,11 @@ class ReplSession:
         try:
             console.print("\n[cyan]正在處理查詢...[/cyan]\n")
 
-            # Execute query
-            answer = execute_query(query_text)
+            # Execute query with session ID for database logging
+            answer = execute_query(query_text, session_id=self.session_id)
 
             if answer:
-                # Save to history
+                # Save to in-memory history (for backward compatibility)
                 self.history.add(query_text, answer)
                 self.last_answer = answer
 
@@ -259,31 +262,82 @@ class ReplSession:
             console.print(f"[red]錯誤: {str(e)}[/red]")
 
     def show_history(self):
-        """Display query history."""
-        queries = self.history.get_all()
+        """Display query history from database."""
+        try:
+            # Get history from database (current session)
+            db = Database()
+            history_entries = db.get_history(limit=50, session_id=self.session_id)
 
-        if not queries:
-            console.print("[yellow]尚無查詢歷史。[/yellow]")
-            return
+            if not history_entries:
+                console.print("[yellow]尚無查詢歷史。[/yellow]")
+                return
 
-        table = Table(title="查詢歷史", show_header=True, header_style="bold cyan")
-        table.add_column("#", style="dim", width=4)
-        table.add_column("查詢", style="white")
-        table.add_column("時間", style="cyan", width=20)
-        table.add_column("信心", style="green", width=10)
-
-        for idx, (query, answer, timestamp) in enumerate(queries, 1):
-            confidence = f"{answer.confidence_score:.0%}" if answer else "N/A"
-            table.add_row(
-                str(idx),
-                query[:60] + "..." if len(query) > 60 else query,
-                timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                confidence,
+            table = Table(
+                title=f"查詢歷史 (Session: {self.session_id[:8]}...)",
+                show_header=True,
+                header_style="bold cyan",
             )
+            table.add_column("#", style="dim", width=4)
+            table.add_column("查詢", style="white", width=50)
+            table.add_column("時間", style="cyan", width=20)
+            table.add_column("處理時間", style="yellow", width=10)
+            table.add_column("成本", style="green", width=10)
+            table.add_column("狀態", style="magenta", width=6)
 
-        console.print()
-        console.print(table)
-        console.print()
+            for idx, entry in enumerate(history_entries, 1):
+                # Format processing time
+                proc_time = (
+                    f"{entry.processing_time_seconds:.1f}s"
+                    if entry.processing_time_seconds
+                    else "N/A"
+                )
+
+                # Format cost
+                cost = f"${entry.cost_usd:.4f}" if entry.cost_usd else "$0.00"
+
+                # Format status
+                status = "✓" if entry.success else "✗"
+                status_style = "green" if entry.success else "red"
+
+                # Parse timestamp
+                from datetime import datetime
+
+                if isinstance(entry.created_at, str):
+                    timestamp = datetime.fromisoformat(entry.created_at.replace("Z", "+00:00"))
+                else:
+                    timestamp = entry.created_at
+
+                table.add_row(
+                    str(idx),
+                    entry.query[:47] + "..." if len(entry.query) > 50 else entry.query,
+                    timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                    proc_time,
+                    cost,
+                    f"[{status_style}]{status}[/{status_style}]",
+                )
+
+            console.print()
+            console.print(table)
+            console.print()
+
+            # Show summary
+            total_cost = sum(e.cost_usd for e in history_entries if e.cost_usd)
+            success_count = sum(1 for e in history_entries if e.success)
+            console.print(
+                f"[dim]總查詢: {len(history_entries)} | 成功: {success_count} | 總成本: ${total_cost:.4f}[/dim]"
+            )
+            console.print()
+
+        except Exception as e:
+            console.print(f"[red]無法載入查詢歷史: {str(e)}[/red]")
+            # Fallback to in-memory history
+            console.print("[yellow]顯示本次會話的記憶體歷史...[/yellow]")
+            queries = self.history.get_all()
+            if queries:
+                for idx, (query, answer, timestamp) in enumerate(queries, 1):
+                    console.print(f"{idx}. {query} ({timestamp.strftime('%H:%M:%S')})")
+            else:
+                console.print("[dim]尚無歷史記錄[/dim]")
 
     def show_citations(self, args: str):
         """Display citations from last query."""

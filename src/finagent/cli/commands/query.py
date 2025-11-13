@@ -1,6 +1,7 @@
 """Query execution command handlers."""
 
 import asyncio
+import time
 
 from rich.console import Console
 from rich.live import Live
@@ -12,8 +13,11 @@ from finagent.cli.formatters.answer import (
     format_answer_markdown,
     format_legal_answer,
 )
+from finagent.config_manager import get_config_manager
+from finagent.database.db import Database
 from finagent.models.answers import LegalAnswer
 from finagent.models.queries import Query
+from finagent.utils.cost_calculator import calculate_total_cost
 
 console = Console()
 
@@ -41,6 +45,7 @@ def execute_query(
     regulator: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
+    session_id: str | None = None,
 ) -> LegalAnswer | None:
     """
     Execute a legal research query using the orchestrator directly.
@@ -51,10 +56,16 @@ def execute_query(
         regulator: Optional regulator filter
         start_date: Optional start date filter (YYYY-MM-DD)
         end_date: Optional end date filter (YYYY-MM-DD)
+        session_id: Optional session ID for history tracking
 
     Returns:
         LegalAnswer if successful, None otherwise
     """
+    # Track processing time
+    start_time = time.time()
+    answer = None
+    error_message = None
+
     try:
         # Create query object
         query = Query(
@@ -76,11 +87,50 @@ def execute_query(
         return answer
 
     except Exception as e:
-        console.print(f"[red]查詢錯誤: {str(e)}[/red]")
+        error_message = str(e)
+        console.print(f"[red]查詢錯誤: {error_message}[/red]")
         import traceback
 
         traceback.print_exc()
         return None
+
+    finally:
+        # Log to database (regardless of success/failure)
+        processing_time = time.time() - start_time
+
+        try:
+            # Get current LLM configuration
+            config_manager = get_config_manager()
+            llm_config = config_manager.get_active_llm_config()
+            model_used = llm_config.get("model", "unknown")
+
+            # Extract token usage and calculate cost
+            tokens_used = None
+            cost_usd = None
+
+            if answer and hasattr(answer, "metadata") and answer.metadata:
+                # Try to get token count from metadata
+                tokens_used = answer.metadata.get("total_tokens")
+                if tokens_used:
+                    cost_usd = calculate_total_cost(tokens_used, model_used)
+
+            # Log to database
+            db = Database()
+            db.add_history(
+                session_id=session_id,
+                query=query_text,
+                response=answer.answer if answer else None,
+                model_used=model_used,
+                tokens_used=tokens_used,
+                cost_usd=cost_usd,
+                processing_time_seconds=processing_time,
+                success=answer is not None,
+                error_message=error_message,
+                metadata=answer.metadata if answer and hasattr(answer, "metadata") else None,
+            )
+        except Exception as db_error:
+            # Don't fail the query if logging fails
+            console.print(f"[dim yellow]警告: 無法記錄查詢歷史 - {str(db_error)}[/dim yellow]")
 
 
 def execute_single_query(
