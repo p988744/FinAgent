@@ -1,14 +1,15 @@
 """LangGraph workflow for multi-agent legal research."""
 
 import logging
-from typing import Dict, Any
-from langgraph.graph import StateGraph, START, END
+from typing import Any
 
-from finagent.agents.state import AgentState
-from finagent.agents.planning_agent import PlanningAgent
+from langgraph.graph import END, START, StateGraph
+
 from finagent.agents.action_agent import ActionAgent
-from finagent.agents.validation_agent import ValidationAgent
 from finagent.agents.answer_agent import AnswerAgent
+from finagent.agents.planning_agent import PlanningAgent
+from finagent.agents.state import AgentState
+from finagent.agents.validation_agent import ValidationAgent
 from finagent.document_processing.retriever import DocumentRetriever
 
 logger = logging.getLogger(__name__)
@@ -127,7 +128,7 @@ class LegalResearchWorkflow:
         logger.info("Executing answer node")
         return self.answer_agent.synthesize(state)
 
-    def run(self, state: AgentState) -> Dict[str, Any]:
+    def run(self, state: AgentState) -> dict[str, Any]:
         """
         Run the workflow.
 

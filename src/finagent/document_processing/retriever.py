@@ -2,14 +2,14 @@
 Document retriever for RAG (Retrieval-Augmented Generation).
 """
 
-from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
+from typing import Any
 
 import chromadb
 from chromadb.config import Settings
 
-from finagent.document_processing.embeddings import EmbeddingGenerator
 from finagent.config import settings
+from finagent.document_processing.embeddings import EmbeddingGenerator
 
 
 @dataclass
@@ -19,7 +19,7 @@ class RetrievedChunk:
     id: str  # Chunk ID
     text: str  # Chunk text
     score: float  # Similarity score (distance)
-    metadata: Dict[str, Any]  # Chunk metadata
+    metadata: dict[str, Any]  # Chunk metadata
     doc_id: str  # Source document ID
 
 
@@ -29,8 +29,8 @@ class DocumentRetriever:
     def __init__(
         self,
         collection_name: str = "legal_documents",
-        persist_directory: Optional[str] = None,
-        embedding_generator: Optional[EmbeddingGenerator] = None,
+        persist_directory: str | None = None,
+        embedding_generator: EmbeddingGenerator | None = None,
     ):
         """
         Initialize document retriever.
@@ -63,8 +63,8 @@ class DocumentRetriever:
         self,
         query: str,
         n_results: int = 5,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[RetrievedChunk]:
+        filters: dict[str, Any] | None = None,
+    ) -> list[RetrievedChunk]:
         """
         Retrieve relevant chunks for a query.
 
@@ -117,9 +117,9 @@ class DocumentRetriever:
         self,
         query: str,
         n_results: int = 5,
-        score_threshold: Optional[float] = None,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[RetrievedChunk]:
+        score_threshold: float | None = None,
+        filters: dict[str, Any] | None = None,
+    ) -> list[RetrievedChunk]:
         """
         Retrieve chunks and filter by score threshold.
 
@@ -141,7 +141,7 @@ class DocumentRetriever:
 
     def retrieve_by_document(
         self, query: str, doc_id: str, n_results: int = 5
-    ) -> List[RetrievedChunk]:
+    ) -> list[RetrievedChunk]:
         """
         Retrieve chunks only from a specific document.
 
@@ -156,8 +156,8 @@ class DocumentRetriever:
         return self.retrieve(query, n_results, filters={"doc_id": doc_id})
 
     def retrieve_multiquery(
-        self, queries: List[str], n_results_per_query: int = 3
-    ) -> List[RetrievedChunk]:
+        self, queries: list[str], n_results_per_query: int = 3
+    ) -> list[RetrievedChunk]:
         """
         Retrieve chunks for multiple queries and combine results.
 
@@ -186,9 +186,7 @@ class DocumentRetriever:
 
         return all_chunks
 
-    def get_context_window(
-        self, chunk_id: str, window_size: int = 1
-    ) -> List[RetrievedChunk]:
+    def get_context_window(self, chunk_id: str, window_size: int = 1) -> list[RetrievedChunk]:
         """
         Get surrounding chunks for context.
 
@@ -242,7 +240,7 @@ class DocumentRetriever:
 
         return window_chunks
 
-    def format_context(self, chunks: List[RetrievedChunk], include_metadata: bool = True) -> str:
+    def format_context(self, chunks: list[RetrievedChunk], include_metadata: bool = True) -> str:
         """
         Format retrieved chunks as context for LLM.
 
@@ -276,7 +274,7 @@ class DocumentRetriever:
         """Check if collection exists and is not empty."""
         return self.collection is not None and self.collection.count() > 0
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get retriever statistics."""
         if not self.collection:
             return {"exists": False}

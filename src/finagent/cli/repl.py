@@ -4,7 +4,6 @@ Interactive REPL (Read-Eval-Print Loop) for FinAgent CLI.
 
 import sys
 from datetime import datetime
-from typing import List, Optional
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -16,12 +15,12 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
 
-from finagent.cli.commands.query import execute_query
-from finagent.cli.commands.history import QueryHistory
-from finagent.cli.commands.help import show_help
-from finagent.cli.commands.reindex import execute_reindex
 from finagent.cli.commands.config import handle_config_command
+from finagent.cli.commands.help import show_help
+from finagent.cli.commands.history import QueryHistory
 from finagent.cli.commands.init import handle_init_command
+from finagent.cli.commands.query import execute_query
+from finagent.cli.commands.reindex import execute_reindex
 from finagent.cli.formatters.answer import format_legal_answer
 
 console = Console()
@@ -38,27 +37,33 @@ class ReplSession:
 
         # Command completer
         self.commands = [
-            "/help", "/h", "/?",
-            "/query", "/q",
-            "/history", "/hist",
-            "/clear", "/cls",
-            "/citations", "/cite",
+            "/help",
+            "/h",
+            "/?",
+            "/query",
+            "/q",
+            "/history",
+            "/hist",
+            "/clear",
+            "/cls",
+            "/citations",
+            "/cite",
             "/export",
             "/config",
             "/init",
             "/reindex",
-            "/exit", "/quit", "/q!",
+            "/exit",
+            "/quit",
+            "/q!",
         ]
-        self.completer = WordCompleter(
-            self.commands,
-            ignore_case=True,
-            sentence=True
-        )
+        self.completer = WordCompleter(self.commands, ignore_case=True, sentence=True)
 
         # Prompt style
-        self.prompt_style = Style.from_dict({
-            'prompt': '#00aa00 bold',
-        })
+        self.prompt_style = Style.from_dict(
+            {
+                "prompt": "#00aa00 bold",
+            }
+        )
 
     def show_welcome(self):
         """Display welcome banner."""
@@ -193,7 +198,7 @@ class ReplSession:
     def execute_query(self, query_text: str):
         """Execute a legal research query."""
         try:
-            console.print(f"\n[cyan]正在處理查詢...[/cyan]\n")
+            console.print("\n[cyan]正在處理查詢...[/cyan]\n")
 
             # Execute query
             answer = execute_query(query_text)
@@ -233,7 +238,7 @@ class ReplSession:
                 str(idx),
                 query[:60] + "..." if len(query) > 60 else query,
                 timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                confidence
+                confidence,
             )
 
         console.print()
@@ -255,15 +260,15 @@ class ReplSession:
         console.print(f"\n[bold cyan]引用清單 ({len(citations)} 個來源):[/bold cyan]\n")
 
         for idx, citation in enumerate(citations, 1):
-            authority_color = {
-                "primary": "green",
-                "secondary": "yellow",
-                "tertiary": "blue"
-            }.get(citation.authority.value, "white")
+            authority_color = {"primary": "green", "secondary": "yellow", "tertiary": "blue"}.get(
+                citation.authority.value, "white"
+            )
 
             console.print(f"[bold white][{idx}][/bold white] {citation.title}")
             console.print(f"    [dim]類型:[/dim] {citation.type.value}")
-            console.print(f"    [dim]權威:[/dim] [{authority_color}]{citation.authority.value}[/{authority_color}]")
+            console.print(
+                f"    [dim]權威:[/dim] [{authority_color}]{citation.authority.value}[/{authority_color}]"
+            )
             if citation.url:
                 console.print(f"    [dim]網址:[/dim] [link]{citation.url}[/link]")
             if citation.date:
@@ -286,7 +291,6 @@ class ReplSession:
         # TODO: Implement export functionality
         console.print(f"[yellow]匯出功能尚未實作 (格式: {format})[/yellow]")
 
-
     def run(self):
         """Run the REPL loop."""
         self.show_welcome()
@@ -296,7 +300,7 @@ class ReplSession:
             try:
                 # Get user input
                 user_input = session.prompt(
-                    [('class:prompt', 'finagent> ')],
+                    [("class:prompt", "finagent> ")],
                 )
 
                 # Skip empty input
@@ -323,6 +327,7 @@ class ReplSession:
             except Exception as e:
                 console.print(f"[red]錯誤: {str(e)}[/red]")
                 import traceback
+
                 console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
 

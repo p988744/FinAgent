@@ -1,11 +1,10 @@
 """Configuration manager with database persistence."""
 
-from typing import Optional, Dict, Any
 from pathlib import Path
-import os
+from typing import Any
 
-from .config import Settings, settings as env_settings
-from .database import get_db, Setting, ModelConfig
+from .config import settings as env_settings
+from .database import ModelConfig, get_db
 from .model_config_loader import get_model_config
 
 
@@ -89,7 +88,7 @@ class ConfigManager:
             description="Chroma collection name",
         )
 
-    def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
+    def get_setting(self, key: str, default: str | None = None) -> str | None:
         """Get a setting value from database.
 
         Args:
@@ -104,7 +103,9 @@ class ConfigManager:
             return setting.value
         return default
 
-    def set_setting(self, key: str, value: str, category: str = "general", description: Optional[str] = None):
+    def set_setting(
+        self, key: str, value: str, category: str = "general", description: str | None = None
+    ):
         """Set a setting value in database.
 
         Args:
@@ -115,7 +116,7 @@ class ConfigManager:
         """
         self.db.set_setting(key, value, category, description)
 
-    def get_all_settings(self, category: Optional[str] = None) -> Dict[str, str]:
+    def get_all_settings(self, category: str | None = None) -> dict[str, str]:
         """Get all settings as dictionary.
 
         Args:
@@ -126,7 +127,7 @@ class ConfigManager:
         """
         return self.db.get_settings_as_dict(category)
 
-    def get_active_llm_config(self) -> Dict[str, Any]:
+    def get_active_llm_config(self) -> dict[str, Any]:
         """Get active LLM configuration.
 
         Returns:
@@ -156,7 +157,7 @@ class ConfigManager:
             "source": "settings",
         }
 
-    def get_active_embedding_config(self) -> Dict[str, Any]:
+    def get_active_embedding_config(self) -> dict[str, Any]:
         """Get active embedding configuration.
 
         Returns:
@@ -178,12 +179,8 @@ class ConfigManager:
         llm_api_key = self.get_setting("llm_api_key", env_settings.llm_api_key)
         llm_base_url = self.get_setting("llm_base_url", env_settings.llm_base_url)
 
-        embedding_api_key = self.get_setting(
-            "embedding_api_key", env_settings.embedding_api_key
-        )
-        embedding_base_url = self.get_setting(
-            "embedding_base_url", env_settings.embedding_base_url
-        )
+        embedding_api_key = self.get_setting("embedding_api_key", env_settings.embedding_api_key)
+        embedding_base_url = self.get_setting("embedding_base_url", env_settings.embedding_base_url)
 
         return {
             "api_key": embedding_api_key or llm_api_key,
@@ -199,7 +196,7 @@ class ConfigManager:
         api_key: str,
         base_url: str,
         model: str,
-        temperature: Optional[float] = 0.0,
+        temperature: float | None = 0.0,
         set_active: bool = False,
     ) -> ModelConfig:
         """Save a model configuration.
@@ -226,7 +223,7 @@ class ConfigManager:
             is_active=set_active,
         )
 
-    def get_all_model_configs(self, config_type: Optional[str] = None) -> list[ModelConfig]:
+    def get_all_model_configs(self, config_type: str | None = None) -> list[ModelConfig]:
         """Get all saved model configurations.
 
         Args:
@@ -237,7 +234,7 @@ class ConfigManager:
         """
         return self.db.get_all_model_configs(config_type)
 
-    def set_active_model_config(self, config_id: int) -> Optional[ModelConfig]:
+    def set_active_model_config(self, config_id: int) -> ModelConfig | None:
         """Set a model config as active.
 
         Args:
@@ -287,7 +284,7 @@ class ConfigManager:
         # Read existing .env
         env_file = Path(env_path)
         if env_file.exists():
-            with open(env_file, "r") as f:
+            with open(env_file) as f:
                 lines = f.readlines()
         else:
             lines = []
@@ -322,7 +319,7 @@ class ConfigManager:
 
 
 # Global config manager instance
-_config_manager: Optional[ConfigManager] = None
+_config_manager: ConfigManager | None = None
 
 
 def get_config_manager() -> ConfigManager:

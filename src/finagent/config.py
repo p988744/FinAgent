@@ -1,6 +1,5 @@
 """Configuration management for FinAgent."""
 
-from typing import List
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,7 +24,7 @@ class Settings(BaseSettings):
     api_reload: bool = Field(default=True, description="Auto-reload on code changes")
 
     # CORS
-    cors_origins: List[str] = Field(
+    cors_origins: list[str] = Field(
         default=["http://localhost:3000", "http://127.0.0.1:3000"],
         description="Allowed CORS origins",
     )
@@ -33,15 +32,23 @@ class Settings(BaseSettings):
     # LLM Configuration (OpenAI-compatible API)
     # Works with OpenAI, Ollama, or any OpenAI-compatible endpoint
     llm_api_key: str = Field(default="", description="LLM API key")
-    llm_base_url: str = Field(default="", description="LLM base URL (leave empty for OpenAI, or provide custom endpoint)")
+    llm_base_url: str = Field(
+        default="", description="LLM base URL (leave empty for OpenAI, or provide custom endpoint)"
+    )
     llm_model: str = Field(default="gpt-4o-mini", description="LLM model name")
     llm_temperature: float = Field(default=0.0, description="LLM temperature")
 
     # Embedding Configuration (OpenAI-compatible API)
     # Works with OpenAI, local embedding servers, or any OpenAI-compatible endpoint
-    embedding_api_key: str = Field(default="", description="Embedding API key (leave empty to use llm_api_key)")
-    embedding_base_url: str = Field(default="", description="Embedding base URL (leave empty to use llm_base_url)")
-    embedding_model: str = Field(default="text-embedding-3-small", description="Embedding model name")
+    embedding_api_key: str = Field(
+        default="", description="Embedding API key (leave empty to use llm_api_key)"
+    )
+    embedding_base_url: str = Field(
+        default="", description="Embedding base URL (leave empty to use llm_base_url)"
+    )
+    embedding_model: str = Field(
+        default="text-embedding-3-small", description="Embedding model name"
+    )
 
     # Vector Database (Chroma)
     chroma_persist_directory: str = Field(

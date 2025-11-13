@@ -1,25 +1,28 @@
 """Model configuration loader for managing LLM model choices."""
 
-from pathlib import Path
-from typing import Dict, List, Any, Optional
-import yaml
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 
 @dataclass
 class ModelInfo:
     """Information about an LLM model."""
+
     id: str
     name: str
     description: str
     recommended: bool = False
     default: bool = False
-    dimensions: Optional[int] = None  # For embedding models
+    dimensions: int | None = None  # For embedding models
 
 
 @dataclass
 class LocalLLMPreset:
     """Preset configuration for local LLM."""
+
     name: str
     base_url: str
     model: str
@@ -31,7 +34,7 @@ class LocalLLMPreset:
 class ModelConfigLoader:
     """Loads and manages model configuration from YAML file."""
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         """
         Initialize config loader.
 
@@ -59,13 +62,13 @@ class ModelConfigLoader:
                     f"model_config.yml not found. Searched: {[str(p) for p in possible_paths]}"
                 )
 
-        self.config: Dict[str, Any] = {}
+        self.config: dict[str, Any] = {}
         self.load()
 
     def load(self) -> None:
         """Load configuration from YAML file."""
         try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
+            with open(self.config_path, encoding="utf-8") as f:
                 self.config = yaml.safe_load(f)
         except Exception as e:
             raise RuntimeError(f"Failed to load model_config.yml: {e}")
@@ -74,7 +77,7 @@ class ModelConfigLoader:
         """Reload configuration from file."""
         self.load()
 
-    def get_openai_chat_models(self, recommended_only: bool = False) -> List[ModelInfo]:
+    def get_openai_chat_models(self, recommended_only: bool = False) -> list[ModelInfo]:
         """
         Get list of OpenAI chat models.
 
@@ -91,7 +94,7 @@ class ModelConfigLoader:
                 name=m.get("name", m["id"]),
                 description=m.get("description", ""),
                 recommended=m.get("recommended", False),
-                default=m.get("default", False)
+                default=m.get("default", False),
             )
             for m in models_data
         ]
@@ -101,7 +104,7 @@ class ModelConfigLoader:
 
         return models
 
-    def get_openai_embedding_models(self, recommended_only: bool = False) -> List[ModelInfo]:
+    def get_openai_embedding_models(self, recommended_only: bool = False) -> list[ModelInfo]:
         """
         Get list of OpenAI embedding models.
 
@@ -119,7 +122,7 @@ class ModelConfigLoader:
                 description=m.get("description", ""),
                 recommended=m.get("recommended", False),
                 default=m.get("default", False),
-                dimensions=m.get("dimensions")
+                dimensions=m.get("dimensions"),
             )
             for m in models_data
         ]
@@ -129,7 +132,7 @@ class ModelConfigLoader:
 
         return models
 
-    def get_local_llm_presets(self, recommended_only: bool = False) -> List[LocalLLMPreset]:
+    def get_local_llm_presets(self, recommended_only: bool = False) -> list[LocalLLMPreset]:
         """
         Get list of local LLM presets.
 
@@ -147,7 +150,7 @@ class ModelConfigLoader:
                 model=p["model"],
                 api_key=p["api_key"],
                 description=p.get("description", ""),
-                recommended=p.get("recommended", False)
+                recommended=p.get("recommended", False),
             )
             for p in presets_data
         ]
@@ -157,7 +160,7 @@ class ModelConfigLoader:
 
         return presets
 
-    def get_default_chat_model(self) -> Optional[str]:
+    def get_default_chat_model(self) -> str | None:
         """Get default chat model ID."""
         models = self.get_openai_chat_models()
         for model in models:
@@ -166,7 +169,7 @@ class ModelConfigLoader:
         # Fallback to first model
         return models[0].id if models else None
 
-    def get_default_embedding_model(self) -> Optional[str]:
+    def get_default_embedding_model(self) -> str | None:
         """Get default embedding model ID."""
         models = self.get_openai_embedding_models()
         for model in models:
@@ -195,17 +198,15 @@ class ModelConfigLoader:
         settings = self.config.get("settings", {})
         return settings.get("show_only_recommended", False)
 
-    def get_temperature_presets(self) -> Dict[str, float]:
+    def get_temperature_presets(self) -> dict[str, float]:
         """Get temperature presets."""
         settings = self.config.get("settings", {})
-        return settings.get("temperature_presets", {
-            "deterministic": 0.0,
-            "balanced": 0.3,
-            "creative": 0.7,
-            "very_creative": 1.0
-        })
+        return settings.get(
+            "temperature_presets",
+            {"deterministic": 0.0, "balanced": 0.3, "creative": 0.7, "very_creative": 1.0},
+        )
 
-    def get_cost_info(self, model_id: str) -> Optional[Dict[str, float]]:
+    def get_cost_info(self, model_id: str) -> dict[str, float] | None:
         """
         Get cost information for a model.
 
@@ -220,7 +221,7 @@ class ModelConfigLoader:
 
 
 # Global instance
-_model_config: Optional[ModelConfigLoader] = None
+_model_config: ModelConfigLoader | None = None
 
 
 def get_model_config() -> ModelConfigLoader:

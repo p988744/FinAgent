@@ -4,6 +4,7 @@ Main entry point for FinAgent CLI.
 
 import click
 from rich.console import Console
+
 from finagent.cli.repl import start_repl
 
 console = Console()
@@ -25,6 +26,7 @@ def cli(ctx, version):
     """
     if version:
         from finagent.cli import __version__
+
         console.print(f"FinAgent CLI v{__version__}", style="bold cyan")
         return
 
@@ -39,7 +41,13 @@ def cli(ctx, version):
 @click.option("--regulator", help="Filter by regulator (FSC, CBC, FTC)")
 @click.option("--start-date", help="Start date (YYYY-MM-DD)")
 @click.option("--end-date", help="End date (YYYY-MM-DD)")
-@click.option("--format", "-f", type=click.Choice(["rich", "json", "markdown"]), default="rich", help="Output format")
+@click.option(
+    "--format",
+    "-f",
+    type=click.Choice(["rich", "json", "markdown"]),
+    default="rich",
+    help="Output format",
+)
 def query(text, max_results, regulator, start_date, end_date, format):
     """
     Submit a single legal research query.
@@ -57,7 +65,7 @@ def query(text, max_results, regulator, start_date, end_date, format):
         regulator=regulator,
         start_date=start_date,
         end_date=end_date,
-        output_format=format
+        output_format=format,
     )
 
 

@@ -1,7 +1,7 @@
 """Legal citation models."""
 
 from enum import Enum
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -40,24 +40,20 @@ class LegalCitation(BaseModel):
     formatted_citation: str = Field(
         ...,
         description="Formatted citation in Taiwan legal style",
-        examples=["金融監督管理委員會，金管銀法字第10800123456號裁罰書（民國108年9月15日）"]
+        examples=["金融監督管理委員會，金管銀法字第10800123456號裁罰書（民國108年9月15日）"],
     )
 
     # Optional metadata
-    date: Optional[str] = Field(None, description="Document date (YYYY-MM-DD)")
-    url: Optional[str] = Field(None, description="Document URL")
-    page_number: Optional[str] = Field(None, description="Page number if applicable")
-    section: Optional[str] = Field(None, description="Section reference (e.g., '第三章A節')")
+    date: str | None = Field(None, description="Document date (YYYY-MM-DD)")
+    url: str | None = Field(None, description="Document URL")
+    page_number: str | None = Field(None, description="Page number if applicable")
+    section: str | None = Field(None, description="Section reference (e.g., '第三章A節')")
 
     # Source details
-    issuing_authority: Optional[str] = Field(
-        None,
-        description="Issuing authority (e.g., '金管會', '最高法院')"
+    issuing_authority: str | None = Field(
+        None, description="Issuing authority (e.g., '金管會', '最高法院')"
     )
-    case_number: Optional[str] = Field(
-        None,
-        description="Case number (e.g., '110年台上字第1234號')"
-    )
+    case_number: str | None = Field(None, description="Case number (e.g., '110年台上字第1234號')")
 
     class Config:
         json_schema_extra = {
@@ -70,6 +66,6 @@ class LegalCitation(BaseModel):
                 "date": "2019-09-15",
                 "url": "https://www.fsc.gov.tw/...",
                 "issuing_authority": "金管會",
-                "case_number": "金管銀法字第10800123456號"
+                "case_number": "金管銀法字第10800123456號",
             }
         }

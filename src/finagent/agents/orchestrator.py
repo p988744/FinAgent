@@ -1,15 +1,14 @@
 """Agent orchestrator for coordinating the multi-agent workflow."""
 
 import logging
-from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-from finagent.models.queries import Query
-from finagent.models.answers import LegalAnswer, ConfidenceLevel
-from finagent.models.citations import LegalCitation, CitationAuthority, CitationType
-from finagent.document_processing import DocumentRetriever
-from finagent.agents.workflow import LegalResearchWorkflow
 from finagent.agents.state import AgentState
+from finagent.agents.workflow import LegalResearchWorkflow
+from finagent.document_processing import DocumentRetriever
+from finagent.models.answers import ConfidenceLevel, LegalAnswer
+from finagent.models.citations import CitationAuthority, CitationType, LegalCitation
+from finagent.models.queries import Query
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +154,7 @@ class AgentOrchestrator:
 
         return answer
 
-    def _extract_citations(self, chunks) -> List[LegalCitation]:
+    def _extract_citations(self, chunks) -> list[LegalCitation]:
         """
         Extract citations from retrieved document chunks.
 
@@ -195,7 +194,9 @@ class AgentOrchestrator:
 
         return citations
 
-    def _synthesize_answer(self, query: Query, chunks, citations: List[LegalCitation]) -> LegalAnswer:
+    def _synthesize_answer(
+        self, query: Query, chunks, citations: list[LegalCitation]
+    ) -> LegalAnswer:
         """
         Synthesize answer from retrieved chunks.
 
@@ -310,7 +311,7 @@ class AgentOrchestrator:
             key_findings=[
                 "此為測試回應，實際功能開發中",
                 "系統已成功接收並解析您的查詢",
-                "完整的多代理研究系統將在後續版本提供"
+                "完整的多代理研究系統將在後續版本提供",
             ],
             detailed_analysis=(
                 "這是一個測試回應。完整的法律研究代理系統正在開發中，將包含：\n\n"
@@ -323,9 +324,5 @@ class AgentOrchestrator:
             citations=[mock_citation],
             confidence_score=ConfidenceLevel.LOW,
             confidence_explanation="這是測試回應，非實際研究結果",
-            limitations=[
-                "此為MVP測試版本",
-                "尚未整合實際資料源",
-                "完整功能開發中"
-            ],
+            limitations=["此為MVP測試版本", "尚未整合實際資料源", "完整功能開發中"],
         )

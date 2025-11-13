@@ -1,17 +1,17 @@
 """Research query endpoints."""
 
 import uuid
-from fastapi import APIRouter, HTTPException
-from typing import Dict
 
-from finagent.models.queries import Query, QueryResponse
-from finagent.models.answers import LegalAnswer
+from fastapi import APIRouter, HTTPException
+
 from finagent.agents.orchestrator import AgentOrchestrator
+from finagent.models.answers import LegalAnswer
+from finagent.models.queries import Query, QueryResponse
 
 router = APIRouter(prefix="/api/v1/research", tags=["Research"])
 
 # In-memory storage for MVP (will be replaced with database)
-query_results: Dict[str, LegalAnswer] = {}
+query_results: dict[str, LegalAnswer] = {}
 
 
 @router.post("/query", response_model=QueryResponse, status_code=202)
@@ -46,10 +46,7 @@ async def submit_query(query: Query):
         )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing query: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
 
 
 @router.get("/query/{query_id}", response_model=LegalAnswer)
@@ -67,10 +64,7 @@ async def get_query_result(query_id: str):
         HTTPException: If query_id not found
     """
     if query_id not in query_results:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Query {query_id} not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Query {query_id} not found")
 
     return query_results[query_id]
 
@@ -95,7 +89,4 @@ async def submit_query_sync(query: Query):
         return answer
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing query: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")

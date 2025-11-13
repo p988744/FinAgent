@@ -4,20 +4,20 @@ Reindex command for rebuilding the vector database.
 
 import sys
 from pathlib import Path
+
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from rich.panel import Panel
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from finagent.document_processing import (
-    DocumentLoader,
     DocumentIndexer,
+    DocumentLoader,
 )
 from finagent.document_processing.metadata_store import DocumentMetadataStore
 from finagent.document_processing.toc_generator import TableOfContents
-from finagent.cli.commands.init import init_document_with_llm
 
 console = Console()
 
@@ -42,8 +42,7 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
         # Initialize loader, indexer, and metadata store
         loader = DocumentLoader(base_path=str(docs_path))
         indexer = DocumentIndexer(
-            collection_name="legal_documents",
-            persist_directory=str(vector_db_path)
+            collection_name="legal_documents", persist_directory=str(vector_db_path)
         )
         metadata_store = DocumentMetadataStore()
 
@@ -73,8 +72,8 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
 
             if uninitialized_docs:
                 console.print(f"[cyan]🤖 發現 {len(uninitialized_docs)} 個未初始化的文件[/cyan]")
-                console.print(f"[dim]使用 LLM 自動分析並初始化元資料...[/dim]")
-                console.print(f"[yellow]提示: 按 Ctrl+C 取消整個操作[/yellow]\n")
+                console.print("[dim]使用 LLM 自動分析並初始化元資料...[/dim]")
+                console.print("[yellow]提示: 按 Ctrl+C 取消整個操作[/yellow]\n")
 
                 from finagent.document_processing.metadata_generator import MetadataGenerator
 
@@ -90,25 +89,19 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
                     console=console,
                 ) as progress:
                     init_task = progress.add_task(
-                        "[cyan]🤖 初始化文件元資料...",
-                        total=len(uninitialized_docs)
+                        "[cyan]🤖 初始化文件元資料...", total=len(uninitialized_docs)
                     )
 
                     generator = MetadataGenerator()
 
                     for doc in uninitialized_docs:
                         filename = doc.metadata.get("filename", "unknown")
-                        progress.update(
-                            init_task,
-                            description=f"[cyan]🤖 分析: {filename[:40]}..."
-                        )
+                        progress.update(init_task, description=f"[cyan]🤖 分析: {filename[:40]}...")
 
                         try:
                             # Generate metadata with LLM
                             metadata = generator.generate_metadata(
-                                doc_id=doc.id,
-                                filename=filename,
-                                content=doc.content
+                                doc_id=doc.id, filename=filename, content=doc.content
                             )
 
                             # Save metadata
@@ -118,7 +111,7 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
                             progress.update(
                                 init_task,
                                 advance=1,
-                                description=f"[green]✓ 已初始化: {filename[:40]}..."
+                                description=f"[green]✓ 已初始化: {filename[:40]}...",
                             )
 
                         except KeyboardInterrupt:
@@ -127,13 +120,11 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
                             console.print("[yellow]⏸️  操作已中斷[/yellow]")
                             raise  # Re-raise to cancel entire operation
 
-                        except Exception as e:
+                        except Exception:
                             # LLM error - skip this document
                             failed_count += 1
                             progress.update(
-                                init_task,
-                                advance=1,
-                                description=f"[red]✗ 失敗: {filename[:40]}..."
+                                init_task, advance=1, description=f"[red]✗ 失敗: {filename[:40]}..."
                             )
                             continue
 
@@ -157,10 +148,7 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             console=console,
         ) as progress:
-            task = progress.add_task(
-                "[cyan]🔍 建立索引...",
-                total=len(documents)
-            )
+            task = progress.add_task("[cyan]🔍 建立索引...", total=len(documents))
 
             for doc in documents:
                 filename = doc.metadata.get("filename", "unknown")
@@ -169,9 +157,7 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
                 if not clear_existing and indexer.document_exists(doc.id):
                     skipped += 1
                     progress.update(
-                        task,
-                        advance=1,
-                        description=f"[yellow]⏭️  跳過: {filename[:40]}..."
+                        task, advance=1, description=f"[yellow]⏭️  跳過: {filename[:40]}..."
                     )
                     continue
 
@@ -179,16 +165,20 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
                 enhanced_metadata = metadata_store.get_metadata(doc.id)
                 if enhanced_metadata:
                     # Merge enhanced metadata into document metadata
-                    doc.metadata.update({
-                        "description": enhanced_metadata.description,
-                        "document_type": enhanced_metadata.document_type,
-                        "keywords": ", ".join(enhanced_metadata.keywords),
-                        "date": enhanced_metadata.date or "",
-                        "issuing_authority": enhanced_metadata.issuing_authority or "",
-                        "related_institutions": ", ".join(enhanced_metadata.related_institutions),
-                        "penalty_amount": enhanced_metadata.penalty_amount or "",
-                        "violation_types": ", ".join(enhanced_metadata.violation_types),
-                    })
+                    doc.metadata.update(
+                        {
+                            "description": enhanced_metadata.description,
+                            "document_type": enhanced_metadata.document_type,
+                            "keywords": ", ".join(enhanced_metadata.keywords),
+                            "date": enhanced_metadata.date or "",
+                            "issuing_authority": enhanced_metadata.issuing_authority or "",
+                            "related_institutions": ", ".join(
+                                enhanced_metadata.related_institutions
+                            ),
+                            "penalty_amount": enhanced_metadata.penalty_amount or "",
+                            "violation_types": ", ".join(enhanced_metadata.violation_types),
+                        }
+                    )
 
                 # Index document
                 try:
@@ -200,13 +190,11 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
                     progress.update(
                         task,
                         advance=1,
-                        description=f"[green]{status_icon} 已索引: {filename[:40]}... ({chunks} chunks)"
+                        description=f"[green]{status_icon} 已索引: {filename[:40]}... ({chunks} chunks)",
                     )
                 except Exception as e:
                     progress.update(
-                        task,
-                        advance=1,
-                        description=f"[red]❌ 錯誤: {filename[:40]}..."
+                        task, advance=1, description=f"[red]❌ 錯誤: {filename[:40]}..."
                     )
                     console.print(f"[red]  錯誤詳情: {str(e)}[/red]")
 
@@ -238,12 +226,14 @@ def execute_reindex(clear: bool = False, skip_init: bool = False):
     console.print()
 
     if clear:
-        console.print(Panel(
-            "[bold yellow]⚠️  警告：這將刪除所有現有索引並重新建立！[/bold yellow]\n\n"
-            "是否繼續？(輸入 'yes' 確認)",
-            title="確認清除索引",
-            border_style="yellow"
-        ))
+        console.print(
+            Panel(
+                "[bold yellow]⚠️  警告：這將刪除所有現有索引並重新建立！[/bold yellow]\n\n"
+                "是否繼續？(輸入 'yes' 確認)",
+                title="確認清除索引",
+                border_style="yellow",
+            )
+        )
 
         try:
             confirmation = console.input("[bold]> [/bold]")
@@ -257,10 +247,7 @@ def execute_reindex(clear: bool = False, skip_init: bool = False):
     console.print("[bold cyan]🚀 開始重新索引文件...[/bold cyan]\n")
 
     try:
-        indexed, chunks = reindex_documents(
-            clear_existing=clear,
-            prompt_init=not skip_init
-        )
+        indexed, chunks = reindex_documents(clear_existing=clear, prompt_init=not skip_init)
 
         # Show summary
         console.print()
@@ -275,11 +262,7 @@ def execute_reindex(clear: bool = False, skip_init: bool = False):
 💡 提示：現在可以使用 /query 命令查詢文件
         """
 
-        console.print(Panel(
-            summary_text.strip(),
-            title="索引結果",
-            border_style="green"
-        ))
+        console.print(Panel(summary_text.strip(), title="索引結果", border_style="green"))
         console.print()
 
     except KeyboardInterrupt:
@@ -287,4 +270,5 @@ def execute_reindex(clear: bool = False, skip_init: bool = False):
     except Exception as e:
         console.print(f"\n[red]❌ 索引失敗: {str(e)}[/red]\n")
         import traceback
+
         console.print(f"[dim]{traceback.format_exc()}[/dim]")

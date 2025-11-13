@@ -1,14 +1,14 @@
 """Pydantic models for FinAgent."""
 
-from finagent.models.citations import LegalCitation, CitationAuthority
+from finagent.models.answers import ConfidenceLevel, LegalAnswer
+from finagent.models.citations import CitationAuthority, LegalCitation
 from finagent.models.documents import (
-    EnforcementAction,
-    DocumentMetadata,
     CourtJudgment,
+    DocumentMetadata,
+    EnforcementAction,
     PrecedentCase,
 )
 from finagent.models.queries import Query, Task, TaskType
-from finagent.models.answers import LegalAnswer, ConfidenceLevel
 
 __all__ = [
     "LegalCitation",

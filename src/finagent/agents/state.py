@@ -1,10 +1,11 @@
 """Agent state definitions for LangGraph workflow."""
 
-from typing import TypedDict, Optional, List, Dict, Any
-from finagent.models.queries import Query
+from typing import Any, TypedDict
+
+from finagent.document_processing.retriever import RetrievedChunk
 from finagent.models.answers import LegalAnswer
 from finagent.models.citations import LegalCitation
-from finagent.document_processing.retriever import RetrievedChunk
+from finagent.models.queries import Query
 
 
 class AgentState(TypedDict):
@@ -13,24 +14,25 @@ class AgentState(TypedDict):
 
     This state is passed through the LangGraph workflow and updated by each agent.
     """
+
     # Input
     query: Query
 
     # Planning Agent outputs
-    plan: Optional[Dict[str, Any]]
-    research_tasks: Optional[List[str]]
+    plan: dict[str, Any] | None
+    research_tasks: list[str] | None
 
     # Action Agent outputs
-    retrieved_chunks: Optional[List[RetrievedChunk]]
-    citations: Optional[List[LegalCitation]]
+    retrieved_chunks: list[RetrievedChunk] | None
+    citations: list[LegalCitation] | None
 
     # Validation Agent outputs
     validation_passed: bool
-    validation_issues: Optional[List[str]]
+    validation_issues: list[str] | None
 
     # Answer Agent outputs
-    answer: Optional[LegalAnswer]
+    answer: LegalAnswer | None
 
     # Metadata
-    processing_steps: List[str]
-    errors: List[str]
+    processing_steps: list[str]
+    errors: list[str]

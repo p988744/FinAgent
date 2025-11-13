@@ -1,11 +1,10 @@
 """Action Agent - Executes research tasks using RAG and tools."""
 
 import logging
-from typing import List
 
 from finagent.agents.state import AgentState
 from finagent.document_processing.retriever import DocumentRetriever, RetrievedChunk
-from finagent.models.citations import LegalCitation, CitationType, CitationAuthority
+from finagent.models.citations import CitationAuthority, CitationType, LegalCitation
 
 logger = logging.getLogger(__name__)
 
@@ -53,15 +52,11 @@ class ActionAgent:
         try:
             # Execute RAG retrieval
             max_results = plan.get("max_results", 5) if plan else 5
-            all_chunks = self.retriever.retrieve(
-                query=query.text,
-                n_results=max_results
-            )
+            all_chunks = self.retriever.retrieve(query=query.text, n_results=max_results)
 
             # Filter by relevance threshold
             retrieved_chunks = [
-                chunk for chunk in all_chunks
-                if chunk.score <= self.relevance_threshold
+                chunk for chunk in all_chunks if chunk.score <= self.relevance_threshold
             ]
 
             # Log filtering results
@@ -74,9 +69,7 @@ class ActionAgent:
 
             if not retrieved_chunks:
                 logger.warning("No relevant documents found after filtering")
-                state["errors"].append(
-                    f"未找到相關文件（相似度門檻：{self.relevance_threshold}）"
-                )
+                state["errors"].append(f"未找到相關文件（相似度門檻：{self.relevance_threshold}）")
                 state["retrieved_chunks"] = []
                 state["citations"] = []
                 return state
@@ -104,7 +97,7 @@ class ActionAgent:
 
         return state
 
-    def _extract_citations(self, chunks: List[RetrievedChunk]) -> List[LegalCitation]:
+    def _extract_citations(self, chunks: list[RetrievedChunk]) -> list[LegalCitation]:
         """
         Extract citations from retrieved document chunks.
 

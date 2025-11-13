@@ -1,9 +1,10 @@
 """Document metadata storage for enhanced document descriptions."""
 
 import json
-from pathlib import Path
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from pathlib import Path
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -14,13 +15,13 @@ class DocumentMetadata(BaseModel):
     filename: str
     description: str  # Human-readable description of document content
     document_type: str  # e.g., "裁罰書", "判決書", "法規", "新聞報導"
-    keywords: List[str]  # Key topics/entities mentioned
-    date: Optional[str] = None  # Document date (e.g., "2020-09-15")
-    issuing_authority: Optional[str] = None  # e.g., "金管會", "中央銀行"
-    related_institutions: List[str] = []  # Banks/institutions mentioned
-    penalty_amount: Optional[str] = None  # If penalty document
-    violation_types: List[str] = []  # Types of violations
-    custom_fields: Dict[str, Any] = {}  # Additional custom metadata
+    keywords: list[str]  # Key topics/entities mentioned
+    date: str | None = None  # Document date (e.g., "2020-09-15")
+    issuing_authority: str | None = None  # e.g., "金管會", "中央銀行"
+    related_institutions: list[str] = []  # Banks/institutions mentioned
+    penalty_amount: str | None = None  # If penalty document
+    violation_types: list[str] = []  # Types of violations
+    custom_fields: dict[str, Any] = {}  # Additional custom metadata
     created_at: str
     updated_at: str
 
@@ -31,7 +32,7 @@ class DocumentMetadata(BaseModel):
 class DocumentMetadataStore:
     """Stores and retrieves document metadata."""
 
-    def __init__(self, storage_path: Optional[str] = None):
+    def __init__(self, storage_path: str | None = None):
         """
         Initialize metadata store.
 
@@ -42,14 +43,14 @@ class DocumentMetadataStore:
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Load existing metadata
-        self.metadata: Dict[str, DocumentMetadata] = {}
+        self.metadata: dict[str, DocumentMetadata] = {}
         self._load()
 
     def _load(self):
         """Load metadata from storage file."""
         if self.storage_path.exists():
             try:
-                with open(self.storage_path, "r", encoding="utf-8") as f:
+                with open(self.storage_path, encoding="utf-8") as f:
                     data = json.load(f)
                     for doc_id, meta_dict in data.items():
                         self.metadata[doc_id] = DocumentMetadata(**meta_dict)
@@ -59,10 +60,7 @@ class DocumentMetadataStore:
     def _save(self):
         """Save metadata to storage file."""
         try:
-            data = {
-                doc_id: meta.model_dump()
-                for doc_id, meta in self.metadata.items()
-            }
+            data = {doc_id: meta.model_dump() for doc_id, meta in self.metadata.items()}
             with open(self.storage_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -80,7 +78,7 @@ class DocumentMetadataStore:
         self.metadata[metadata.doc_id] = metadata
         self._save()
 
-    def get_metadata(self, doc_id: str) -> Optional[DocumentMetadata]:
+    def get_metadata(self, doc_id: str) -> DocumentMetadata | None:
         """
         Get metadata for a document.
 
@@ -92,16 +90,16 @@ class DocumentMetadataStore:
         """
         return self.metadata.get(doc_id)
 
-    def get_all_metadata(self) -> List[DocumentMetadata]:
+    def get_all_metadata(self) -> list[DocumentMetadata]:
         """Get all document metadata."""
         return list(self.metadata.values())
 
     def search_metadata(
         self,
-        keyword: Optional[str] = None,
-        document_type: Optional[str] = None,
-        institution: Optional[str] = None
-    ) -> List[DocumentMetadata]:
+        keyword: str | None = None,
+        document_type: str | None = None,
+        institution: str | None = None,
+    ) -> list[DocumentMetadata]:
         """
         Search metadata by criteria.
 
@@ -120,8 +118,8 @@ class DocumentMetadataStore:
             if keyword:
                 keyword_lower = keyword.lower()
                 if not (
-                    keyword_lower in meta.description.lower() or
-                    any(keyword_lower in kw.lower() for kw in meta.keywords)
+                    keyword_lower in meta.description.lower()
+                    or any(keyword_lower in kw.lower() for kw in meta.keywords)
                 ):
                     continue
 
@@ -163,11 +161,7 @@ class DocumentMetadataStore:
         self.metadata.clear()
         self._save()
 
-    def update_metadata(
-        self,
-        doc_id: str,
-        updates: Dict[str, Any]
-    ) -> Optional[DocumentMetadata]:
+    def update_metadata(self, doc_id: str, updates: dict[str, Any]) -> DocumentMetadata | None:
         """
         Update specific fields of document metadata.
 
@@ -193,7 +187,7 @@ class DocumentMetadataStore:
 
         return meta
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """
         Get statistics about stored metadata.
 

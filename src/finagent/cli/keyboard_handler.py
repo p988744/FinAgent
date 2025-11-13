@@ -1,10 +1,10 @@
 """Keyboard event handler for CLI interruptions."""
 
-import threading
 import sys
 import termios
+import threading
 import tty
-from typing import Optional, Callable
+from collections.abc import Callable
 
 
 class KeyboardHandler:
@@ -17,8 +17,8 @@ class KeyboardHandler:
     def __init__(self):
         """Initialize keyboard handler."""
         self._stop_listening = threading.Event()
-        self._listener_thread: Optional[threading.Thread] = None
-        self._interrupt_callback: Optional[Callable] = None
+        self._listener_thread: threading.Thread | None = None
+        self._interrupt_callback: Callable | None = None
         self._is_listening = False
 
     def start_listening(self, interrupt_callback: Callable[[], None]):
@@ -37,9 +37,7 @@ class KeyboardHandler:
 
         # Start listener thread
         self._listener_thread = threading.Thread(
-            target=self._listen_for_esc,
-            daemon=True,
-            name="KeyboardListener"
+            target=self._listen_for_esc, daemon=True, name="KeyboardListener"
         )
         self._listener_thread.start()
 
@@ -76,7 +74,7 @@ class KeyboardHandler:
                     char = sys.stdin.read(1)
 
                     # ESC key is '\x1b'
-                    if char == '\x1b':
+                    if char == "\x1b":
                         if self._interrupt_callback:
                             self._interrupt_callback()
                         break
@@ -145,6 +143,7 @@ def with_cancellation(func: Callable) -> Callable:
                     raise KeyboardInterrupt("Task cancelled by user")
                 # Do work...
     """
+
     def wrapper(*args, **kwargs):
         token = CancellationToken()
         with token:

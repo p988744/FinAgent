@@ -1,15 +1,17 @@
 """Query execution command handlers."""
 
 import asyncio
-import json
-from typing import Optional
 
 from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner
 
 from finagent.agents.orchestrator import AgentOrchestrator
-from finagent.cli.formatters.answer import format_legal_answer, format_answer_json, format_answer_markdown
+from finagent.cli.formatters.answer import (
+    format_answer_json,
+    format_answer_markdown,
+    format_legal_answer,
+)
 from finagent.models.answers import LegalAnswer
 from finagent.models.queries import Query
 
@@ -36,10 +38,10 @@ def reset_orchestrator():
 def execute_query(
     query_text: str,
     max_results: int = 5,
-    regulator: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None
-) -> Optional[LegalAnswer]:
+    regulator: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> LegalAnswer | None:
     """
     Execute a legal research query using the orchestrator directly.
 
@@ -60,7 +62,7 @@ def execute_query(
             max_results=max_results,
             regulator=regulator,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
         )
 
         # Get orchestrator
@@ -76,6 +78,7 @@ def execute_query(
     except Exception as e:
         console.print(f"[red]查詢錯誤: {str(e)}[/red]")
         import traceback
+
         traceback.print_exc()
         return None
 
@@ -83,10 +86,10 @@ def execute_query(
 def execute_single_query(
     text: str,
     max_results: int = 5,
-    regulator: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    output_format: str = "rich"
+    regulator: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    output_format: str = "rich",
 ):
     """
     Execute a single query and display results.

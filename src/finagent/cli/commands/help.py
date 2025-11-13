@@ -1,9 +1,8 @@
 """Help command handler."""
 
 from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 from rich.markdown import Markdown
+from rich.panel import Panel
 
 console = Console()
 

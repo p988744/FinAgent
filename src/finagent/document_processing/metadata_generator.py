@@ -1,13 +1,11 @@
 """LLM-based document metadata generator."""
 
 import json
-from typing import Optional
-from pathlib import Path
 
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
-from finagent.config import settings, reload_settings
+from finagent.config import reload_settings, settings
 from finagent.document_processing.metadata_store import DocumentMetadata
 
 
@@ -17,11 +15,19 @@ class MetadataGenerationResult(BaseModel):
     description: str = Field(description="1-2 sentence description of the document")
     document_type: str = Field(description="Document type (e.g., 裁罰書, 判決書, 法規條文)")
     keywords: list[str] = Field(description="5-10 keywords extracted from document")
-    date: Optional[str] = Field(default=None, description="Document date in YYYY-MM-DD format")
-    issuing_authority: Optional[str] = Field(default=None, description="Issuing authority (e.g., 金管會, 中央銀行)")
-    related_institutions: list[str] = Field(default_factory=list, description="Related banks/institutions")
-    penalty_amount: Optional[str] = Field(default=None, description="Penalty amount if applicable (e.g., 2.5億元)")
-    violation_types: list[str] = Field(default_factory=list, description="Violation types if applicable")
+    date: str | None = Field(default=None, description="Document date in YYYY-MM-DD format")
+    issuing_authority: str | None = Field(
+        default=None, description="Issuing authority (e.g., 金管會, 中央銀行)"
+    )
+    related_institutions: list[str] = Field(
+        default_factory=list, description="Related banks/institutions"
+    )
+    penalty_amount: str | None = Field(
+        default=None, description="Penalty amount if applicable (e.g., 2.5億元)"
+    )
+    violation_types: list[str] = Field(
+        default_factory=list, description="Violation types if applicable"
+    )
 
 
 class MetadataGenerator:
@@ -29,18 +35,28 @@ class MetadataGenerator:
 
     # Document type mapping for validation
     VALID_DOCUMENT_TYPES = [
-        "裁罰書", "判決書", "法規條文", "新聞報導",
-        "監管公告", "銀行聲明", "分析報告", "其他"
+        "裁罰書",
+        "判決書",
+        "法規條文",
+        "新聞報導",
+        "監管公告",
+        "銀行聲明",
+        "分析報告",
+        "其他",
     ]
 
-    VALID_AUTHORITIES = [
-        "金管會", "中央銀行", "公平會", "最高法院",
-        "高等法院", "地方法院", "其他"
-    ]
+    VALID_AUTHORITIES = ["金管會", "中央銀行", "公平會", "最高法院", "高等法院", "地方法院", "其他"]
 
     VALID_VIOLATION_TYPES = [
-        "洗錢防制", "內線交易", "資訊揭露", "法規遵循",
-        "作業風險", "信用風險", "市場操縱", "消費者保護", "其他"
+        "洗錢防制",
+        "內線交易",
+        "資訊揭露",
+        "法規遵循",
+        "作業風險",
+        "信用風險",
+        "市場操縱",
+        "消費者保護",
+        "其他",
     ]
 
     def __init__(self):
@@ -53,10 +69,7 @@ class MetadataGenerator:
 
         if base_url:
             # Custom endpoint
-            self.client = OpenAI(
-                api_key=settings.effective_llm_api_key,
-                base_url=base_url
-            )
+            self.client = OpenAI(api_key=settings.effective_llm_api_key, base_url=base_url)
         else:
             # OpenAI default
             self.client = OpenAI(api_key=settings.effective_llm_api_key)
@@ -64,11 +77,7 @@ class MetadataGenerator:
         self.model = settings.llm_model
 
     def generate_metadata(
-        self,
-        doc_id: str,
-        filename: str,
-        content: str,
-        max_content_length: int = 4000
+        self, doc_id: str, filename: str, content: str, max_content_length: int = 4000
     ) -> DocumentMetadata:
         """
         Generate metadata for a document using LLM.
@@ -116,10 +125,10 @@ class MetadataGenerator:
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.0,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
 
             # Parse response
@@ -131,6 +140,7 @@ class MetadataGenerator:
 
             # Convert to DocumentMetadata
             from datetime import datetime
+
             now = datetime.now().isoformat()
 
             metadata = DocumentMetadata(
@@ -145,7 +155,7 @@ class MetadataGenerator:
                 penalty_amount=result.penalty_amount,
                 violation_types=result.violation_types,
                 created_at=now,
-                updated_at=now
+                updated_at=now,
             )
 
             return metadata
@@ -181,11 +191,7 @@ class MetadataGenerator:
 """
 
 
-def generate_metadata_with_llm(
-    doc_id: str,
-    filename: str,
-    content: str
-) -> DocumentMetadata:
+def generate_metadata_with_llm(doc_id: str, filename: str, content: str) -> DocumentMetadata:
     """
     Convenience function to generate metadata using LLM.
 

@@ -6,12 +6,13 @@ Main entry point for the Taiwan Legal Research Agent System API.
 
 import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from finagent.config import settings
 from finagent.api.routes import health, research
+from finagent.config import settings
 
 # Configure logging
 logging.basicConfig(

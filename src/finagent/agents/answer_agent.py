@@ -1,15 +1,15 @@
 """Answer Agent - Synthesizes final answer using LLM."""
 
 import logging
-from typing import List, Optional
+
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
 
-from finagent.config import settings
 from finagent.agents.state import AgentState
-from finagent.models.answers import LegalAnswer, ConfidenceLevel
+from finagent.config import settings
 from finagent.document_processing.retriever import RetrievedChunk
+from finagent.models.answers import ConfidenceLevel, LegalAnswer
 from finagent.models.citations import LegalCitation
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class AnswerAgent:
     - Identify limitations
     """
 
-    def __init__(self, model: Optional[str] = None):
+    def __init__(self, model: str | None = None):
         """Initialize answer agent with LLM."""
         effective_model = model or settings.llm_model
         base_url = settings.effective_llm_base_url
@@ -48,10 +48,9 @@ class AnswerAgent:
                 temperature=0.3,  # Balanced creativity for synthesis
             )
 
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", self._get_system_prompt()),
-            ("user", self._get_user_prompt())
-        ])
+        self.prompt = ChatPromptTemplate.from_messages(
+            [("system", self._get_system_prompt()), ("user", self._get_user_prompt())]
+        )
 
         self.chain = self.prompt | self.llm | StrOutputParser()
 
@@ -168,12 +167,14 @@ class AnswerAgent:
             citations_text = self._format_citations(citations)
 
             # Invoke LLM to synthesize answer
-            response = self.chain.invoke({
-                "query": query.text,
-                "num_chunks": len(chunks),
-                "context": context,
-                "citations": citations_text
-            })
+            response = self.chain.invoke(
+                {
+                    "query": query.text,
+                    "num_chunks": len(chunks),
+                    "context": context,
+                    "citations": citations_text,
+                }
+            )
 
             # Parse LLM response into structured answer
             answer = self._parse_response(response, chunks, citations)
@@ -192,19 +193,17 @@ class AnswerAgent:
 
         return state
 
-    def _format_context(self, chunks: List[RetrievedChunk]) -> str:
+    def _format_context(self, chunks: list[RetrievedChunk]) -> str:
         """Format retrieved chunks for LLM context."""
         context_parts = []
         for i, chunk in enumerate(chunks, 1):
             filename = chunk.metadata.get("filename", "未知文件")
             context_parts.append(
-                f"### 文件 {i}：{filename}\n"
-                f"相似度分數：{chunk.score:.3f}\n\n"
-                f"{chunk.text}\n"
+                f"### 文件 {i}：{filename}\n" f"相似度分數：{chunk.score:.3f}\n\n" f"{chunk.text}\n"
             )
         return "\n---\n".join(context_parts)
 
-    def _format_citations(self, citations: List[LegalCitation]) -> str:
+    def _format_citations(self, citations: list[LegalCitation]) -> str:
         """Format citations for LLM context."""
         citations_parts = []
         for citation in citations:
@@ -217,10 +216,7 @@ class AnswerAgent:
         return "\n\n".join(citations_parts)
 
     def _parse_response(
-        self,
-        response: str,
-        chunks: List[RetrievedChunk],
-        citations: List[LegalCitation]
+        self, response: str, chunks: list[RetrievedChunk], citations: list[LegalCitation]
     ) -> LegalAnswer:
         """
         Parse LLM response into structured LegalAnswer.
@@ -255,10 +251,15 @@ class AnswerAgent:
                         break
 
             # Extract key findings
-            if "關鍵發現" in section or any(section.strip().startswith(prefix) for prefix in ["- ", "• ", "1.", "2.", "3."]):
+            if "關鍵發現" in section or any(
+                section.strip().startswith(prefix) for prefix in ["- ", "• ", "1.", "2.", "3."]
+            ):
                 lines = section.strip().split("\n")
                 for line in lines:
-                    if line.strip() and any(line.strip().startswith(p) for p in ["- ", "• ", "1.", "2.", "3.", "4.", "5."]):
+                    if line.strip() and any(
+                        line.strip().startswith(p)
+                        for p in ["- ", "• ", "1.", "2.", "3.", "4.", "5."]
+                    ):
                         key_findings.append(line.strip().lstrip("- •123456789.").strip())
 
         # If no key findings extracted, generate from first few chunks

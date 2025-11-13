@@ -1,6 +1,7 @@
 """Document-related models."""
 
-from typing import List, Optional, Dict, Any
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -15,30 +16,30 @@ class EnforcementAction(BaseModel):
     case_number: str = Field(..., description="Official case number (案號)")
     entity_name: str = Field(..., description="Entity name (e.g., '玉山商業銀行股份有限公司')")
     regulator: str = Field(..., description="Regulatory body (e.g., '金管會', '央行')")
-    sub_agency: Optional[str] = Field(None, description="Sub-agency (e.g., '銀行局')")
+    sub_agency: str | None = Field(None, description="Sub-agency (e.g., '銀行局')")
 
     # Dates
     action_date: str = Field(..., description="Date of enforcement action (YYYY-MM-DD)")
-    violation_start_date: Optional[str] = Field(None, description="Start of violation period (YYYY-MM-DD)")
-    violation_end_date: Optional[str] = Field(None, description="End of violation period (YYYY-MM-DD)")
+    violation_start_date: str | None = Field(
+        None, description="Start of violation period (YYYY-MM-DD)"
+    )
+    violation_end_date: str | None = Field(None, description="End of violation period (YYYY-MM-DD)")
 
     # Violation details
-    violation_types: List[str] = Field(
-        default_factory=list,
-        description="Types of violations (e.g., ['洗錢防制', '內線交易'])"
+    violation_types: list[str] = Field(
+        default_factory=list, description="Types of violations (e.g., ['洗錢防制', '內線交易'])"
     )
-    statutes_cited: List[str] = Field(
-        default_factory=list,
-        description="Cited statutes (e.g., ['銀行法第125條'])"
+    statutes_cited: list[str] = Field(
+        default_factory=list, description="Cited statutes (e.g., ['銀行法第125條'])"
     )
 
     # Penalty
-    penalty_amount: Optional[int] = Field(None, description="Penalty amount in NTD")
-    penalty_description: Optional[str] = Field(None, description="Penalty description")
+    penalty_amount: int | None = Field(None, description="Penalty amount in NTD")
+    penalty_description: str | None = Field(None, description="Penalty description")
     status: str = Field(default="已結案", description="Case status")
 
     # Document
-    document_url: Optional[str] = Field(None, description="URL to official document")
+    document_url: str | None = Field(None, description="URL to official document")
     summary: str = Field(..., max_length=2000, description="Brief summary of the action")
 
     class Config:
@@ -53,7 +54,7 @@ class EnforcementAction(BaseModel):
                 "violation_types": ["洗錢防制"],
                 "statutes_cited": ["銀行法第45條之2"],
                 "penalty_amount": 250000000,
-                "summary": "因洗錢防制作業缺失，裁處罰鍰新台幣2.5億元"
+                "summary": "因洗錢防制作業缺失，裁處罰鍰新台幣2.5億元",
             }
         }
 
@@ -67,31 +68,25 @@ class DocumentMetadata(BaseModel):
     page_count: int = Field(..., description="Number of pages")
 
     # Parties
-    parties: List[str] = Field(default_factory=list, description="All parties in the document")
+    parties: list[str] = Field(default_factory=list, description="All parties in the document")
 
     # Case information
-    case_number: Optional[str] = Field(None, description="Case number")
-    filing_date: Optional[str] = Field(None, description="Filing date (YYYY-MM-DD)")
+    case_number: str | None = Field(None, description="Case number")
+    filing_date: str | None = Field(None, description="Filing date (YYYY-MM-DD)")
 
     # Key dates and amounts
-    key_dates: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="Important dates with labels"
+    key_dates: list[dict[str, Any]] = Field(
+        default_factory=list, description="Important dates with labels"
     )
-    penalties: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="Penalty amounts and descriptions"
+    penalties: list[dict[str, Any]] = Field(
+        default_factory=list, description="Penalty amounts and descriptions"
     )
 
     # Content
-    violation_summary: List[str] = Field(
-        default_factory=list,
-        description="Summary of violations"
-    )
-    statutes_cited: List[str] = Field(default_factory=list, description="Cited statutes")
-    remediation_required: List[str] = Field(
-        default_factory=list,
-        description="Required remediation measures"
+    violation_summary: list[str] = Field(default_factory=list, description="Summary of violations")
+    statutes_cited: list[str] = Field(default_factory=list, description="Cited statutes")
+    remediation_required: list[str] = Field(
+        default_factory=list, description="Required remediation measures"
     )
 
 
@@ -104,13 +99,13 @@ class CourtJudgment(BaseModel):
     case_type: str = Field(..., description="Case type (e.g., '金', '上訴')")
 
     # Parties
-    parties_plaintiff: List[str] = Field(default_factory=list, description="Plaintiffs")
-    parties_defendant: List[str] = Field(default_factory=list, description="Defendants")
+    parties_plaintiff: list[str] = Field(default_factory=list, description="Plaintiffs")
+    parties_defendant: list[str] = Field(default_factory=list, description="Defendants")
 
     # Content
     main_text: str = Field(..., description="Main text (主文)")
     case_summary: str = Field(..., description="Case summary (案由)")
-    judgment_url: Optional[str] = Field(None, description="URL to judgment")
+    judgment_url: str | None = Field(None, description="URL to judgment")
 
 
 class PrecedentCase(BaseModel):
@@ -122,22 +117,17 @@ class PrecedentCase(BaseModel):
     jurisdiction: str = Field(..., description="Jurisdiction/court")
 
     # Details
-    violation_types: List[str] = Field(default_factory=list, description="Violation types")
-    penalty_amount: Optional[int] = Field(None, description="Penalty amount in NTD")
+    violation_types: list[str] = Field(default_factory=list, description="Violation types")
+    penalty_amount: int | None = Field(None, description="Penalty amount in NTD")
     outcome: str = Field(..., description="Case outcome")
 
     # Similarity
     similarity_score: float = Field(
-        ...,
-        ge=0.0,
-        le=1.0,
-        description="Semantic similarity score to query"
+        ..., ge=0.0, le=1.0, description="Semantic similarity score to query"
     )
-    key_similarities: List[str] = Field(
-        default_factory=list,
-        description="Why this precedent is relevant"
+    key_similarities: list[str] = Field(
+        default_factory=list, description="Why this precedent is relevant"
     )
-    key_differences: List[str] = Field(
-        default_factory=list,
-        description="Key differences from query case"
+    key_differences: list[str] = Field(
+        default_factory=list, description="Key differences from query case"
     )

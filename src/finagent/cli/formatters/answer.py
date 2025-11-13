@@ -1,15 +1,11 @@
 """Formatters for LegalAnswer display."""
 
-import json
-from typing import Optional
-
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.progress import Progress, BarColumn, TextColumn
 from rich.table import Table
 
-from finagent.models.answers import LegalAnswer, ConfidenceLevel
+from finagent.models.answers import ConfidenceLevel, LegalAnswer
 
 console = Console()
 
@@ -23,12 +19,14 @@ def format_legal_answer(answer: LegalAnswer):
     """
     # Main panel with executive summary
     console.print()
-    console.print(Panel(
-        f"[bold white]{answer.executive_summary}[/bold white]",
-        title="[cyan]執行摘要[/cyan]",
-        border_style="cyan",
-        padding=(1, 2)
-    ))
+    console.print(
+        Panel(
+            f"[bold white]{answer.executive_summary}[/bold white]",
+            title="[cyan]執行摘要[/cyan]",
+            border_style="cyan",
+            padding=(1, 2),
+        )
+    )
     console.print()
 
     # Key findings section
@@ -40,12 +38,14 @@ def format_legal_answer(answer: LegalAnswer):
 
     # Detailed analysis section
     if answer.detailed_analysis:
-        console.print(Panel(
-            Markdown(answer.detailed_analysis),
-            title="[cyan]詳細分析[/cyan]",
-            border_style="blue",
-            padding=(1, 2)
-        ))
+        console.print(
+            Panel(
+                Markdown(answer.detailed_analysis),
+                title="[cyan]詳細分析[/cyan]",
+                border_style="blue",
+                padding=(1, 2),
+            )
+        )
         console.print()
 
     # Precedent comparison table (if available)
@@ -62,7 +62,7 @@ def format_legal_answer(answer: LegalAnswer):
                 case.get("name", "N/A"),
                 case.get("date", "N/A"),
                 case.get("penalty", "N/A"),
-                case.get("violation_type", "N/A")
+                case.get("violation_type", "N/A"),
             )
 
         console.print(precedent_table)
@@ -74,14 +74,15 @@ def format_legal_answer(answer: LegalAnswer):
 
         for idx, citation in enumerate(answer.citations, 1):
             # Determine authority color
-            authority_color = {
-                "primary": "green",
-                "secondary": "yellow",
-                "tertiary": "blue"
-            }.get(citation.authority.value, "white")
+            authority_color = {"primary": "green", "secondary": "yellow", "tertiary": "blue"}.get(
+                citation.authority.value, "white"
+            )
 
             console.print(f"[bold white][{idx}][/bold white] {citation.title}")
-            console.print(f"    [dim]{citation.type.value}[/dim] | [{authority_color}]{citation.authority.value}[/{authority_color}]", end="")
+            console.print(
+                f"    [dim]{citation.type.value}[/dim] | [{authority_color}]{citation.authority.value}[/{authority_color}]",
+                end="",
+            )
 
             if citation.date:
                 console.print(f" | [dim]{citation.date}[/dim]", end="")
@@ -95,12 +96,14 @@ def format_legal_answer(answer: LegalAnswer):
 
     # Final answer (highlighted)
     if answer.final_answer:
-        console.print(Panel(
-            f"[bold green]{answer.final_answer}[/bold green]",
-            title="[green]✓ 最終答案[/green]",
-            border_style="green",
-            padding=(1, 2)
-        ))
+        console.print(
+            Panel(
+                f"[bold green]{answer.final_answer}[/bold green]",
+                title="[green]✓ 最終答案[/green]",
+                border_style="green",
+                padding=(1, 2),
+            )
+        )
         console.print()
 
     # Confidence score with visual bar
@@ -111,12 +114,14 @@ def format_legal_answer(answer: LegalAnswer):
     # Limitations (if any)
     if answer.limitations:
         limitations_text = "\n".join(f"• {lim}" for lim in answer.limitations)
-        console.print(Panel(
-            limitations_text,
-            title="[yellow]限制說明[/yellow]",
-            border_style="yellow",
-            padding=(1, 2)
-        ))
+        console.print(
+            Panel(
+                limitations_text,
+                title="[yellow]限制說明[/yellow]",
+                border_style="yellow",
+                padding=(1, 2),
+            )
+        )
         console.print()
 
     # Processing time
@@ -140,7 +145,7 @@ def format_confidence_score(score: ConfidenceLevel) -> Panel:
     level_info = {
         ConfidenceLevel.HIGH: ("green", 0.85, "基於多個主要來源，所有關鍵事實已驗證"),
         ConfidenceLevel.MEDIUM: ("yellow", 0.65, "大部分事實來自主要來源，部分細節待確認"),
-        ConfidenceLevel.LOW: ("red", 0.40, "依賴次要來源，建議進一步驗證")
+        ConfidenceLevel.LOW: ("red", 0.40, "依賴次要來源，建議進一步驗證"),
     }
 
     color, numeric_score, explanation = level_info.get(score, ("white", 0.5, ""))
@@ -157,12 +162,7 @@ def format_confidence_score(score: ConfidenceLevel) -> Panel:
     content = f"[{color}]{bar}[/{color}] [{color}]{level_text}[/{color}] ({percentage})"
     content += f"\n[dim]{explanation}[/dim]"
 
-    return Panel(
-        content,
-        title="[cyan]信心評分[/cyan]",
-        border_style=color,
-        padding=(0, 2)
-    )
+    return Panel(content, title="[cyan]信心評分[/cyan]", border_style=color, padding=(0, 2))
 
 
 def format_answer_json(answer: LegalAnswer) -> str:
@@ -215,7 +215,9 @@ def format_answer_markdown(answer: LegalAnswer) -> str:
         lines.append("| 案件 | 日期 | 裁罰金額 | 違規類型 |")
         lines.append("|------|------|----------|----------|")
         for case in answer.precedent_comparison.get("cases", []):
-            lines.append(f"| {case.get('name', 'N/A')} | {case.get('date', 'N/A')} | {case.get('penalty', 'N/A')} | {case.get('violation_type', 'N/A')} |")
+            lines.append(
+                f"| {case.get('name', 'N/A')} | {case.get('date', 'N/A')} | {case.get('penalty', 'N/A')} | {case.get('violation_type', 'N/A')} |"
+            )
         lines.append("")
 
     # Citations

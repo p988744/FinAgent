@@ -1,8 +1,8 @@
 """Base agent class."""
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
 import logging
+from abc import ABC, abstractmethod
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ class BaseAgent(ABC):
     All specialized agents (Planning, Action, Answer, Validation) inherit from this.
     """
 
-    def __init__(self, name: str, model: Optional[str] = None):
+    def __init__(self, name: str, model: str | None = None):
         """
         Initialize base agent.
 
@@ -27,7 +27,7 @@ class BaseAgent(ABC):
         self.logger = logging.getLogger(f"{__name__}.{name}")
 
     @abstractmethod
-    async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, input_data: dict[str, Any]) -> dict[str, Any]:
         """
         Execute the agent's primary function.
 
@@ -39,7 +39,7 @@ class BaseAgent(ABC):
         """
         pass
 
-    def log_execution(self, action: str, details: Optional[str] = None):
+    def log_execution(self, action: str, details: str | None = None):
         """Log agent execution details."""
         log_msg = f"[{self.name}] {action}"
         if details:

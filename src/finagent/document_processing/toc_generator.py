@@ -1,10 +1,10 @@
 """Compact, grep-friendly Table of Contents generator."""
 
-from pathlib import Path
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-from finagent.document_processing.metadata_store import DocumentMetadataStore, DocumentMetadata
+from finagent.document_processing.metadata_store import DocumentMetadata, DocumentMetadataStore
 
 
 class CompactTableOfContents:
@@ -17,7 +17,7 @@ class CompactTableOfContents:
     - Machine-readable structure
     """
 
-    def __init__(self, output_path: Optional[str] = None):
+    def __init__(self, output_path: str | None = None):
         """
         Initialize TOC generator.
 
@@ -43,7 +43,7 @@ class CompactTableOfContents:
             return self._generate_empty_toc()
 
         # Group by document type
-        by_type: Dict[str, List[DocumentMetadata]] = {}
+        by_type: dict[str, list[DocumentMetadata]] = {}
         for meta in all_metadata:
             doc_type = meta.document_type
             if doc_type not in by_type:
@@ -52,10 +52,7 @@ class CompactTableOfContents:
 
         # Sort each group by date (newest first)
         for doc_type in by_type:
-            by_type[doc_type].sort(
-                key=lambda m: m.date if m.date else "0000-00-00",
-                reverse=True
-            )
+            by_type[doc_type].sort(key=lambda m: m.date if m.date else "0000-00-00", reverse=True)
 
         # Generate markdown
         lines = []
@@ -70,7 +67,12 @@ class CompactTableOfContents:
         # Statistics (compact table)
         lines.append("## 📊 統計")
         lines.append("")
-        stats_line = " | ".join([f"{dt}: {len(docs)}" for dt, docs in sorted(by_type.items(), key=lambda x: len(x[1]), reverse=True)])
+        stats_line = " | ".join(
+            [
+                f"{dt}: {len(docs)}"
+                for dt, docs in sorted(by_type.items(), key=lambda x: len(x[1]), reverse=True)
+            ]
+        )
         lines.append(stats_line)
         lines.append("")
 
@@ -78,10 +80,14 @@ class CompactTableOfContents:
         lines.append("## 📋 文件索引 (Grep-Friendly)")
         lines.append("")
         lines.append("```")
-        lines.append("# Format: FILENAME | TYPE | DATE | AUTHORITY | INSTITUTIONS | PENALTY | VIOLATIONS | KEYWORDS")
+        lines.append(
+            "# Format: FILENAME | TYPE | DATE | AUTHORITY | INSTITUTIONS | PENALTY | VIOLATIONS | KEYWORDS"
+        )
         lines.append("#")
 
-        for meta in sorted(all_metadata, key=lambda m: m.date if m.date else "0000-00-00", reverse=True):
+        for meta in sorted(
+            all_metadata, key=lambda m: m.date if m.date else "0000-00-00", reverse=True
+        ):
             # Create compact one-line entry
             parts = [
                 meta.filename,
@@ -106,8 +112,14 @@ class CompactTableOfContents:
 
         # Define preferred order
         type_order = [
-            "裁罰書", "判決書", "法規條文", "監管公告",
-            "新聞報導", "銀行聲明", "分析報告", "其他"
+            "裁罰書",
+            "判決書",
+            "法規條文",
+            "監管公告",
+            "新聞報導",
+            "銀行聲明",
+            "分析報告",
+            "其他",
         ]
 
         # Process types in preferred order
@@ -210,7 +222,7 @@ class CompactTableOfContents:
         lines.append("# 文件目錄")
         lines.append("")
         lines.append(f"更新: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-        lines.append(f"總數: 0 份")
+        lines.append("總數: 0 份")
         lines.append("")
         lines.append("## 📋 目前無文件")
         lines.append("")
@@ -232,7 +244,7 @@ class CompactTableOfContents:
         self.output_path.write_text(content, encoding="utf-8")
         return self.output_path
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """
         Get summary statistics.
 
@@ -250,13 +262,13 @@ class CompactTableOfContents:
             }
 
         # Count by type
-        by_type: Dict[str, int] = {}
+        by_type: dict[str, int] = {}
         for meta in all_metadata:
             doc_type = meta.document_type
             by_type[doc_type] = by_type.get(doc_type, 0) + 1
 
         # Count by authority
-        by_authority: Dict[str, int] = {}
+        by_authority: dict[str, int] = {}
         for meta in all_metadata:
             if meta.issuing_authority:
                 authority = meta.issuing_authority

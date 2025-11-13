@@ -5,10 +5,9 @@ MVP: Supports TXT files
 Future: PDF, HTML, databases
 """
 
-import os
-from pathlib import Path
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -18,7 +17,7 @@ class Document(BaseModel):
 
     id: str  # Unique document identifier
     content: str  # Full text content
-    metadata: Dict[str, Any]  # Document metadata
+    metadata: dict[str, Any]  # Document metadata
     source: str  # Source file path or URL
     loaded_at: datetime  # When document was loaded
 
@@ -29,7 +28,7 @@ class Document(BaseModel):
 class DocumentLoader:
     """Loads documents from various sources."""
 
-    def __init__(self, base_path: Optional[str] = None):
+    def __init__(self, base_path: str | None = None):
         """
         Initialize document loader.
 
@@ -39,7 +38,7 @@ class DocumentLoader:
         self.base_path = Path(base_path or "./data/documents")
         self.base_path.mkdir(parents=True, exist_ok=True)
 
-    def load_txt(self, file_path: str, metadata: Optional[Dict[str, Any]] = None) -> Document:
+    def load_txt(self, file_path: str, metadata: dict[str, Any] | None = None) -> Document:
         """
         Load a TXT file.
 
@@ -63,7 +62,7 @@ class DocumentLoader:
             raise FileNotFoundError(f"File not found: {path}")
 
         # Read file content
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
 
         # Extract default metadata from filename/path
@@ -91,7 +90,7 @@ class DocumentLoader:
 
     def load_directory(
         self, directory: str, pattern: str = "*.txt", recursive: bool = False
-    ) -> List[Document]:
+    ) -> list[Document]:
         """
         Load all matching files from a directory.
 
@@ -145,7 +144,7 @@ class DocumentLoader:
         filename = path.stem  # Filename without extension
         return f"doc_{filename}_{path_hash}"
 
-    def get_document_info(self, file_path: str) -> Dict[str, Any]:
+    def get_document_info(self, file_path: str) -> dict[str, Any]:
         """
         Get document info without loading full content.
 

@@ -8,8 +8,8 @@ Implements smart chunking that preserves:
 """
 
 import re
-from typing import List, Dict, Any
 from dataclasses import dataclass
+from typing import Any
 
 import jieba
 
@@ -22,7 +22,7 @@ class TextChunk:
     chunk_id: int  # Chunk number
     start_char: int  # Starting character position in document
     end_char: int  # Ending character position
-    metadata: Dict[str, Any]  # Additional metadata
+    metadata: dict[str, Any]  # Additional metadata
 
 
 class ChineseTextChunker:
@@ -49,7 +49,7 @@ class ChineseTextChunker:
         # Initialize jieba for Chinese word segmentation
         jieba.setLogLevel(jieba.logging.INFO)
 
-    def chunk_text(self, text: str, doc_id: str = "unknown") -> List[TextChunk]:
+    def chunk_text(self, text: str, doc_id: str = "unknown") -> list[TextChunk]:
         """
         Chunk text into smaller pieces.
 
@@ -95,7 +95,7 @@ class ChineseTextChunker:
 
         return text.strip()
 
-    def _split_paragraphs(self, text: str) -> List[str]:
+    def _split_paragraphs(self, text: str) -> list[str]:
         """
         Split text into paragraphs.
 
@@ -118,7 +118,7 @@ class ChineseTextChunker:
 
         return paragraphs
 
-    def _chunk_paragraphs(self, paragraphs: List[str], doc_id: str) -> List[TextChunk]:
+    def _chunk_paragraphs(self, paragraphs: list[str], doc_id: str) -> list[TextChunk]:
         """
         Chunk paragraphs while trying to preserve their integrity.
 
@@ -219,7 +219,7 @@ class ChineseTextChunker:
 
         return chunks
 
-    def _split_long_paragraph(self, para: str) -> List[str]:
+    def _split_long_paragraph(self, para: str) -> list[str]:
         """
         Split a long paragraph into smaller chunks.
 
@@ -263,7 +263,7 @@ class ChineseTextChunker:
 
         return chunks
 
-    def _sliding_window_chunk(self, text: str, doc_id: str) -> List[TextChunk]:
+    def _sliding_window_chunk(self, text: str, doc_id: str) -> list[TextChunk]:
         """
         Simple sliding window chunking (fallback method).
 
@@ -310,7 +310,7 @@ class ChineseTextChunker:
 
         return chunks
 
-    def get_chunk_stats(self, chunks: List[TextChunk]) -> Dict[str, Any]:
+    def get_chunk_stats(self, chunks: list[TextChunk]) -> dict[str, Any]:
         """
         Get statistics about chunks.
 

@@ -2,16 +2,16 @@
 Document indexer for Chroma vector database.
 """
 
-from typing import List, Optional, Dict, Any
 from pathlib import Path
+from typing import Any
 
 import chromadb
 from chromadb.config import Settings
 
-from finagent.document_processing.loader import Document
-from finagent.document_processing.chunker import TextChunk, ChineseTextChunker
-from finagent.document_processing.embeddings import EmbeddingGenerator
 from finagent.config import settings
+from finagent.document_processing.chunker import ChineseTextChunker
+from finagent.document_processing.embeddings import EmbeddingGenerator
+from finagent.document_processing.loader import Document
 
 
 class DocumentIndexer:
@@ -20,8 +20,8 @@ class DocumentIndexer:
     def __init__(
         self,
         collection_name: str = "legal_documents",
-        persist_directory: Optional[str] = None,
-        embedding_generator: Optional[EmbeddingGenerator] = None,
+        persist_directory: str | None = None,
+        embedding_generator: EmbeddingGenerator | None = None,
     ):
         """
         Initialize document indexer.
@@ -58,7 +58,7 @@ class DocumentIndexer:
         )
 
     def index_document(
-        self, document: Document, additional_metadata: Optional[Dict[str, Any]] = None
+        self, document: Document, additional_metadata: dict[str, Any] | None = None
     ) -> int:
         """
         Index a single document.
@@ -119,12 +119,14 @@ class DocumentIndexer:
             metadatas.append(cleaned_metadata)
 
         # Add to Chroma
-        self.collection.add(ids=ids, embeddings=embeddings, documents=documents_list, metadatas=metadatas)
+        self.collection.add(
+            ids=ids, embeddings=embeddings, documents=documents_list, metadatas=metadatas
+        )
 
         return len(chunks)
 
     def index_documents(
-        self, documents: List[Document], additional_metadata: Optional[Dict[str, Any]] = None
+        self, documents: list[Document], additional_metadata: dict[str, Any] | None = None
     ) -> int:
         """
         Index multiple documents.
@@ -174,7 +176,7 @@ class DocumentIndexer:
             metadata={"description": "Taiwan legal research documents"},
         )
 
-    def get_collection_stats(self) -> Dict[str, Any]:
+    def get_collection_stats(self) -> dict[str, Any]:
         """
         Get statistics about the collection.
 
@@ -207,7 +209,7 @@ class DocumentIndexer:
 
         return bool(results and results["ids"])
 
-    def get_document_chunks(self, doc_id: str) -> List[Dict[str, Any]]:
+    def get_document_chunks(self, doc_id: str) -> list[dict[str, Any]]:
         """
         Get all chunks for a specific document.
 
@@ -217,9 +219,7 @@ class DocumentIndexer:
         Returns:
             List of chunk data dictionaries
         """
-        results = self.collection.get(
-            where={"doc_id": doc_id}, include=["documents", "metadatas"]
-        )
+        results = self.collection.get(where={"doc_id": doc_id}, include=["documents", "metadatas"])
 
         if not results or not results["ids"]:
             return []

@@ -44,10 +44,13 @@ def test_query_validation():
     with pytest.raises(Exception):
         Query(text="")
 
-    # Test max_results range
-    query = Query(text="test", max_results=100)
-    # Should be capped at 50
-    assert query.max_results <= 50
+    # Test max_results range - should fail validation if above 50
+    with pytest.raises(Exception):
+        Query(text="test", max_results=100)
+
+    # Test valid max_results
+    query = Query(text="test", max_results=50)
+    assert query.max_results == 50
 
 
 def test_task_model():

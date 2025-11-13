@@ -1,8 +1,9 @@
 """Health check endpoints."""
 
+from datetime import datetime
+
 from fastapi import APIRouter
 from pydantic import BaseModel
-from datetime import datetime
 
 from finagent.config import settings
 

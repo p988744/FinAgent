@@ -1,7 +1,6 @@
 """Validation Agent - Validates citations and fact coverage."""
 
 import logging
-from typing import List
 
 from finagent.agents.state import AgentState
 
@@ -47,7 +46,9 @@ class ValidationAgent:
         try:
             # Check 1: Minimum citations
             if len(citations) < self.min_citations:
-                issues.append(f"引用來源不足：僅有 {len(citations)} 個引用，建議至少 {self.min_citations} 個")
+                issues.append(
+                    f"引用來源不足：僅有 {len(citations)} 個引用，建議至少 {self.min_citations} 個"
+                )
 
             # Check 2: All chunks have valid metadata
             for idx, chunk in enumerate(retrieved_chunks, 1):
@@ -74,9 +75,7 @@ class ValidationAgent:
                 state["processing_steps"].append("驗證代理：所有引用通過驗證")
                 logger.info("Validation passed")
             else:
-                state["processing_steps"].append(
-                    f"驗證代理：發現 {len(issues)} 個潛在問題"
-                )
+                state["processing_steps"].append(f"驗證代理：發現 {len(issues)} 個潛在問題")
                 logger.warning(f"Validation found {len(issues)} issues: {issues}")
 
         except Exception as e:

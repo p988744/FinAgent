@@ -1,17 +1,15 @@
 """Configuration command handlers."""
 
-import os
 from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from finagent.config import settings, reload_settings
-from finagent.model_config_loader import get_model_config, reload_model_config
+from finagent.config import reload_settings, settings
 from finagent.config_manager import get_config_manager
+from finagent.model_config_loader import get_model_config, reload_model_config
 
 console = Console()
 
@@ -50,12 +48,12 @@ def get_available_openai_models(api_key: str) -> list:
             models = model_config.get_openai_chat_models(
                 recommended_only=model_config.show_only_recommended()
             )
-            return [m.id for m in models[:model_config.get_max_models_to_display()]]
+            return [m.id for m in models[: model_config.get_max_models_to_display()]]
 
         # Check if should skip dynamic fetching
         if not model_config.should_fetch_openai_models_dynamically():
             models = model_config.get_openai_chat_models()
-            return [m.id for m in models[:model_config.get_max_models_to_display()]]
+            return [m.id for m in models[: model_config.get_max_models_to_display()]]
     except FileNotFoundError:
         # model_config.yml not found, use legacy behavior
         pass
@@ -76,7 +74,7 @@ def get_available_openai_models(api_key: str) -> list:
         response = httpx.get(
             "https://api.openai.com/v1/models",
             headers={"Authorization": f"Bearer {api_key}"},
-            timeout=5.0
+            timeout=5.0,
         )
 
         if response.status_code == 200:
@@ -85,7 +83,8 @@ def get_available_openai_models(api_key: str) -> list:
 
             # Filter for chat models (gpt-*)
             chat_models = [
-                m for m in all_models
+                m
+                for m in all_models
                 if m.startswith("gpt-") and not m.startswith("gpt-3.5-turbo-instruct")
             ]
 
@@ -95,11 +94,14 @@ def get_available_openai_models(api_key: str) -> list:
             for model in chat_models:
                 # Check if model has date suffix (YYYY-MM-DD)
                 import re
+
                 # Remove date pattern like -2024-08-06, -0125, etc.
-                canonical = re.sub(r'-\d{4}(-\d{2}){0,2}$', '', model)
+                canonical = re.sub(r"-\d{4}(-\d{2}){0,2}$", "", model)
 
                 # Prefer shorter canonical names (e.g., gpt-4o over gpt-4o-2024-08-06)
-                if canonical not in canonical_models or len(model) < len(canonical_models[canonical]):
+                if canonical not in canonical_models or len(model) < len(
+                    canonical_models[canonical]
+                ):
                     canonical_models[canonical] = model
 
             # Use the canonical names
@@ -119,11 +121,11 @@ def get_available_openai_models(api_key: str) -> list:
             # Limit to top 10 most relevant models
             return chat_models[:10] if chat_models else DEFAULT_OPENAI_MODELS
         else:
-            console.print(f"[dim]無法取得模型列表（使用預設列表）[/dim]")
+            console.print("[dim]無法取得模型列表（使用預設列表）[/dim]")
             return DEFAULT_OPENAI_MODELS
 
-    except Exception as e:
-        console.print(f"[dim]無法連接 OpenAI API（使用預設列表）[/dim]")
+    except Exception:
+        console.print("[dim]無法連接 OpenAI API（使用預設列表）[/dim]")
         return DEFAULT_OPENAI_MODELS
 
 
@@ -168,7 +170,7 @@ def get_available_embedding_models(api_key: str) -> list:
         response = httpx.get(
             "https://api.openai.com/v1/models",
             headers={"Authorization": f"Bearer {api_key}"},
-            timeout=5.0
+            timeout=5.0,
         )
 
         if response.status_code == 200:
@@ -176,20 +178,20 @@ def get_available_embedding_models(api_key: str) -> list:
             all_models = [model["id"] for model in data.get("data", [])]
 
             # Filter for embedding models
-            embedding_models = [
-                m for m in all_models
-                if "embedding" in m
-            ]
+            embedding_models = [m for m in all_models if "embedding" in m]
 
             # Remove dated versions (e.g., text-embedding-3-small-2024-01 → text-embedding-3-small)
             import re
+
             canonical_embeddings = {}
             for model in embedding_models:
                 # Remove date pattern
-                canonical = re.sub(r'-\d{4}(-\d{2}){0,2}$', '', model)
+                canonical = re.sub(r"-\d{4}(-\d{2}){0,2}$", "", model)
 
                 # Prefer shorter canonical names
-                if canonical not in canonical_embeddings or len(model) < len(canonical_embeddings[canonical]):
+                if canonical not in canonical_embeddings or len(model) < len(
+                    canonical_embeddings[canonical]
+                ):
                     canonical_embeddings[canonical] = model
 
             embedding_models = list(canonical_embeddings.keys())
@@ -228,7 +230,9 @@ def show_config():
     # Show configuration source
     source_label = "資料來源"
     if llm_config.get("source") == "database":
-        table.add_row(source_label, f"[magenta]已儲存預設 ({llm_config.get('config_name')})[/magenta]")
+        table.add_row(
+            source_label, f"[magenta]已儲存預設 ({llm_config.get('config_name')})[/magenta]"
+        )
     else:
         table.add_row(source_label, "[dim]設定檔 (.env/database)[/dim]")
 
@@ -269,7 +273,9 @@ def show_config():
     else:
         table.add_row("嵌入模型提供者", "[green]OpenAI[/green]")
         table.add_row("  ├─ 模型", embedding_config.get("model", ""))
-        table.add_row("  └─ API Key", "***" if embedding_config.get("api_key") else "[red]未設定[/red]")
+        table.add_row(
+            "  └─ API Key", "***" if embedding_config.get("api_key") else "[red]未設定[/red]"
+        )
 
     # Other settings
     table.add_row("", "")  # Spacer
@@ -286,9 +292,13 @@ def show_config():
     if llm_presets or embedding_presets:
         console.print("[dim]已儲存的預設:[/dim]")
         if llm_presets:
-            console.print(f"[dim]  • LLM: {len(llm_presets)} 個預設 (使用 [cyan]/config list llm[/cyan] 查看)[/dim]")
+            console.print(
+                f"[dim]  • LLM: {len(llm_presets)} 個預設 (使用 [cyan]/config list llm[/cyan] 查看)[/dim]"
+            )
         if embedding_presets:
-            console.print(f"[dim]  • 嵌入: {len(embedding_presets)} 個預設 (使用 [cyan]/config list embedding[/cyan] 查看)[/dim]")
+            console.print(
+                f"[dim]  • 嵌入: {len(embedding_presets)} 個預設 (使用 [cyan]/config list embedding[/cyan] 查看)[/dim]"
+            )
         console.print()
 
     # Show hints
@@ -313,11 +323,7 @@ def configure_llm():
     console.print("2. 本地 LLM (OpenAI 相容 API，例如 Ollama)")
     console.print()
 
-    provider = Prompt.ask(
-        "請選擇提供者",
-        choices=["1", "2"],
-        default="1"
-    )
+    provider = Prompt.ask("請選擇提供者", choices=["1", "2"], default="1")
 
     use_local = provider == "2"
 
@@ -329,28 +335,19 @@ def configure_llm():
 
         # LLM URL
         default_url = settings.llm_base_url or "http://localhost:11434/v1"
-        llm_url = Prompt.ask(
-            "LLM URL (OpenAI 相容端點)",
-            default=default_url
-        )
+        llm_url = Prompt.ask("LLM URL (OpenAI 相容端點)", default=default_url)
 
         # LLM model
         default_model = settings.llm_model if settings.llm_base_url else "qwen2.5:7b"
         console.print()
         console.print("[dim]範例: qwen2.5:7b, llama3.1:8b, mistral:7b[/dim]")
-        llm_model = Prompt.ask(
-            "LLM 模型名稱",
-            default=default_model
-        )
+        llm_model = Prompt.ask("LLM 模型名稱", default=default_model)
 
         # LLM API key (optional)
         default_key = settings.llm_api_key or "ollama"
         console.print()
         console.print("[dim]本地 LLM 通常不需要實際的 API 金鑰，可使用任意字串[/dim]")
-        llm_api_key = Prompt.ask(
-            "LLM API Key",
-            default=default_key
-        )
+        llm_api_key = Prompt.ask("LLM API Key", default=default_key)
 
     else:
         console.print("[bold]步驟 2/3: 設定 OpenAI[/bold]")
@@ -385,7 +382,7 @@ def configure_llm():
         model_choice = Prompt.ask(
             "請選擇模型",
             choices=[str(i) for i in range(1, len(available_models) + 1)],
-            default="2"  # gpt-4o-mini usually at index 2
+            default="2",  # gpt-4o-mini usually at index 2
         )
         llm_model = available_models[int(model_choice) - 1]
 
@@ -411,7 +408,7 @@ def configure_llm():
     embedding_choice = Prompt.ask(
         "請選擇嵌入模型",
         choices=[str(i) for i in range(1, len(available_embeddings) + 1)],
-        default="1"  # text-embedding-3-small usually at index 1
+        default="1",  # text-embedding-3-small usually at index 1
     )
     embedding_model = available_embeddings[int(embedding_choice) - 1]
 
@@ -421,14 +418,14 @@ def configure_llm():
     console.print()
 
     if use_local:
-        console.print(f"LLM 提供者: [yellow]自訂端點[/yellow]")
+        console.print("LLM 提供者: [yellow]自訂端點[/yellow]")
         console.print(f"LLM URL: [cyan]{llm_url}[/cyan]")
         console.print(f"LLM 模型: [cyan]{llm_model}[/cyan]")
-        console.print(f"LLM API Key: [cyan]***[/cyan]")
+        console.print("LLM API Key: [cyan]***[/cyan]")
     else:
-        console.print(f"LLM 提供者: [green]OpenAI[/green]")
+        console.print("LLM 提供者: [green]OpenAI[/green]")
         console.print(f"LLM 模型: [cyan]{llm_model}[/cyan]")
-        console.print(f"LLM API Key: [cyan]***[/cyan]")
+        console.print("LLM API Key: [cyan]***[/cyan]")
 
     console.print(f"嵌入模型: [cyan]{embedding_model}[/cyan]")
     console.print()
@@ -446,7 +443,7 @@ def configure_llm():
         llm_url=llm_url if use_local else None,
         llm_model=llm_model,
         llm_api_key=llm_api_key,
-        embedding_model=embedding_model
+        embedding_model=embedding_model,
     )
 
     console.print()
@@ -458,6 +455,7 @@ def configure_llm():
 
     # Reset orchestrator to use new config
     from finagent.cli.commands.query import reset_orchestrator
+
     reset_orchestrator()
 
     console.print("[green]✓ 設定已套用，無需重新啟動 CLI[/green]")
@@ -469,11 +467,7 @@ def configure_llm():
 
 
 def save_to_env(
-    use_local: bool,
-    llm_url: Optional[str],
-    llm_model: str,
-    llm_api_key: str,
-    embedding_model: str
+    use_local: bool, llm_url: str | None, llm_model: str, llm_api_key: str, embedding_model: str
 ):
     """Save LLM configuration to .env file and database."""
     config_manager = get_config_manager()
@@ -490,7 +484,7 @@ def save_to_env(
     # Read existing .env content
     existing_config = {}
     if env_path.exists():
-        with open(env_path, "r", encoding="utf-8") as f:
+        with open(env_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
@@ -517,8 +511,15 @@ def save_to_env(
         # Group by category
         f.write("# LLM Configuration (OpenAI-compatible API)\n")
         f.write("# Works with OpenAI, Ollama, or any OpenAI-compatible endpoint\n")
-        llm_keys = ["LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "LLM_TEMPERATURE",
-                    "EMBEDDING_API_KEY", "EMBEDDING_BASE_URL", "EMBEDDING_MODEL"]
+        llm_keys = [
+            "LLM_API_KEY",
+            "LLM_BASE_URL",
+            "LLM_MODEL",
+            "LLM_TEMPERATURE",
+            "EMBEDDING_API_KEY",
+            "EMBEDDING_BASE_URL",
+            "EMBEDDING_MODEL",
+        ]
         for key in llm_keys:
             if key in existing_config:
                 f.write(f"{key}={existing_config[key]}\n")
@@ -560,6 +561,7 @@ def save_config_preset(name: str):
     except Exception as e:
         console.print(f"[red]✗ 儲存失敗: {e}[/red]")
         import traceback
+
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
 
@@ -583,6 +585,7 @@ def load_config_preset(config_id: int):
         # Reset orchestrator to use new config
         try:
             from finagent.cli.commands.query import reset_orchestrator
+
             reset_orchestrator()
             console.print("[green]✓ 已重置查詢引擎[/green]")
         except Exception as e:
@@ -598,10 +601,11 @@ def load_config_preset(config_id: int):
     except Exception as e:
         console.print(f"[red]✗ 載入失敗: {e}[/red]")
         import traceback
+
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
 
-def list_config_presets(config_type: Optional[str] = None):
+def list_config_presets(config_type: str | None = None):
     """List saved configuration presets."""
     config_manager = get_config_manager()
 
@@ -696,6 +700,7 @@ def reload_config():
         # Reset orchestrator to use new config
         try:
             from finagent.cli.commands.query import reset_orchestrator
+
             reset_orchestrator()
             console.print("[green]✓ 已重置查詢引擎[/green]")
         except Exception as e:
@@ -713,6 +718,7 @@ def reload_config():
     except Exception as e:
         console.print(f"[red]✗ 重新載入失敗: {e}[/red]")
         import traceback
+
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
 

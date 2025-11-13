@@ -1,7 +1,7 @@
 """Query and task models."""
 
 from enum import Enum
-from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -28,20 +28,18 @@ class Task(BaseModel):
     done: bool = Field(default=False, description="Whether task is completed")
 
     # Legal-specific fields
-    jurisdiction: Optional[str] = Field(None, description="Jurisdiction (e.g., '金管會')")
-    required_sources: List[str] = Field(
-        default_factory=list,
-        description="Required source types (e.g., ['主要來源'])"
+    jurisdiction: str | None = Field(None, description="Jurisdiction (e.g., '金管會')")
+    required_sources: list[str] = Field(
+        default_factory=list, description="Required source types (e.g., ['主要來源'])"
     )
-    dependencies: List[int] = Field(
-        default_factory=list,
-        description="Task IDs that must be completed first"
+    dependencies: list[int] = Field(
+        default_factory=list, description="Task IDs that must be completed first"
     )
 
     # Execution tracking
-    tool_name: Optional[str] = Field(None, description="Tool to use for this task")
-    result: Optional[str] = Field(None, description="Task result")
-    error: Optional[str] = Field(None, description="Error message if task failed")
+    tool_name: str | None = Field(None, description="Tool to use for this task")
+    result: str | None = Field(None, description="Task result")
+    error: str | None = Field(None, description="Error message if task failed")
 
     class Config:
         json_schema_extra = {
@@ -51,7 +49,7 @@ class Task(BaseModel):
                 "task_type": "搜尋",
                 "done": False,
                 "jurisdiction": "金管會",
-                "required_sources": ["主要來源"]
+                "required_sources": ["主要來源"],
             }
         }
 
@@ -59,17 +57,18 @@ class Task(BaseModel):
 class Query(BaseModel):
     """User query for legal research."""
 
-    text: str = Field(..., min_length=1, max_length=2000, description="Query text in Traditional Chinese")
+    text: str = Field(
+        ..., min_length=1, max_length=2000, description="Query text in Traditional Chinese"
+    )
     max_results: int = Field(default=5, ge=1, le=50, description="Maximum number of results")
     include_full_documents: bool = Field(
-        default=False,
-        description="Whether to include full document text"
+        default=False, description="Whether to include full document text"
     )
 
     # Optional filters
-    regulator: Optional[str] = Field(None, description="Filter by regulator (e.g., '金管會')")
-    start_date: Optional[str] = Field(None, description="Start date (YYYY-MM-DD)")
-    end_date: Optional[str] = Field(None, description="End date (YYYY-MM-DD)")
+    regulator: str | None = Field(None, description="Filter by regulator (e.g., '金管會')")
+    start_date: str | None = Field(None, description="Start date (YYYY-MM-DD)")
+    end_date: str | None = Field(None, description="End date (YYYY-MM-DD)")
 
     class Config:
         json_schema_extra = {
@@ -77,7 +76,7 @@ class Query(BaseModel):
                 "text": "玉山銀行在2020年因洗錢防制違規受到什麼處分？",
                 "max_results": 5,
                 "include_full_documents": False,
-                "regulator": "金管會"
+                "regulator": "金管會",
             }
         }
 

@@ -2,17 +2,17 @@
 Embedding generation for document chunks using OpenAI.
 """
 
-from typing import List, Optional
-import asyncio
+from openai import AsyncOpenAI, OpenAI
 
-from openai import OpenAI, AsyncOpenAI
 from finagent.config import settings
 
 
 class EmbeddingGenerator:
     """Generates embeddings for text using OpenAI API."""
 
-    def __init__(self, model: Optional[str] = None, api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(
+        self, model: str | None = None, api_key: str | None = None, base_url: str | None = None
+    ):
         """
         Initialize embedding generator.
 
@@ -24,7 +24,9 @@ class EmbeddingGenerator:
         # Get configuration
         self.model = model or settings.embedding_model
         self.api_key = api_key or settings.effective_embedding_api_key
-        effective_base_url = base_url if base_url is not None else settings.effective_embedding_base_url
+        effective_base_url = (
+            base_url if base_url is not None else settings.effective_embedding_base_url
+        )
 
         # Initialize clients
         if effective_base_url:
@@ -36,7 +38,7 @@ class EmbeddingGenerator:
             self.client = OpenAI(api_key=self.api_key)
             self.async_client = AsyncOpenAI(api_key=self.api_key)
 
-    def generate_embedding(self, text: str) -> List[float]:
+    def generate_embedding(self, text: str) -> list[float]:
         """
         Generate embedding for a single text.
 
@@ -62,7 +64,9 @@ class EmbeddingGenerator:
 
         return response.data[0].embedding
 
-    def generate_embeddings_batch(self, texts: List[str], batch_size: int = 100) -> List[List[float]]:
+    def generate_embeddings_batch(
+        self, texts: list[str], batch_size: int = 100
+    ) -> list[list[float]]:
         """
         Generate embeddings for multiple texts in batches.
 
@@ -98,7 +102,7 @@ class EmbeddingGenerator:
 
         return all_embeddings
 
-    async def generate_embedding_async(self, text: str) -> List[float]:
+    async def generate_embedding_async(self, text: str) -> list[float]:
         """
         Generate embedding asynchronously.
 
@@ -120,8 +124,8 @@ class EmbeddingGenerator:
         return response.data[0].embedding
 
     async def generate_embeddings_batch_async(
-        self, texts: List[str], batch_size: int = 100
-    ) -> List[List[float]]:
+        self, texts: list[str], batch_size: int = 100
+    ) -> list[list[float]]:
         """
         Generate embeddings asynchronously in batches.
 

@@ -1,13 +1,12 @@
 """Database connection and operations for FinAgent."""
 
+import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any
-import json
+from typing import Any
 
-from .models import Setting, ModelConfig, History
+from .models import History, ModelConfig, Setting
 
 
 class Database:
@@ -26,7 +25,7 @@ class Database:
     def _init_db(self):
         """Initialize database schema."""
         schema_path = Path(__file__).parent / "schema.sql"
-        with open(schema_path, "r") as f:
+        with open(schema_path) as f:
             schema_sql = f.read()
 
         with self.get_connection() as conn:
@@ -45,7 +44,7 @@ class Database:
 
     # ==================== Settings Operations ====================
 
-    def get_setting(self, key: str) -> Optional[Setting]:
+    def get_setting(self, key: str) -> Setting | None:
         """Get a setting by key.
 
         Args:
@@ -61,7 +60,7 @@ class Database:
                 return Setting(**dict(row))
             return None
 
-    def get_all_settings(self, category: Optional[str] = None) -> List[Setting]:
+    def get_all_settings(self, category: str | None = None) -> list[Setting]:
         """Get all settings, optionally filtered by category.
 
         Args:
@@ -86,7 +85,7 @@ class Database:
         key: str,
         value: str,
         category: str = "general",
-        description: Optional[str] = None,
+        description: str | None = None,
     ) -> Setting:
         """Set a setting value (insert or update).
 
@@ -138,7 +137,7 @@ class Database:
             conn.commit()
             return cursor.rowcount > 0
 
-    def get_settings_as_dict(self, category: Optional[str] = None) -> Dict[str, str]:
+    def get_settings_as_dict(self, category: str | None = None) -> dict[str, str]:
         """Get settings as a dictionary.
 
         Args:
@@ -152,7 +151,7 @@ class Database:
 
     # ==================== Model Config Operations ====================
 
-    def get_model_config(self, config_id: int) -> Optional[ModelConfig]:
+    def get_model_config(self, config_id: int) -> ModelConfig | None:
         """Get a model config by ID.
 
         Args:
@@ -168,7 +167,7 @@ class Database:
                 return ModelConfig(**dict(row))
             return None
 
-    def get_active_model_config(self, config_type: str) -> Optional[ModelConfig]:
+    def get_active_model_config(self, config_type: str) -> ModelConfig | None:
         """Get the active model config for a given type.
 
         Args:
@@ -187,9 +186,7 @@ class Database:
                 return ModelConfig(**dict(row))
             return None
 
-    def get_all_model_configs(
-        self, config_type: Optional[str] = None
-    ) -> List[ModelConfig]:
+    def get_all_model_configs(self, config_type: str | None = None) -> list[ModelConfig]:
         """Get all model configs, optionally filtered by type.
 
         Args:
@@ -218,7 +215,7 @@ class Database:
         api_key: str,
         base_url: str,
         model: str,
-        temperature: Optional[float] = 0.0,
+        temperature: float | None = 0.0,
         is_active: bool = False,
     ) -> ModelConfig:
         """Save a new model configuration.
@@ -247,9 +244,7 @@ class Database:
             conn.commit()
             return self.get_model_config(cursor.lastrowid)
 
-    def update_model_config(
-        self, config_id: int, **kwargs
-    ) -> Optional[ModelConfig]:
+    def update_model_config(self, config_id: int, **kwargs) -> ModelConfig | None:
         """Update a model configuration.
 
         Args:
@@ -283,7 +278,7 @@ class Database:
             conn.commit()
             return self.get_model_config(config_id)
 
-    def set_active_model_config(self, config_id: int) -> Optional[ModelConfig]:
+    def set_active_model_config(self, config_id: int) -> ModelConfig | None:
         """Set a model config as active (deactivates others of same type).
 
         Args:
@@ -313,15 +308,15 @@ class Database:
     def add_history(
         self,
         query: str,
-        response: Optional[str] = None,
-        session_id: Optional[str] = None,
-        model_used: Optional[str] = None,
-        tokens_used: Optional[int] = None,
-        cost_usd: Optional[float] = None,
-        processing_time_seconds: Optional[float] = None,
+        response: str | None = None,
+        session_id: str | None = None,
+        model_used: str | None = None,
+        tokens_used: int | None = None,
+        cost_usd: float | None = None,
+        processing_time_seconds: float | None = None,
         success: bool = True,
-        error_message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        error_message: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> History:
         """Add a history entry.
 
@@ -373,9 +368,9 @@ class Database:
     def get_history(
         self,
         limit: int = 100,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
         success_only: bool = False,
-    ) -> List[History]:
+    ) -> list[History]:
         """Get history entries.
 
         Args:
@@ -407,7 +402,7 @@ class Database:
             cursor = conn.execute(query, params)
             return [History(**dict(row)) for row in cursor.fetchall()]
 
-    def get_history_stats(self) -> Dict[str, Any]:
+    def get_history_stats(self) -> dict[str, Any]:
         """Get statistics about query history.
 
         Returns:
@@ -429,7 +424,7 @@ class Database:
             row = cursor.fetchone()
             return dict(row)
 
-    def clear_history(self, older_than_days: Optional[int] = None) -> int:
+    def clear_history(self, older_than_days: int | None = None) -> int:
         """Clear history entries.
 
         Args:
@@ -455,7 +450,7 @@ class Database:
 
 
 # Global database instance
-_db: Optional[Database] = None
+_db: Database | None = None
 
 
 def get_db() -> Database:

@@ -1,10 +1,8 @@
 """API client for communicating with FinAgent backend."""
 
 import os
-from typing import Optional
 
 import httpx
-from pydantic import ValidationError
 
 from finagent.models.answers import LegalAnswer
 from finagent.models.queries import Query, QueryResponse
@@ -13,7 +11,7 @@ from finagent.models.queries import Query, QueryResponse
 class ApiClient:
     """Client for FinAgent backend API."""
 
-    def __init__(self, base_url: Optional[str] = None, timeout: float = 120.0):
+    def __init__(self, base_url: str | None = None, timeout: float = 120.0):
         """
         Initialize API client.
 
@@ -95,7 +93,7 @@ class ApiClient:
         query_response = QueryResponse(**response.json())
         return query_response.query_id
 
-    def get_query_result(self, query_id: str) -> Optional[LegalAnswer]:
+    def get_query_result(self, query_id: str) -> LegalAnswer | None:
         """
         Retrieve results for an async query.
 

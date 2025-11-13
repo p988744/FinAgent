@@ -1,12 +1,12 @@
 """Planning Agent - Decomposes queries and creates research plans."""
 
 import logging
-from typing import Dict, Any, Optional
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
-from finagent.config import settings
 from finagent.agents.state import AgentState
+from finagent.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class PlanningAgent:
     - Determine required data sources
     """
 
-    def __init__(self, model: Optional[str] = None):
+    def __init__(self, model: str | None = None):
         """Initialize planning agent with LLM."""
         effective_model = model or settings.llm_model
         base_url = settings.effective_llm_base_url
@@ -43,10 +43,9 @@ class PlanningAgent:
                 temperature=settings.llm_temperature,
             )
 
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", self._get_system_prompt()),
-            ("user", "{query}")
-        ])
+        self.prompt = ChatPromptTemplate.from_messages(
+            [("system", self._get_system_prompt()), ("user", "{query}")]
+        )
 
         self.chain = self.prompt | self.llm
 
@@ -138,7 +137,7 @@ class PlanningAgent:
                 f"檢索與「{query.text}」相關的法律文件",
                 "提取關鍵事實與引用來源",
                 "驗證引用完整性",
-                "綜合分析並生成答案"
+                "綜合分析並生成答案",
             ]
 
             # Update state

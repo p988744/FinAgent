@@ -1,27 +1,25 @@
 """Initialize document metadata command."""
 
 import sys
-from pathlib import Path
 from datetime import datetime
-from typing import List, Optional
+from pathlib import Path
 
 from rich.console import Console
-from rich.prompt import Prompt, Confirm
-from rich.table import Table
 from rich.panel import Panel
+from rich.prompt import Confirm, Prompt
+from rich.table import Table
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+from finagent.cli.keyboard_handler import CancellationToken
 from finagent.document_processing.loader import DocumentLoader
+from finagent.document_processing.metadata_generator import MetadataGenerator
 from finagent.document_processing.metadata_store import (
-    DocumentMetadataStore,
     DocumentMetadata,
+    DocumentMetadataStore,
 )
 from finagent.document_processing.toc_generator import TableOfContents
-from finagent.document_processing.metadata_generator import MetadataGenerator
-
-from finagent.cli.keyboard_handler import CancellationToken
 
 console = Console()
 
@@ -97,7 +95,11 @@ def show_document_list():
             metadata = metadata_store.get_metadata(doc.id)
 
             if metadata:
-                description = metadata.description[:47] + "..." if len(metadata.description) > 50 else metadata.description
+                description = (
+                    metadata.description[:47] + "..."
+                    if len(metadata.description) > 50
+                    else metadata.description
+                )
                 doc_type = metadata.document_type
                 status = "[green]✓ 已初始化[/green]"
             else:
@@ -112,7 +114,9 @@ def show_document_list():
 
         # Show statistics
         stats = metadata_store.get_statistics()
-        console.print(f"[dim]總文件數: {len(documents)} | 已初始化: {stats['total_documents']}[/dim]")
+        console.print(
+            f"[dim]總文件數: {len(documents)} | 已初始化: {stats['total_documents']}[/dim]"
+        )
         console.print()
 
     except Exception as e:
@@ -120,7 +124,7 @@ def show_document_list():
         console.print()
 
 
-def init_document_with_llm(filename: Optional[str] = None):
+def init_document_with_llm(filename: str | None = None):
     """
     Initialize document metadata using LLM.
 
@@ -188,9 +192,9 @@ def init_document_with_llm(filename: Optional[str] = None):
                 return
 
         # Generate metadata using LLM with cancellation support
-        console.print(f"\n[cyan]🤖 使用 LLM 分析文件中...[/cyan]")
+        console.print("\n[cyan]🤖 使用 LLM 分析文件中...[/cyan]")
         console.print(f"[dim]文件: {filename_display}[/dim]")
-        console.print(f"[yellow]提示: 按 ESC 鍵取消操作[/yellow]\n")
+        console.print("[yellow]提示: 按 ESC 鍵取消操作[/yellow]\n")
 
         try:
             from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -198,11 +202,14 @@ def init_document_with_llm(filename: Optional[str] = None):
             # Create cancellation token for ESC key handling
             token = CancellationToken()
 
-            with token, Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=console,
-            ) as progress:
+            with (
+                token,
+                Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress,
+            ):
                 task = progress.add_task("[cyan]正在分析文件內容... (ESC=取消)", total=None)
 
                 # Check if cancelled before starting
@@ -212,9 +219,7 @@ def init_document_with_llm(filename: Optional[str] = None):
                 # Generate metadata
                 generator = MetadataGenerator()
                 metadata = generator.generate_metadata(
-                    doc_id=doc.id,
-                    filename=filename_display,
-                    content=doc.content
+                    doc_id=doc.id, filename=filename_display, content=doc.content
                 )
 
                 # Check if cancelled after generation
@@ -225,7 +230,9 @@ def init_document_with_llm(filename: Optional[str] = None):
 
             # Show generated metadata
             console.print()
-            console.print(Panel("[bold green]✓ LLM 已生成元資料[/bold green]", border_style="green"))
+            console.print(
+                Panel("[bold green]✓ LLM 已生成元資料[/bold green]", border_style="green")
+            )
             console.print()
             console.print(f"[bold]文件:[/bold] {filename_display}")
             console.print(f"[bold]描述:[/bold] {metadata.description}")
@@ -273,6 +280,7 @@ def init_document_with_llm(filename: Optional[str] = None):
             console.print(f"\n[red]❌ LLM 分析失敗: {str(e)}[/red]")
             console.print("[yellow]提示: 您可以使用 /init --manual 手動輸入元資料[/yellow]\n")
             import traceback
+
             console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
     except KeyboardInterrupt:
@@ -280,10 +288,11 @@ def init_document_with_llm(filename: Optional[str] = None):
     except Exception as e:
         console.print(f"\n[red]錯誤: {str(e)}[/red]\n")
         import traceback
+
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
 
-def init_document_interactive(filename: Optional[str] = None):
+def init_document_interactive(filename: str | None = None):
     """
     Initialize document metadata interactively (manual input).
 
@@ -351,12 +360,12 @@ def init_document_interactive(filename: Optional[str] = None):
                 return
 
         # Step 2: Document description
-        console.print(f"\n[bold]步驟 1/6: 文件描述[/bold]")
+        console.print("\n[bold]步驟 1/6: 文件描述[/bold]")
         console.print("[dim]請用 1-2 句話描述此文件的內容（這將幫助系統更準確地檢索）[/dim]")
         description = Prompt.ask("文件描述")
 
         # Step 3: Document type
-        console.print(f"\n[bold]步驟 2/6: 文件類型[/bold]")
+        console.print("\n[bold]步驟 2/6: 文件類型[/bold]")
         for idx, doc_type in enumerate(DOCUMENT_TYPES, 1):
             console.print(f"  {idx}. {doc_type}")
         console.print()
@@ -372,13 +381,13 @@ def init_document_interactive(filename: Optional[str] = None):
             document_type = Prompt.ask("請輸入文件類型")
 
         # Step 4: Keywords
-        console.print(f"\n[bold]步驟 3/6: 關鍵字[/bold]")
+        console.print("\n[bold]步驟 3/6: 關鍵字[/bold]")
         console.print("[dim]輸入關鍵字（用逗號分隔，例如：玉山銀行,洗錢防制,裁罰）[/dim]")
         keywords_input = Prompt.ask("關鍵字")
         keywords = [kw.strip() for kw in keywords_input.split(",") if kw.strip()]
 
         # Step 5: Optional fields (date, authority, institutions)
-        console.print(f"\n[bold]步驟 4/6: 日期與機關[/bold]")
+        console.print("\n[bold]步驟 4/6: 日期與機關[/bold]")
 
         # Document date
         date_str = Prompt.ask(
@@ -407,7 +416,7 @@ def init_document_interactive(filename: Optional[str] = None):
             issuing_authority = None
 
         # Related institutions
-        console.print(f"\n[bold]步驟 5/6: 相關機構[/bold]")
+        console.print("\n[bold]步驟 5/6: 相關機構[/bold]")
         console.print("[dim]輸入相關銀行或機構（用逗號分隔，例如：玉山銀行,國泰世華銀行）[/dim]")
         institutions_input = Prompt.ask("相關機構（留空跳過）", default="")
         related_institutions = [
@@ -416,10 +425,10 @@ def init_document_interactive(filename: Optional[str] = None):
 
         # Step 6: Penalty-specific fields
         penalty_amount = None
-        violation_types_list: List[str] = []
+        violation_types_list: list[str] = []
 
         if document_type == "裁罰書":
-            console.print(f"\n[bold]步驟 6/6: 裁罰資訊[/bold]")
+            console.print("\n[bold]步驟 6/6: 裁罰資訊[/bold]")
 
             # Penalty amount
             penalty_amount = Prompt.ask(
@@ -446,20 +455,16 @@ def init_document_interactive(filename: Optional[str] = None):
                     if idx.strip().isdigit()
                 ]
                 violation_types_list = [
-                    VIOLATION_TYPES[idx]
-                    for idx in violation_indices
-                    if idx < len(VIOLATION_TYPES)
+                    VIOLATION_TYPES[idx] for idx in violation_indices if idx < len(VIOLATION_TYPES)
                 ]
 
                 # Handle "其他"
                 if "其他" in violation_types_list:
                     other_violation = Prompt.ask("請輸入其他違規類型")
-                    violation_types_list = [
-                        v for v in violation_types_list if v != "其他"
-                    ]
+                    violation_types_list = [v for v in violation_types_list if v != "其他"]
                     violation_types_list.append(other_violation)
         else:
-            console.print(f"\n[bold]步驟 6/6: 完成[/bold]")
+            console.print("\n[bold]步驟 6/6: 完成[/bold]")
 
         # Create metadata
         now = datetime.now().isoformat()
@@ -521,6 +526,7 @@ def init_document_interactive(filename: Optional[str] = None):
     except Exception as e:
         console.print(f"\n[red]錯誤: {str(e)}[/red]\n")
         import traceback
+
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
 
