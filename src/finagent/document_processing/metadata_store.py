@@ -23,6 +23,8 @@ class DocumentMetadata(BaseModel):
     penalty_amount: str | None = None  # If penalty document
     violation_types: list[str] = []  # Types of violations
     custom_fields: dict[str, Any] = {}  # Additional custom metadata
+    indexed: bool = False  # Whether indexed in vector DB
+    chunk_count: int = 0  # Number of chunks in vector DB
     created_at: str
     updated_at: str
 
@@ -44,6 +46,8 @@ class DocumentMetadata(BaseModel):
             penalty_amount=doc.penalty_amount,
             violation_types=doc.violation_types,
             custom_fields=doc.custom_fields or {},
+            indexed=doc.indexed,
+            chunk_count=doc.chunk_count,
             created_at=doc.created_at.isoformat() if doc.created_at else datetime.now().isoformat(),
             updated_at=doc.updated_at.isoformat() if doc.updated_at else datetime.now().isoformat(),
         )
@@ -63,6 +67,8 @@ class DocumentMetadata(BaseModel):
             penalty_amount=self.penalty_amount,
             violation_types=self.violation_types,
             custom_fields=self.custom_fields,
+            indexed=self.indexed,
+            chunk_count=self.chunk_count,
         )
 
 

@@ -154,6 +154,8 @@ class MetadataGenerator:
                 related_institutions=result.related_institutions,
                 penalty_amount=result.penalty_amount,
                 violation_types=result.violation_types,
+                indexed=False,  # Not indexed yet
+                chunk_count=0,  # Not indexed yet
                 created_at=now,
                 updated_at=now,
             )

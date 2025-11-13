@@ -480,6 +480,8 @@ def init_document_interactive(filename: str | None = None):
             related_institutions=related_institutions,
             penalty_amount=penalty_amount,
             violation_types=violation_types_list,
+            indexed=False,  # Not indexed yet
+            chunk_count=0,  # Not indexed yet
             created_at=now,
             updated_at=now,
         )

@@ -154,16 +154,31 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
             for doc in documents:
                 filename = doc.metadata.get("filename", "unknown")
 
-                # Check if already indexed
-                if not clear_existing and indexer.document_exists(doc.id):
-                    skipped += 1
-                    progress.update(
-                        task, advance=1, description=f"[yellow]⏭️  跳過: {filename[:40]}..."
-                    )
-                    continue
-
-                # Load enhanced metadata if available
+                # Load enhanced metadata if available (need it for indexed status check)
                 enhanced_metadata = metadata_store.get_metadata(doc.id)
+
+                # Check if already indexed (check database metadata first, then vector DB)
+                if not clear_existing:
+                    # Priority 1: Check database metadata (faster)
+                    if enhanced_metadata and enhanced_metadata.indexed:
+                        skipped += 1
+                        progress.update(
+                            task, advance=1, description=f"[yellow]⏭️  已索引: {filename[:40]}..."
+                        )
+                        continue
+                    # Priority 2: Check vector DB (slower, for backwards compatibility)
+                    elif indexer.document_exists(doc.id):
+                        skipped += 1
+                        # Update database to mark as indexed for future runs
+                        if enhanced_metadata:
+                            from finagent.database.db import Database
+                            db = Database()
+                            chunk_count = len(indexer.get_document_chunks(doc.id))
+                            db.update_document_indexed_status(doc.id, indexed=True, chunk_count=chunk_count)
+                        progress.update(
+                            task, advance=1, description=f"[yellow]⏭️  已索引: {filename[:40]}..."
+                        )
+                        continue
                 if enhanced_metadata:
                     # Merge enhanced metadata into document metadata
                     doc.metadata.update(
@@ -185,6 +200,12 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
                 try:
                     chunks = indexer.index_document(doc)
                     total_chunks += chunks
+
+                    # Update database to mark document as indexed
+                    if enhanced_metadata:
+                        from finagent.database.db import Database
+                        db = Database()
+                        db.update_document_indexed_status(doc.id, indexed=True, chunk_count=chunks)
 
                     # Show if enhanced metadata was used
                     status_icon = "📋" if enhanced_metadata else "📄"
