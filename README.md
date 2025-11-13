@@ -1,162 +1,187 @@
-# Legal Research Agent (法律研究代理系統)
+# FinAgent - Legal Research Agent System
 
 A specialized AI-powered legal research system for analyzing bank penalties, regulatory enforcement actions, and legal precedents in Taiwan.
 
-## Overview
+## Features
 
-This system uses a multi-agent architecture to help legal professionals and researchers efficiently search, analyze, and cite Taiwan regulatory enforcement actions, particularly focusing on banking and financial regulations.
-
-**Current Status:** MVP Development (v0.1.0)
-
-**Supported Regulatory Bodies:**
-- 金管會 (Financial Supervisory Commission) - MVP Focus
-- 中央銀行 (Central Bank) - Coming Soon
-- 公平會 (Fair Trade Commission) - Coming Soon
-
-## Features (MVP)
-
-- ✅ Traditional Chinese query processing
-- ✅ Multi-agent research system (Planning, Action, Answer agents)
-- ✅ RAG-based document analysis with vector search
-- ✅ Taiwan legal citation formatting
-- ✅ **Interactive CLI (REPL) Interface**
-- ✅ LLM-powered document metadata extraction
-- ✅ Automated document indexing with progress tracking
-
-## Tech Stack
-
-- Python 3.11+
-- LangChain + LangGraph (Multi-agent orchestration)
-- OpenAI GPT-4 / Local LLM support (via OpenAI-compatible API)
-- Chroma Vector Database
-- Rich CLI with prompt-toolkit
-- uv Package Manager
+- 🤖 **Multi-Agent Architecture**: LangGraph-based workflow with Planning, Action, Validation, and Answer agents
+- 📚 **RAG Pipeline**: Semantic search with OpenAI embeddings and Chroma vector database
+- 🔍 **Document Processing**: Support for TXT files with recursive subfolder indexing
+- 💬 **Interactive CLI**: REPL interface with command auto-completion
+- 🌐 **Flexible LLM Configuration**: OpenAI-compatible API support (OpenAI, Ollama, custom endpoints)
+- 🇹🇼 **Traditional Chinese**: Full support with Jieba word segmentation
 
 ## Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- OpenAI API Key (or local LLM like Ollama)
 
 ### Installation
 
 ```bash
-cd backend
-
-# Install uv (if not already installed)
-pip install uv
+# Clone the repository
+git clone https://github.com/p988744/FinAgent.git
+cd FinAgent/backend
 
 # Install dependencies
 uv sync
 
-# Set up environment
+# Configure environment
 cp .env.example .env
-# Edit .env with your OpenAI API key
-```
+# Edit .env with your API keys and settings
 
-### Usage
-
-**Interactive REPL Mode (Recommended):**
-
-```bash
+# Run the CLI
 uv run finagent
-
-# You'll see:
-# finagent>
-# Now you can type queries directly in Traditional Chinese!
-
-# Example queries:
-finagent> 玉山銀行洗錢防制裁罰
-finagent> 2020年金管會裁罰案件
-finagent> /help  # Show all commands
 ```
 
-**Single Query Mode:**
+### Configuration
+
+The system uses a unified OpenAI-compatible API configuration:
 
 ```bash
-# Quick query without entering REPL
-uv run finagent query "玉山銀行洗錢防制裁罰"
+# OpenAI (default)
+LLM_API_KEY=sk-proj-xxx
+LLM_BASE_URL=                    # Empty = use OpenAI
+LLM_MODEL=gpt-4o-mini
+EMBEDDING_MODEL=text-embedding-3-small
+
+# Custom Endpoint (e.g., Ollama)
+LLM_API_KEY=ollama
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_MODEL=qwen2.5:7b
+EMBEDDING_MODEL=bge-m3
 ```
 
-📖 **See [CLI_GUIDE.md](CLI_GUIDE.md) for complete CLI documentation**
-
-## Development
-
-### Git Flow Workflow
-
-```bash
-# Create a new feature
-git checkout develop
-git checkout -b feature/my-feature
-
-# Make changes and commit
-git add .
-git commit -m "feat: add my feature"
-
-# Push and create PR
-git push origin feature/my-feature
-```
-
-### Development Commands
-
-```bash
-cd backend
-
-# Run tests
-uv run pytest
-
-# Run with coverage
-uv run pytest --cov=finagent
-
-# Format code
-uv run black src/
-
-# Lint
-uv run ruff check src/
-
-# Type check
-uv run mypy src/
-```
+See [AUTO_CONFIG_GUIDE.md](docs/implementation/AUTO_CONFIG_GUIDE.md) for detailed configuration options.
 
 ## Project Structure
 
 ```
-finagent/
-├── backend/          # Python backend
-│   ├── src/
-│   │   └── finagent/ # Main package (src layout)
-│   │       ├── cli/  # CLI interface
-│   │       ├── agents/ # Multi-agent system
-│   │       ├── document_processing/ # RAG pipeline
-│   │       └── tools/ # Research tools
-│   ├── tests/        # Test suite
-│   ├── data/         # Local data storage
-│   └── model_config.yml # LLM model configuration
-└── docs/             # Documentation
+backend/
+├── src/finagent/           # Source code
+│   ├── cli/               # CLI interface
+│   ├── agents/            # Multi-agent system
+│   ├── document_processing/  # RAG pipeline
+│   ├── models/            # Pydantic models
+│   └── config.py          # Configuration
+├── tests/                 # Test suite
+│   ├── unit/             # Unit tests
+│   └── integration/      # Integration tests
+├── docs/                  # Documentation
+│   ├── guides/           # User guides
+│   ├── implementation/   # Technical docs
+│   └── api/              # API documentation
+├── data/                  # Data directory
+│   ├── documents/        # Indexed documents
+│   └── vector_db/        # Chroma database
+├── scripts/               # Utility scripts
+├── pyproject.toml        # Project configuration
+└── README.md             # This file
 ```
 
+## Usage
+
+### CLI Commands
+
+```bash
+# Start the CLI
+uv run finagent
+
+# Query examples
+finagent> 玉山銀行洗錢防制裁罰
+finagent> 2020年金管會裁罰案件
+
+# Useful commands
+finagent> /help       # Show all commands
+finagent> /config     # View/modify configuration
+finagent> /reindex    # Rebuild document index
+finagent> /history    # View query history
+finagent> /exit       # Exit CLI
+```
+
+See [CLI_GUIDE.md](../CLI_GUIDE.md) for complete command reference.
+
+### Importing Documents
+
+```bash
+# Place documents in data/documents/
+mkdir -p data/documents
+cp your_documents/*.txt data/documents/
+
+# Run indexing
+uv run finagent
+finagent> /reindex
+```
+
+See [IMPORT_DOCUMENTS.md](../IMPORT_DOCUMENTS.md) for detailed instructions.
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run specific test file
+uv run pytest tests/test_local_llm.py
+
+# Run with coverage
+uv run pytest --cov=src/finagent
+```
+
+### Test LLM Configuration
+
+```bash
+# Test LLM and embedding setup
+uv run python tests/test_local_llm.py
+```
+
+## Architecture
+
+### Multi-Agent Workflow
+
+1. **Planning Agent** - Analyzes query and creates research plan
+2. **Action Agent** - Retrieves relevant documents via RAG
+3. **Validation Agent** - Verifies citation integrity
+4. **Answer Agent** - Synthesizes LLM-powered response
+
+### RAG Pipeline
+
+- Document loading and chunking
+- OpenAI embedding generation
+- Chroma vector database indexing
+- Semantic search with relevance filtering
+- Citation tracking and formatting
 
 ## Documentation
 
-- **[CLI Usage Guide](CLI_GUIDE.md)** - Complete CLI documentation with examples
-- [MVP Implementation Plan](MVP_PLAN.md)
-- [Quickstart Guide](QUICKSTART.md)
-- [Claude AI Context](CLAUDE.md)
-- [Original Specification](法律研究代理系統規格書.md)
+- [CLI Guide](../CLI_GUIDE.md) - Complete CLI usage guide
+- [Configuration Guide](docs/implementation/AUTO_CONFIG_GUIDE.md) - LLM configuration
+- [Import Documents](../IMPORT_DOCUMENTS.md) - How to add documents
+- [LangGraph Implementation](docs/implementation/LANGGRAPH_IMPLEMENTATION.md) - Multi-agent architecture
+- [Documentation Index](docs/DOCUMENTATION_INDEX.md) - All documentation
+
+## Requirements
+
+- Python 3.11+
+- OpenAI API key (or compatible endpoint)
+- 2GB+ RAM for vector database
+- Traditional Chinese language support
 
 ## License
 
-[Your License Here]
+[Add your license here]
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+[Add contributing guidelines here]
 
 ## Support
 
-For issues and questions, please open an issue on GitHub.
+For issues and questions:
+- GitHub Issues: https://github.com/p988744/FinAgent/issues
+- Documentation: [docs/](docs/)
+
+---
+
+**Status**: Beta
+**Version**: 0.1.0
+**Last Updated**: 2025-01-12
