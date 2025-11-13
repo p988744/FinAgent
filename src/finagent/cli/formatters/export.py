@@ -30,31 +30,51 @@ def export_to_markdown(answer: LegalAnswer, query: str, filename: str | None = N
 
 **查詢:** {query}
 **時間:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-**信心評分:** {answer.confidence_level}
+**信心評分:** {answer.confidence_score}
 
 ---
 
 ## 執行摘要
 
-{answer.summary if answer.summary else answer.answer[:200] + "..."}
+{answer.executive_summary}
 
 ---
 
-## 完整回答
-
-{answer.answer}
-
----
+## 關鍵發現
 
 """
+    for finding in answer.key_findings:
+        content += f"- {finding}\n"
+
+    content += f"""
+---
+
+## 詳細分析
+
+{answer.detailed_analysis}
+
+"""
+
+    if answer.final_answer:
+        content += f"""---
+
+## 最終答案
+
+{answer.final_answer}
+
+"""
+
+    content += "---\n\n"
 
     # Add citations if available
     if answer.citations:
         content += """## 引用來源
 
 """
-        for idx, citation in enumerate(answer.citations, 1):
-            content += f"""### [{idx}] {citation.title}
+        for citation in answer.citations:
+            content += f"""### [{citation.id}] {citation.title}
+
+{citation.formatted_citation}
 
 - **類型:** {citation.type.value}
 - **權威:** {citation.authority.value}
@@ -63,20 +83,28 @@ def export_to_markdown(answer: LegalAnswer, query: str, filename: str | None = N
                 content += f"- **日期:** {citation.date}\n"
             if citation.url:
                 content += f"- **網址:** {citation.url}\n"
-            if citation.description:
-                content += f"- **說明:** {citation.description}\n"
 
             content += "\n"
 
-    # Add metadata
-    content += """---
+    # Add confidence explanation
+    if answer.confidence_explanation:
+        content += f"""---
 
-## 元數據
+## 信心評估說明
+
+{answer.confidence_explanation}
 
 """
-    if answer.metadata:
-        for key, value in answer.metadata.items():
-            content += f"- **{key}:** {value}\n"
+
+    # Add limitations
+    if answer.limitations:
+        content += """---
+
+## 限制與注意事項
+
+"""
+        for limitation in answer.limitations:
+            content += f"- {limitation}\n"
 
     content += f"""
 ---
@@ -113,13 +141,16 @@ def export_to_json(answer: LegalAnswer, query: str, filename: str | None = None)
         "query": query,
         "timestamp": datetime.now().isoformat(),
         "answer": {
-            "text": answer.answer,
-            "summary": answer.summary,
-            "confidence_level": answer.confidence_level,
+            "executive_summary": answer.executive_summary,
+            "key_findings": answer.key_findings,
+            "detailed_analysis": answer.detailed_analysis,
+            "final_answer": answer.final_answer,
             "confidence_score": answer.confidence_score,
+            "confidence_explanation": answer.confidence_explanation,
         },
         "citations": [],
-        "metadata": answer.metadata if answer.metadata else {},
+        "limitations": answer.limitations,
+        "processing_time_ms": answer.processing_time_ms,
     }
 
     # Add citations
@@ -127,13 +158,15 @@ def export_to_json(answer: LegalAnswer, query: str, filename: str | None = None)
         for citation in answer.citations:
             data["citations"].append(
                 {
+                    "id": citation.id,
                     "title": citation.title,
+                    "formatted_citation": citation.formatted_citation,
                     "type": citation.type.value,
                     "authority": citation.authority.value,
                     "date": citation.date,
                     "url": citation.url,
-                    "description": citation.description,
-                    "page_numbers": citation.page_numbers,
+                    "page_number": citation.page_number,
+                    "section": citation.section,
                 }
             )
 
@@ -167,34 +200,57 @@ def export_to_text(answer: LegalAnswer, query: str, filename: str | None = None)
 
 查詢: {query}
 時間: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-信心評分: {answer.confidence_level}
+信心評分: {answer.confidence_score}
 
 {"=" * 60}
 
 執行摘要
 {"-" * 60}
 
-{answer.summary if answer.summary else answer.answer[:200] + "..."}
+{answer.executive_summary}
 
 {"=" * 60}
 
-完整回答
+關鍵發現
 {"-" * 60}
 
-{answer.answer}
+"""
+    for finding in answer.key_findings:
+        content += f"• {finding}\n"
 
+    content += f"""
 {"=" * 60}
+
+詳細分析
+{"-" * 60}
+
+{answer.detailed_analysis}
+
+"""
+
+    if answer.final_answer:
+        content += f"""{"=" * 60}
+
+最終答案
+{"-" * 60}
+
+{answer.final_answer}
+
+"""
+
+    content += f"""{"=" * 60}
 
 """
 
     # Add citations
     if answer.citations:
-        content += """引用來源
+        content += f"""引用來源
 {"-" * 60}
 
 """
-        for idx, citation in enumerate(answer.citations, 1):
-            content += f"""[{idx}] {citation.title}
+        for citation in answer.citations:
+            content += f"""[{citation.id}] {citation.title}
+    {citation.formatted_citation}
     類型: {citation.type.value}
     權威: {citation.authority.value}
 """
@@ -204,6 +260,25 @@ def export_to_text(answer: LegalAnswer, query: str, filename: str | None = None)
                 content += f"    網址: {citation.url}\n"
 
             content += "\n"
+
+    # Add confidence explanation
+    if answer.confidence_explanation:
+        content += f"""信心評估說明
+{"-" * 60}
+
+{answer.confidence_explanation}
+
+"""
+
+    # Add limitations
+    if answer.limitations:
+        content += f"""限制與注意事項
+{"-" * 60}
+
+"""
+        for limitation in answer.limitations:
+            content += f"• {limitation}\n"
+        content += "\n"
 
     content += f"""{"-" * 60}
 
