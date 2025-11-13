@@ -104,8 +104,9 @@ def reindex_documents(clear_existing: bool = False, prompt_init: bool = True) ->
                                 doc_id=doc.id, filename=filename, content=doc.content
                             )
 
-                            # Save metadata
-                            metadata_store.add_metadata(metadata)
+                            # Save metadata (get file_path from doc.metadata or doc.source)
+                            file_path = doc.metadata.get("file_path") or doc.source
+                            metadata_store.add_metadata(metadata, file_path=file_path)
                             initialized_count += 1
 
                             progress.update(

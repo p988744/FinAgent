@@ -89,3 +89,40 @@ BEGIN
     UPDATE model_configs SET is_active = 0
     WHERE config_type = NEW.config_type;
 END;
+
+-- Documents table: Store document metadata for indexed documents
+CREATE TABLE IF NOT EXISTS documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id TEXT NOT NULL UNIQUE,  -- Unique document identifier (e.g., filename hash)
+    filename TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    description TEXT,  -- Human-readable description of document content
+    document_type TEXT,  -- e.g., "裁罰書", "判決書", "法規", "新聞報導"
+    keywords TEXT,  -- JSON array of keywords
+    document_date TEXT,  -- Document date (e.g., "2020-09-15")
+    issuing_authority TEXT,  -- e.g., "金管會", "中央銀行"
+    related_institutions TEXT,  -- JSON array of related institutions
+    penalty_amount TEXT,  -- If penalty document
+    violation_types TEXT,  -- JSON array of violation types
+    custom_fields TEXT,  -- JSON object for additional custom metadata
+    indexed BOOLEAN DEFAULT 0,  -- Whether document is indexed in vector DB
+    chunk_count INTEGER DEFAULT 0,  -- Number of chunks in vector DB
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for documents
+CREATE INDEX IF NOT EXISTS idx_documents_doc_id ON documents(doc_id);
+CREATE INDEX IF NOT EXISTS idx_documents_filename ON documents(filename);
+CREATE INDEX IF NOT EXISTS idx_documents_document_type ON documents(document_type);
+CREATE INDEX IF NOT EXISTS idx_documents_issuing_authority ON documents(issuing_authority);
+CREATE INDEX IF NOT EXISTS idx_documents_indexed ON documents(indexed);
+CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at DESC);
+
+-- Trigger to update updated_at on documents update
+CREATE TRIGGER IF NOT EXISTS update_documents_timestamp
+AFTER UPDATE ON documents
+FOR EACH ROW
+BEGIN
+    UPDATE documents SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+END;

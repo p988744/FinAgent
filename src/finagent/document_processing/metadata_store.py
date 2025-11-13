@@ -1,11 +1,12 @@
 """Document metadata storage for enhanced document descriptions."""
 
-import json
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
+
+from finagent.database.db import Database
+from finagent.database.models import Document
 
 
 class DocumentMetadata(BaseModel):
@@ -28,55 +29,67 @@ class DocumentMetadata(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+    @classmethod
+    def from_document(cls, doc: Document) -> "DocumentMetadata":
+        """Create DocumentMetadata from database Document model."""
+        return cls(
+            doc_id=doc.doc_id,
+            filename=doc.filename,
+            description=doc.description or "",
+            document_type=doc.document_type or "",
+            keywords=doc.keywords,
+            date=doc.document_date,
+            issuing_authority=doc.issuing_authority,
+            related_institutions=doc.related_institutions,
+            penalty_amount=doc.penalty_amount,
+            violation_types=doc.violation_types,
+            custom_fields=doc.custom_fields or {},
+            created_at=doc.created_at.isoformat() if doc.created_at else datetime.now().isoformat(),
+            updated_at=doc.updated_at.isoformat() if doc.updated_at else datetime.now().isoformat(),
+        )
+
+    def to_document(self, file_path: str = "") -> Document:
+        """Convert to database Document model."""
+        return Document(
+            doc_id=self.doc_id,
+            filename=self.filename,
+            file_path=file_path,
+            description=self.description,
+            document_type=self.document_type,
+            keywords=self.keywords,
+            document_date=self.date,
+            issuing_authority=self.issuing_authority,
+            related_institutions=self.related_institutions,
+            penalty_amount=self.penalty_amount,
+            violation_types=self.violation_types,
+            custom_fields=self.custom_fields,
+        )
+
 
 class DocumentMetadataStore:
-    """Stores and retrieves document metadata."""
+    """Stores and retrieves document metadata using database backend."""
 
     def __init__(self, storage_path: str | None = None):
         """
         Initialize metadata store.
 
         Args:
-            storage_path: Path to metadata storage file (default: ./data/document_metadata.json)
+            storage_path: Legacy parameter (ignored, kept for backwards compatibility)
         """
-        self.storage_path = Path(storage_path or "./data/document_metadata.json")
-        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        # Use database backend instead of JSON file
+        self.db = Database()
 
-        # Load existing metadata
-        self.metadata: dict[str, DocumentMetadata] = {}
-        self._load()
-
-    def _load(self):
-        """Load metadata from storage file."""
-        if self.storage_path.exists():
-            try:
-                with open(self.storage_path, encoding="utf-8") as f:
-                    data = json.load(f)
-                    for doc_id, meta_dict in data.items():
-                        self.metadata[doc_id] = DocumentMetadata(**meta_dict)
-            except Exception as e:
-                print(f"Warning: Failed to load metadata: {e}")
-
-    def _save(self):
-        """Save metadata to storage file."""
-        try:
-            data = {doc_id: meta.model_dump() for doc_id, meta in self.metadata.items()}
-            with open(self.storage_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"Error: Failed to save metadata: {e}")
-            raise
-
-    def add_metadata(self, metadata: DocumentMetadata) -> None:
+    def add_metadata(self, metadata: DocumentMetadata, file_path: str = "") -> None:
         """
         Add or update document metadata.
 
         Args:
             metadata: DocumentMetadata object
+            file_path: Full path to document file (optional if updating)
         """
-        metadata.updated_at = datetime.now().isoformat()
-        self.metadata[metadata.doc_id] = metadata
-        self._save()
+        # Convert to Document model and save to database
+        doc = metadata.to_document(file_path=file_path)
+        self.db.add_document(doc)
 
     def get_metadata(self, doc_id: str) -> DocumentMetadata | None:
         """
@@ -88,11 +101,15 @@ class DocumentMetadataStore:
         Returns:
             DocumentMetadata if exists, None otherwise
         """
-        return self.metadata.get(doc_id)
+        doc = self.db.get_document(doc_id)
+        if doc:
+            return DocumentMetadata.from_document(doc)
+        return None
 
     def get_all_metadata(self) -> list[DocumentMetadata]:
         """Get all document metadata."""
-        return list(self.metadata.values())
+        docs = self.db.get_all_documents()
+        return [DocumentMetadata.from_document(doc) for doc in docs]
 
     def search_metadata(
         self,
@@ -111,29 +128,15 @@ class DocumentMetadataStore:
         Returns:
             List of matching DocumentMetadata
         """
-        results = []
+        docs = self.db.search_documents(
+            keyword=keyword, institution=institution, authority=None
+        )
 
-        for meta in self.metadata.values():
-            # Check keyword
-            if keyword:
-                keyword_lower = keyword.lower()
-                if not (
-                    keyword_lower in meta.description.lower()
-                    or any(keyword_lower in kw.lower() for kw in meta.keywords)
-                ):
-                    continue
+        # Additional filtering for document_type if needed
+        if document_type:
+            docs = [doc for doc in docs if doc.document_type == document_type]
 
-            # Check document type
-            if document_type and meta.document_type != document_type:
-                continue
-
-            # Check institution
-            if institution and institution not in meta.related_institutions:
-                continue
-
-            results.append(meta)
-
-        return results
+        return [DocumentMetadata.from_document(doc) for doc in docs]
 
     def delete_metadata(self, doc_id: str) -> bool:
         """
@@ -145,21 +148,19 @@ class DocumentMetadataStore:
         Returns:
             True if deleted, False if not found
         """
-        if doc_id in self.metadata:
-            del self.metadata[doc_id]
-            self._save()
-            return True
-        return False
+        return self.db.delete_document(doc_id)
 
     def clear_all(self) -> None:
         """
         Clear all metadata from store.
 
-        This removes all stored metadata and saves the empty state.
+        This removes all stored metadata from the database.
         Useful when doing a full reindex with --clear flag.
         """
-        self.metadata.clear()
-        self._save()
+        # Delete all documents from database
+        all_docs = self.db.get_all_documents()
+        for doc in all_docs:
+            self.db.delete_document(doc.doc_id)
 
     def update_metadata(self, doc_id: str, updates: dict[str, Any]) -> DocumentMetadata | None:
         """
@@ -172,18 +173,27 @@ class DocumentMetadataStore:
         Returns:
             Updated DocumentMetadata if exists, None otherwise
         """
-        if doc_id not in self.metadata:
+        # Get current document
+        doc = self.db.get_document(doc_id)
+        if not doc:
             return None
 
-        meta = self.metadata[doc_id]
+        # Convert to DocumentMetadata, update fields, and save back
+        meta = DocumentMetadata.from_document(doc)
 
-        # Update fields
+        # Update fields (map field names from DocumentMetadata to Document model)
+        field_mapping = {
+            "date": "document_date",  # DocumentMetadata.date -> Document.document_date
+        }
+
         for key, value in updates.items():
-            if hasattr(meta, key):
-                setattr(meta, key, value)
+            # Use mapped field name if it exists
+            meta_key = key
+            if hasattr(meta, meta_key):
+                setattr(meta, meta_key, value)
 
-        meta.updated_at = datetime.now().isoformat()
-        self._save()
+        # Save updated metadata back to database
+        self.add_metadata(meta, file_path=doc.file_path)
 
         return meta
 
@@ -194,23 +204,11 @@ class DocumentMetadataStore:
         Returns:
             Dictionary with statistics
         """
-        total = len(self.metadata)
+        stats = self.db.get_document_statistics()
 
-        # Count by document type
-        type_counts = {}
-        for meta in self.metadata.values():
-            doc_type = meta.document_type
-            type_counts[doc_type] = type_counts.get(doc_type, 0) + 1
-
-        # Count by authority
-        authority_counts = {}
-        for meta in self.metadata.values():
-            if meta.issuing_authority:
-                authority = meta.issuing_authority
-                authority_counts[authority] = authority_counts.get(authority, 0) + 1
-
+        # Map database statistics keys to legacy format for backwards compatibility
         return {
-            "total_documents": total,
-            "by_type": type_counts,
-            "by_authority": authority_counts,
+            "total_documents": stats["total_documents"],
+            "by_type": stats.get("by_document_type", {}),
+            "by_authority": stats.get("by_issuing_authority", {}),
         }

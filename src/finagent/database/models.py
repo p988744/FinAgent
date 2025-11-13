@@ -51,3 +51,25 @@ class History(BaseModel):
     error_message: str | None = Field(None, description="Error message if failed")
     metadata: str | None = Field(None, description="Additional metadata (JSON string)")
     created_at: datetime | None = None
+
+
+class Document(BaseModel):
+    """Document metadata stored in database."""
+
+    id: int | None = None
+    doc_id: str = Field(..., description="Unique document identifier")
+    filename: str = Field(..., description="Document filename")
+    file_path: str = Field(..., description="Full path to document file")
+    description: str | None = Field(None, description="Human-readable description")
+    document_type: str | None = Field(None, description="Document type (e.g., 裁罰書, 判決書)")
+    keywords: list[str] = Field(default_factory=list, description="Keywords/topics")
+    document_date: str | None = Field(None, description="Document date (YYYY-MM-DD)")
+    issuing_authority: str | None = Field(None, description="Issuing authority (e.g., 金管會)")
+    related_institutions: list[str] = Field(default_factory=list, description="Related institutions")
+    penalty_amount: str | None = Field(None, description="Penalty amount if applicable")
+    violation_types: list[str] = Field(default_factory=list, description="Types of violations")
+    custom_fields: dict | None = Field(default_factory=dict, description="Custom metadata")
+    indexed: bool = Field(default=False, description="Whether indexed in vector DB")
+    chunk_count: int = Field(default=0, description="Number of chunks in vector DB")
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

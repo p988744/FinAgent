@@ -68,6 +68,7 @@ class DocumentLoader:
         # Extract default metadata from filename/path
         default_metadata = {
             "filename": path.name,
+            "file_path": str(path),  # Add full file path for database storage
             "file_extension": path.suffix,
             "file_size": path.stat().st_size,
             "file_modified": datetime.fromtimestamp(path.stat().st_mtime).isoformat(),

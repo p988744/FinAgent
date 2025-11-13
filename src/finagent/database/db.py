@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from .models import History, ModelConfig, Setting
+from .models import Document, History, ModelConfig, Setting
 
 
 class Database:
@@ -447,6 +447,288 @@ class Database:
 
             conn.commit()
             return cursor.rowcount
+
+    # ==================== Documents Operations ====================
+
+    def add_document(self, document: Document) -> Document:
+        """
+        Add or update a document in the database.
+
+        Args:
+            document: Document object
+
+        Returns:
+            Document object with id set
+        """
+        with self.get_connection() as conn:
+            # Convert lists and dicts to JSON
+            keywords_json = json.dumps(document.keywords, ensure_ascii=False)
+            institutions_json = json.dumps(document.related_institutions, ensure_ascii=False)
+            violations_json = json.dumps(document.violation_types, ensure_ascii=False)
+            custom_json = json.dumps(document.custom_fields, ensure_ascii=False)
+
+            cursor = conn.execute(
+                """
+                INSERT INTO documents (
+                    doc_id, filename, file_path, description, document_type,
+                    keywords, document_date, issuing_authority, related_institutions,
+                    penalty_amount, violation_types, custom_fields, indexed, chunk_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(doc_id) DO UPDATE SET
+                    filename = excluded.filename,
+                    file_path = excluded.file_path,
+                    description = excluded.description,
+                    document_type = excluded.document_type,
+                    keywords = excluded.keywords,
+                    document_date = excluded.document_date,
+                    issuing_authority = excluded.issuing_authority,
+                    related_institutions = excluded.related_institutions,
+                    penalty_amount = excluded.penalty_amount,
+                    violation_types = excluded.violation_types,
+                    custom_fields = excluded.custom_fields,
+                    indexed = excluded.indexed,
+                    chunk_count = excluded.chunk_count
+                """,
+                (
+                    document.doc_id,
+                    document.filename,
+                    document.file_path,
+                    document.description,
+                    document.document_type,
+                    keywords_json,
+                    document.document_date,
+                    document.issuing_authority,
+                    institutions_json,
+                    document.penalty_amount,
+                    violations_json,
+                    custom_json,
+                    document.indexed,
+                    document.chunk_count,
+                ),
+            )
+
+            conn.commit()
+
+            # Get the inserted/updated document
+            return self.get_document(document.doc_id)
+
+    def get_document(self, doc_id: str) -> Document | None:
+        """
+        Get a document by doc_id.
+
+        Args:
+            doc_id: Document ID
+
+        Returns:
+            Document object or None if not found
+        """
+        with self.get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM documents WHERE doc_id = ?", (doc_id,))
+            row = cursor.fetchone()
+
+            if row:
+                row_dict = dict(row)
+                # Parse JSON fields
+                row_dict["keywords"] = json.loads(row_dict["keywords"]) if row_dict.get("keywords") else []
+                row_dict["related_institutions"] = json.loads(row_dict["related_institutions"]) if row_dict.get("related_institutions") else []
+                row_dict["violation_types"] = json.loads(row_dict["violation_types"]) if row_dict.get("violation_types") else []
+                row_dict["custom_fields"] = json.loads(row_dict["custom_fields"]) if row_dict.get("custom_fields") else {}
+                return Document(**row_dict)
+            return None
+
+    def get_all_documents(
+        self,
+        document_type: str | None = None,
+        indexed_only: bool = False,
+        limit: int | None = None,
+    ) -> list[Document]:
+        """
+        Get all documents with optional filtering.
+
+        Args:
+            document_type: Filter by document type
+            indexed_only: Only return indexed documents
+            limit: Maximum number of documents to return
+
+        Returns:
+            List of Document objects
+        """
+        with self.get_connection() as conn:
+            query = "SELECT * FROM documents WHERE 1=1"
+            params = []
+
+            if document_type:
+                query += " AND document_type = ?"
+                params.append(document_type)
+
+            if indexed_only:
+                query += " AND indexed = 1"
+
+            query += " ORDER BY created_at DESC"
+
+            if limit:
+                query += " LIMIT ?"
+                params.append(limit)
+
+            cursor = conn.execute(query, params)
+            documents = []
+
+            for row in cursor.fetchall():
+                row_dict = dict(row)
+                # Parse JSON fields
+                row_dict["keywords"] = json.loads(row_dict["keywords"]) if row_dict.get("keywords") else []
+                row_dict["related_institutions"] = json.loads(row_dict["related_institutions"]) if row_dict.get("related_institutions") else []
+                row_dict["violation_types"] = json.loads(row_dict["violation_types"]) if row_dict.get("violation_types") else []
+                row_dict["custom_fields"] = json.loads(row_dict["custom_fields"]) if row_dict.get("custom_fields") else {}
+                documents.append(Document(**row_dict))
+
+            return documents
+
+    def search_documents(
+        self,
+        keyword: str | None = None,
+        institution: str | None = None,
+        authority: str | None = None,
+    ) -> list[Document]:
+        """
+        Search documents by criteria.
+
+        Args:
+            keyword: Search in description and keywords
+            institution: Filter by related institution
+            authority: Filter by issuing authority
+
+        Returns:
+            List of matching Document objects
+        """
+        with self.get_connection() as conn:
+            query = "SELECT * FROM documents WHERE 1=1"
+            params = []
+
+            if keyword:
+                query += " AND (description LIKE ? OR keywords LIKE ?)"
+                keyword_pattern = f"%{keyword}%"
+                params.extend([keyword_pattern, keyword_pattern])
+
+            if institution:
+                query += " AND related_institutions LIKE ?"
+                params.append(f"%{institution}%")
+
+            if authority:
+                query += " AND issuing_authority = ?"
+                params.append(authority)
+
+            query += " ORDER BY created_at DESC"
+
+            cursor = conn.execute(query, params)
+            documents = []
+
+            for row in cursor.fetchall():
+                row_dict = dict(row)
+                # Parse JSON fields
+                row_dict["keywords"] = json.loads(row_dict["keywords"]) if row_dict.get("keywords") else []
+                row_dict["related_institutions"] = json.loads(row_dict["related_institutions"]) if row_dict.get("related_institutions") else []
+                row_dict["violation_types"] = json.loads(row_dict["violation_types"]) if row_dict.get("violation_types") else []
+                row_dict["custom_fields"] = json.loads(row_dict["custom_fields"]) if row_dict.get("custom_fields") else {}
+                documents.append(Document(**row_dict))
+
+            return documents
+
+    def update_document_indexed_status(
+        self,
+        doc_id: str,
+        indexed: bool,
+        chunk_count: int = 0,
+    ) -> bool:
+        """
+        Update document indexed status and chunk count.
+
+        Args:
+            doc_id: Document ID
+            indexed: Whether document is indexed
+            chunk_count: Number of chunks
+
+        Returns:
+            True if updated, False if document not found
+        """
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE documents
+                SET indexed = ?, chunk_count = ?
+                WHERE doc_id = ?
+                """,
+                (indexed, chunk_count, doc_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def delete_document(self, doc_id: str) -> bool:
+        """
+        Delete a document from the database.
+
+        Args:
+            doc_id: Document ID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        with self.get_connection() as conn:
+            cursor = conn.execute("DELETE FROM documents WHERE doc_id = ?", (doc_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_document_statistics(self) -> dict[str, Any]:
+        """
+        Get statistics about stored documents.
+
+        Returns:
+            Dictionary with statistics
+        """
+        with self.get_connection() as conn:
+            # Total documents
+            cursor = conn.execute("SELECT COUNT(*) as total FROM documents")
+            total = cursor.fetchone()["total"]
+
+            # Indexed documents
+            cursor = conn.execute("SELECT COUNT(*) as indexed FROM documents WHERE indexed = 1")
+            indexed = cursor.fetchone()["indexed"]
+
+            # By document type
+            cursor = conn.execute(
+                """
+                SELECT document_type, COUNT(*) as count
+                FROM documents
+                GROUP BY document_type
+                ORDER BY count DESC
+                """
+            )
+            by_type = {row["document_type"]: row["count"] for row in cursor.fetchall()}
+
+            # By authority
+            cursor = conn.execute(
+                """
+                SELECT issuing_authority, COUNT(*) as count
+                FROM documents
+                WHERE issuing_authority IS NOT NULL
+                GROUP BY issuing_authority
+                ORDER BY count DESC
+                """
+            )
+            by_authority = {row["issuing_authority"]: row["count"] for row in cursor.fetchall()}
+
+            # Total chunks
+            cursor = conn.execute("SELECT SUM(chunk_count) as total FROM documents")
+            total_chunks = cursor.fetchone()["total"] or 0
+
+            return {
+                "total_documents": total,
+                "indexed_documents": indexed,
+                "unindexed_documents": total - indexed,
+                "total_chunks": total_chunks,
+                "by_document_type": by_type,
+                "by_issuing_authority": by_authority,
+            }
 
 
 # Global database instance

@@ -258,8 +258,9 @@ def init_document_with_llm(filename: str | None = None):
                 console.print("[yellow]已取消，不儲存元資料[/yellow]\n")
                 return
 
-            # Save metadata
-            metadata_store.add_metadata(metadata)
+            # Save metadata (get file_path from doc.metadata or doc.source)
+            file_path = doc.metadata.get("file_path") or doc.source
+            metadata_store.add_metadata(metadata, file_path=file_path)
 
             console.print()
             console.print("[green]✅ 元資料已儲存[/green]")
@@ -483,8 +484,9 @@ def init_document_interactive(filename: str | None = None):
             updated_at=now,
         )
 
-        # Save metadata
-        metadata_store.add_metadata(metadata)
+        # Save metadata (get file_path from doc.metadata or doc.source)
+        file_path = doc.metadata.get("file_path") or doc.source
+        metadata_store.add_metadata(metadata, file_path=file_path)
 
         # Show summary
         console.print()
