@@ -1,6 +1,6 @@
-# FinAgent - Legal Research Agent System
+# FinAgent - Financial Legal Research Agent System
 
-A specialized AI-powered legal research system for analyzing bank penalties, regulatory enforcement actions, and legal precedents in Taiwan.
+A specialized AI-powered financial legal research system for analyzing bank penalties, regulatory enforcement actions, and legal precedents in Taiwan's financial sector.
 
 ## Features
 

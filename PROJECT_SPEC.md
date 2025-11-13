@@ -6,10 +6,10 @@
 
 ## Project Overview
 
-FinAgent is a Legal Research Agent System (法律研究代理系統) specialized for analyzing bank penalties, regulatory enforcement actions, and legal precedents in Taiwan. The system uses a multi-agent architecture with RAG (Retrieval-Augmented Generation) for precise legal research with formal citations.
+FinAgent is a Financial Legal Research Agent System (金融法律研究代理系統) specialized for analyzing bank penalties, regulatory enforcement actions, and legal precedents in Taiwan's financial sector. The system uses a multi-agent architecture with RAG (Retrieval-Augmented Generation) for precise legal research with formal citations.
 
 **Target Region:** Taiwan (繁體中文)
-**Domain:** Banking penalties, regulatory enforcement, legal precedents
+**Domain:** Financial law, banking penalties, regulatory enforcement, legal precedents
 **Base Architecture:** Multi-agent system with LangGraph orchestration
 
 ## Architecture
