@@ -11,6 +11,7 @@ from rich.table import Table
 
 from finagent.config import settings, reload_settings
 from finagent.model_config_loader import get_model_config, reload_model_config
+from finagent.config_manager import get_config_manager
 
 console = Console()
 
@@ -213,34 +214,48 @@ def get_available_embedding_models(api_key: str) -> list:
 
 
 def show_config():
-    """Display current LLM configuration."""
+    """Display current LLM configuration from database."""
+    config_manager = get_config_manager()
+
+    # Get active configurations
+    llm_config = config_manager.get_active_llm_config()
+    embedding_config = config_manager.get_active_embedding_config()
+
     table = Table(title="LLM 設定", show_header=True, header_style="bold cyan")
     table.add_column("設定項目", style="white", width=25)
     table.add_column("目前值", style="cyan")
 
-    llm_base_url = settings.effective_llm_base_url
-    embedding_base_url = settings.effective_embedding_base_url
+    # Show configuration source
+    source_label = "資料來源"
+    if llm_config.get("source") == "database":
+        table.add_row(source_label, f"[magenta]已儲存預設 ({llm_config.get('config_name')})[/magenta]")
+    else:
+        table.add_row(source_label, "[dim]設定檔 (.env/database)[/dim]")
+
+    table.add_row("", "")  # Spacer
 
     # Chat/Completion LLM provider
+    llm_base_url = llm_config.get("base_url", "")
     if llm_base_url:
         table.add_row("聊天 LLM 提供者", "[yellow]自訂端點[/yellow]")
         table.add_row("  ├─ URL", llm_base_url)
-        table.add_row("  ├─ 模型", settings.llm_model)
-        table.add_row("  └─ API Key", "***" if settings.llm_api_key else "[red]未設定[/red]")
+        table.add_row("  ├─ 模型", llm_config.get("model", ""))
+        table.add_row("  └─ API Key", "***" if llm_config.get("api_key") else "[red]未設定[/red]")
     else:
         table.add_row("聊天 LLM 提供者", "[green]OpenAI[/green]")
-        table.add_row("  ├─ 模型", settings.llm_model)
-        table.add_row("  └─ API Key", "***" if settings.llm_api_key else "[red]未設定[/red]")
+        table.add_row("  ├─ 模型", llm_config.get("model", ""))
+        table.add_row("  └─ API Key", "***" if llm_config.get("api_key") else "[red]未設定[/red]")
 
     # Embedding provider
     table.add_row("", "")  # Spacer
+    embedding_base_url = embedding_config.get("base_url", "")
     if embedding_base_url:
         table.add_row("嵌入模型提供者", "[yellow]自訂端點[/yellow]")
-        table.add_row("  ├─ 模型", settings.embedding_model)
+        table.add_row("  ├─ 模型", embedding_config.get("model", ""))
 
         # Show URL and API key
         shared_url = embedding_base_url == llm_base_url
-        shared_key = settings.embedding_api_key == "" or settings.embedding_api_key == settings.llm_api_key
+        shared_key = embedding_config.get("api_key") == llm_config.get("api_key")
 
         if shared_url:
             table.add_row("  ├─ URL", f"{embedding_base_url} [dim](共用 LLM)[/dim]")
@@ -253,22 +268,35 @@ def show_config():
             table.add_row("  └─ API Key", "***")
     else:
         table.add_row("嵌入模型提供者", "[green]OpenAI[/green]")
-        table.add_row("  ├─ 模型", settings.embedding_model)
-        table.add_row("  └─ API Key", "***" if settings.effective_embedding_api_key else "[red]未設定[/red]")
+        table.add_row("  ├─ 模型", embedding_config.get("model", ""))
+        table.add_row("  └─ API Key", "***" if embedding_config.get("api_key") else "[red]未設定[/red]")
 
     # Other settings
     table.add_row("", "")  # Spacer
-    table.add_row("溫度 (Temperature)", str(settings.llm_temperature))
+    table.add_row("溫度 (Temperature)", str(llm_config.get("temperature", 0.0)))
 
     console.print()
     console.print(table)
     console.print()
 
+    # Show saved presets
+    llm_presets = config_manager.get_all_model_configs("llm")
+    embedding_presets = config_manager.get_all_model_configs("embedding")
+
+    if llm_presets or embedding_presets:
+        console.print("[dim]已儲存的預設:[/dim]")
+        if llm_presets:
+            console.print(f"[dim]  • LLM: {len(llm_presets)} 個預設 (使用 [cyan]/config list llm[/cyan] 查看)[/dim]")
+        if embedding_presets:
+            console.print(f"[dim]  • 嵌入: {len(embedding_presets)} 個預設 (使用 [cyan]/config list embedding[/cyan] 查看)[/dim]")
+        console.print()
+
     # Show hints
     console.print("[dim]提示:[/dim]")
     console.print("[dim]  • 使用 [cyan]/config llm[/cyan] 修改 LLM 設定[/dim]")
-    console.print("[dim]  • 使用 [cyan]/config reload[/cyan] 重新載入設定檔 (.env 和 model_config.yml)[/dim]")
-    console.print("[dim]  • 編輯 [cyan]model_config.yml[/cyan] 來自訂模型列表[/dim]")
+    console.print("[dim]  • 使用 [cyan]/config save <名稱>[/cyan] 儲存目前設定為預設[/dim]")
+    console.print("[dim]  • 使用 [cyan]/config load <ID>[/cyan] 載入已儲存的預設[/dim]")
+    console.print("[dim]  • 使用 [cyan]/config reload[/cyan] 重新載入設定檔[/dim]")
     console.print()
 
 
@@ -447,7 +475,15 @@ def save_to_env(
     llm_api_key: str,
     embedding_model: str
 ):
-    """Save LLM configuration to .env file."""
+    """Save LLM configuration to .env file and database."""
+    config_manager = get_config_manager()
+
+    # Save to database first
+    config_manager.set_setting("llm_api_key", llm_api_key, category="llm")
+    config_manager.set_setting("llm_base_url", llm_url if use_local else "", category="llm")
+    config_manager.set_setting("llm_model", llm_model, category="llm")
+    config_manager.set_setting("embedding_model", embedding_model, category="embedding")
+
     # Find .env file
     env_path = Path.cwd() / ".env"
 
@@ -492,6 +528,155 @@ def save_to_env(
         for key, value in existing_config.items():
             if key not in llm_keys:
                 f.write(f"{key}={value}\n")
+
+
+def save_config_preset(name: str):
+    """Save current configuration as a preset."""
+    config_manager = get_config_manager()
+
+    console.print()
+    console.print(f"[cyan]正在儲存預設 '{name}'...[/cyan]")
+
+    try:
+        # Get current active config
+        llm_config = config_manager.get_active_llm_config()
+
+        # Save as preset
+        saved_config = config_manager.save_model_config(
+            name=name,
+            config_type="llm",
+            api_key=llm_config["api_key"],
+            base_url=llm_config["base_url"],
+            model=llm_config["model"],
+            temperature=llm_config["temperature"],
+            set_active=False,  # Don't set as active yet
+        )
+
+        console.print(f"[green]✓ 已儲存預設 '{name}' (ID: {saved_config.id})[/green]")
+        console.print()
+        console.print(f"[dim]使用 [cyan]/config load {saved_config.id}[/cyan] 來載入此預設[/dim]")
+        console.print()
+
+    except Exception as e:
+        console.print(f"[red]✗ 儲存失敗: {e}[/red]")
+        import traceback
+        console.print(f"[dim]{traceback.format_exc()}[/dim]")
+
+
+def load_config_preset(config_id: int):
+    """Load a saved configuration preset."""
+    config_manager = get_config_manager()
+
+    console.print()
+    console.print(f"[cyan]正在載入預設 (ID: {config_id})...[/cyan]")
+
+    try:
+        # Set as active
+        config = config_manager.set_active_model_config(config_id)
+
+        if not config:
+            console.print(f"[red]✗ 找不到預設 ID: {config_id}[/red]")
+            return
+
+        console.print(f"[green]✓ 已載入預設 '{config.name}'[/green]")
+
+        # Reset orchestrator to use new config
+        try:
+            from finagent.cli.commands.query import reset_orchestrator
+            reset_orchestrator()
+            console.print("[green]✓ 已重置查詢引擎[/green]")
+        except Exception as e:
+            console.print(f"[yellow]⚠️  無法重置查詢引擎: {e}[/yellow]")
+
+        console.print()
+        console.print("[bold green]✅ 預設已載入！無需重啟 CLI[/bold green]")
+        console.print()
+
+        # Show new config
+        show_config()
+
+    except Exception as e:
+        console.print(f"[red]✗ 載入失敗: {e}[/red]")
+        import traceback
+        console.print(f"[dim]{traceback.format_exc()}[/dim]")
+
+
+def list_config_presets(config_type: Optional[str] = None):
+    """List saved configuration presets."""
+    config_manager = get_config_manager()
+
+    console.print()
+
+    # Determine which configs to show
+    if config_type == "llm":
+        configs = config_manager.get_all_model_configs("llm")
+        title = "LLM 預設"
+    elif config_type == "embedding":
+        configs = config_manager.get_all_model_configs("embedding")
+        title = "嵌入模型預設"
+    else:
+        configs = config_manager.get_all_model_configs()
+        title = "所有預設"
+
+    if not configs:
+        console.print("[dim]沒有已儲存的預設[/dim]")
+        console.print()
+        return
+
+    table = Table(title=title, show_header=True, header_style="bold cyan")
+    table.add_column("ID", style="white", width=5)
+    table.add_column("名稱", style="cyan", width=20)
+    table.add_column("類型", style="yellow", width=10)
+    table.add_column("模型", style="green", width=25)
+    table.add_column("狀態", style="magenta", width=10)
+
+    for config in configs:
+        status = "[green]●[/green] 使用中" if config.is_active else "[dim]○[/dim] 未使用"
+        config_type_label = "LLM" if config.config_type == "llm" else "嵌入"
+
+        table.add_row(
+            str(config.id),
+            config.name,
+            config_type_label,
+            config.model,
+            status,
+        )
+
+    console.print(table)
+    console.print()
+    console.print("[dim]提示:[/dim]")
+    console.print("[dim]  • 使用 [cyan]/config load <ID>[/cyan] 載入預設[/dim]")
+    console.print("[dim]  • 使用 [cyan]/config delete <ID>[/cyan] 刪除預設[/dim]")
+    console.print()
+
+
+def delete_config_preset(config_id: int):
+    """Delete a saved configuration preset."""
+    config_manager = get_config_manager()
+
+    console.print()
+
+    try:
+        # Check if config exists
+        config = config_manager.db.get_model_config(config_id)
+        if not config:
+            console.print(f"[red]✗ 找不到預設 ID: {config_id}[/red]")
+            return
+
+        # Confirm deletion
+        confirm = Confirm.ask(f"確認刪除預設 '{config.name}' (ID: {config_id})?", default=False)
+
+        if not confirm:
+            console.print("[yellow]已取消刪除。[/yellow]")
+            return
+
+        # Delete
+        config_manager.delete_model_config(config_id)
+        console.print(f"[green]✓ 已刪除預設 '{config.name}'[/green]")
+        console.print()
+
+    except Exception as e:
+        console.print(f"[red]✗ 刪除失敗: {e}[/red]")
 
 
 def reload_config():
@@ -539,13 +724,51 @@ def handle_config_command(args: str):
         args: Command arguments
           - "llm": Configure LLM settings interactively
           - "reload": Reload configuration from files
+          - "save <name>": Save current config as a preset
+          - "load <id>": Load a saved preset
+          - "list [llm|embedding]": List saved presets
+          - "delete <id>": Delete a saved preset
           - empty: Show current configuration
     """
-    args = args.strip().lower()
+    args = args.strip()
 
-    if args == "llm":
+    # Parse command
+    parts = args.split(maxsplit=1)
+    command = parts[0].lower() if parts else ""
+    argument = parts[1] if len(parts) > 1 else ""
+
+    if command == "llm":
         configure_llm()
-    elif args == "reload":
+    elif command == "reload":
         reload_config()
+    elif command == "save":
+        if not argument:
+            console.print("[red]✗ 請提供預設名稱: /config save <名稱>[/red]")
+        else:
+            save_config_preset(argument)
+    elif command == "load":
+        if not argument:
+            console.print("[red]✗ 請提供預設 ID: /config load <ID>[/red]")
+        else:
+            try:
+                config_id = int(argument)
+                load_config_preset(config_id)
+            except ValueError:
+                console.print("[red]✗ 預設 ID 必須是數字[/red]")
+    elif command == "list":
+        config_type = argument.lower() if argument else None
+        if config_type and config_type not in ["llm", "embedding"]:
+            console.print("[red]✗ 類型必須是 'llm' 或 'embedding'[/red]")
+        else:
+            list_config_presets(config_type)
+    elif command == "delete":
+        if not argument:
+            console.print("[red]✗ 請提供預設 ID: /config delete <ID>[/red]")
+        else:
+            try:
+                config_id = int(argument)
+                delete_config_preset(config_id)
+            except ValueError:
+                console.print("[red]✗ 預設 ID 必須是數字[/red]")
     else:
         show_config()
