@@ -23,6 +23,7 @@ from finagent.cli.commands.init import handle_init_command
 from finagent.cli.commands.query import execute_query
 from finagent.cli.commands.reindex import execute_reindex
 from finagent.cli.formatters.answer import format_legal_answer
+from finagent.cli.formatters.export import export_to_json, export_to_markdown, export_to_text
 from finagent.config_manager import get_config_manager
 from finagent.database.db import Database
 
@@ -37,6 +38,7 @@ class ReplSession:
         self.history = QueryHistory()
         self.prompt_history = InMemoryHistory()
         self.last_answer = None
+        self.last_query = None  # Track last query text for export
         self.session_start = datetime.now()
 
         # Command completer
@@ -250,6 +252,7 @@ class ReplSession:
                 # Save to in-memory history (for backward compatibility)
                 self.history.add(query_text, answer)
                 self.last_answer = answer
+                self.last_query = query_text  # Track for export
 
                 # Display answer
                 format_legal_answer(answer)
@@ -375,15 +378,36 @@ class ReplSession:
             console.print("[yellow]尚無查詢結果可匯出。[/yellow]")
             return
 
-        format = format.lower() or "markdown"
-
-        if format not in ["markdown", "json", "md", "txt"]:
-            console.print(f"[red]不支援的格式: {format}[/red]")
-            console.print("支援的格式: markdown, json")
+        if not self.last_query:
+            console.print("[yellow]無法取得查詢文字。[/yellow]")
             return
 
-        # TODO: Implement export functionality
-        console.print(f"[yellow]匯出功能尚未實作 (格式: {format})[/yellow]")
+        # Normalize format
+        format = format.lower().strip() or "markdown"
+        if format == "md":
+            format = "markdown"
+
+        if format not in ["markdown", "json", "txt"]:
+            console.print(f"[red]不支援的格式: {format}[/red]")
+            console.print("支援的格式: markdown (md), json, txt")
+            return
+
+        try:
+            # Export based on format
+            if format == "markdown":
+                filepath = export_to_markdown(self.last_answer, self.last_query)
+            elif format == "json":
+                filepath = export_to_json(self.last_answer, self.last_query)
+            elif format == "txt":
+                filepath = export_to_text(self.last_answer, self.last_query)
+
+            console.print(f"\n[green]✓ 已匯出至: {filepath.absolute()}[/green]\n")
+
+        except Exception as e:
+            console.print(f"[red]匯出失敗: {str(e)}[/red]")
+            import traceback
+
+            traceback.print_exc()
 
     def run(self):
         """Run the REPL loop."""
