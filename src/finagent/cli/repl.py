@@ -22,6 +22,7 @@ from finagent.cli.commands.history import QueryHistory
 from finagent.cli.commands.init import handle_init_command
 from finagent.cli.commands.query import execute_query
 from finagent.cli.commands.reindex import execute_reindex
+from finagent.cli.commands.stats import show_statistics
 from finagent.cli.formatters.answer import format_legal_answer
 from finagent.cli.formatters.export import export_to_json, export_to_markdown, export_to_text
 from finagent.config_manager import get_config_manager
@@ -50,6 +51,7 @@ class ReplSession:
             "/q",
             "/history",
             "/hist",
+            "/stats",
             "/clear",
             "/cls",
             "/citations",
@@ -204,6 +206,19 @@ class ReplSession:
         # History command
         if command in ["/history", "/hist"]:
             self.show_history()
+            return True
+
+        # Stats command
+        if command == "/stats":
+            # Parse optional days argument
+            days = None
+            if args:
+                try:
+                    days = int(args.strip())
+                except ValueError:
+                    console.print("[yellow]無效的天數參數。使用方式: /stats [天數][/yellow]")
+                    return True
+            show_statistics(days=days)
             return True
 
         # Citations command
