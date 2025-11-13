@@ -116,10 +116,19 @@ def execute_query(
 
             # Log to database
             db = Database()
+
+            # Extract response text from answer (use executive_summary for new model structure)
+            response_text = None
+            if answer:
+                if hasattr(answer, "executive_summary"):
+                    response_text = answer.executive_summary
+                elif hasattr(answer, "answer"):
+                    response_text = answer.answer
+
             db.add_history(
                 session_id=session_id,
                 query=query_text,
-                response=answer.answer if answer else None,
+                response=response_text,
                 model_used=model_used,
                 tokens_used=tokens_used,
                 cost_usd=cost_usd,
