@@ -195,7 +195,11 @@ finagent> /export txt
 - ✅ Syntax validation passed
 - ✅ Linting (ruff) passed
 - ✅ Formatting (black) passed
-- ⏳ Manual testing pending (requires running CLI)
+- ✅ Automated tests passed (test_v0_1_0_features.py)
+  - ✅ Cost calculator functionality
+  - ✅ Database history logging
+  - ✅ Export to Markdown/JSON/Text formats
+- ⏳ Manual CLI testing pending (requires running CLI)
 
 ---
 
