@@ -54,3 +54,15 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Electron
+node_modules/
+dist/
+python-dist/
+*.dmg
+*.zip
+*.exe
+*.AppImage
+.electron-builder.yaml
+electron/build/*.ico
+electron/build/*.icns

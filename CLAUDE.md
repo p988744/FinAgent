@@ -8,14 +8,16 @@ FinAgent is a **Financial Legal Research Agent System** (金融法律研究代�
 
 **Target Region:** Taiwan (繁體中文)
 **Domain:** Financial law, banking penalties, regulatory enforcement, legal precedents
-**Status:** v0.0.1-beta - Database integration complete
-**Architecture:** LangGraph multi-agent system with SQLite persistence and Chroma vector DB
+**Status:** v0.0.2 - Cross-platform Electron desktop application
+**Architecture:** Electron + Python backend with LangGraph multi-agent system, SQLite persistence and Chroma vector DB
 
 ## Development Commands
 
 ### Setup and Installation
+
+#### Python Backend
 ```bash
-# Install dependencies
+# Install Python dependencies
 uv sync
 
 # Run interactive CLI (REPL mode)
@@ -33,8 +35,29 @@ uv run finagent reindex
 # Clear and rebuild index
 uv run finagent reindex --clear --yes
 
-# Build package
-uv build
+# Start FastAPI server directly
+uv run uvicorn finagent.main:app --reload --port 8000
+```
+
+#### Electron Desktop App
+```bash
+# Install Node.js dependencies
+npm install
+
+# Run Electron app in development mode
+npm start
+
+# Run with Python backend in development
+npm run dev
+
+# Build for Windows
+npm run build:win
+
+# Build for macOS
+npm run build:mac
+
+# Build for all platforms
+npm run build:all
 ```
 
 ### Testing

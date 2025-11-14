@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>FinAgent - 金融法律研究代理系統</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-content">
+        <div class="logo">
+          <h1>FinAgent</h1>
+          <span class="subtitle">金融法律研究代理系統</span>
+        </div>
+        <div class="status-indicator">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">連接中...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="app-main">
+      <!-- Query Input Section -->
+      <section class="query-section">
+        <div class="query-container">
+          <label for="queryInput" class="query-label">輸入查詢</label>
+          <div class="query-input-wrapper">
+            <textarea
+              id="queryInput"
+              class="query-input"
+              placeholder="例如: 玉山銀行洗錢防制裁罰、2020年金管會裁罰案件..."
+              rows="3"
+            ></textarea>
+            <button id="submitBtn" class="submit-btn" disabled>
+              <span class="btn-text">查詢</span>
+              <span class="btn-loader" style="display: none;"></span>
+            </button>
+          </div>
+          <div class="query-examples">
+            <span class="examples-label">範例查詢:</span>
+            <button class="example-btn" data-query="玉山銀行洗錢防制裁罰">玉山銀行洗錢防制</button>
+            <button class="example-btn" data-query="2020年金管會裁罰案件">2020年金管會裁罰</button>
+            <button class="example-btn" data-query="內線交易相關判決">內線交易判決</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results Section -->
+      <section class="results-section">
+        <div id="resultsContainer" class="results-container">
+          <!-- Welcome message (shown initially) -->
+          <div id="welcomeMessage" class="welcome-message">
+            <h2>歡迎使用 FinAgent</h2>
+            <p>專業的金融法律研究代理系統</p>
+            <div class="features">
+              <div class="feature">
+                <div class="feature-icon">🤖</div>
+                <div class="feature-title">多代理架構</div>
+                <div class="feature-desc">LangGraph 多代理協作</div>
+              </div>
+              <div class="feature">
+                <div class="feature-icon">📚</div>
+                <div class="feature-title">RAG 檢索</div>
+                <div class="feature-desc">語義搜尋與引用追蹤</div>
+              </div>
+              <div class="feature">
+                <div class="feature-icon">🇹🇼</div>
+                <div class="feature-title">繁體中文</div>
+                <div class="feature-desc">台灣法規專業支援</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results will be displayed here -->
+          <div id="resultsContent" style="display: none;">
+            <!-- Dynamic content loaded by JavaScript -->
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div class="footer-content">
+        <span id="appVersion">v0.0.2</span>
+        <span class="separator">•</span>
+        <span>FinAgent Team</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/app.js"></script>
+</body>
+</html>

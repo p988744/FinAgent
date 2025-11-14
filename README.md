@@ -4,21 +4,53 @@ A specialized AI-powered financial legal research system for analyzing bank pena
 
 ## Features
 
+- 🖥️ **Cross-Platform Desktop App**: Native Windows and macOS application built with Electron (New in v0.0.2!)
 - 🤖 **Multi-Agent Architecture**: LangGraph-based workflow with Planning, Action, Validation, and Answer agents
 - 📚 **RAG Pipeline**: Semantic search with OpenAI embeddings and Chroma vector database
 - 🔍 **Document Processing**: Support for TXT files with recursive subfolder indexing
-- 💬 **Interactive CLI**: REPL interface with command auto-completion
+- 💬 **Dual Interface**: Modern GUI desktop app + Interactive CLI
 - 🌐 **Flexible LLM Configuration**: OpenAI-compatible API support (OpenAI, Ollama, custom endpoints)
 - 🇹🇼 **Traditional Chinese**: Full support with Jieba word segmentation
 
 ## Quick Start
 
-### Installation
+### Desktop Application (New in v0.0.2!)
+
+**For End Users:**
+1. Download the installer for your platform from [Releases](https://github.com/p988744/FinAgent/releases)
+   - Windows: `FinAgent-0.0.2-Setup.exe`
+   - macOS: `FinAgent-0.0.2-arm64.dmg` (Apple Silicon) or `FinAgent-0.0.2-x64.dmg` (Intel)
+2. Install and launch FinAgent
+3. Start querying!
+
+**For Developers:**
+```bash
+# Clone the repository
+git clone https://github.com/p988744/FinAgent.git
+cd FinAgent
+
+# Install Python dependencies
+uv sync
+
+# Install Node.js dependencies
+npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys and settings
+
+# Run the desktop app in development mode
+npm run dev
+```
+
+See [ELECTRON_DESKTOP_GUIDE.md](ELECTRON_DESKTOP_GUIDE.md) for detailed instructions.
+
+### CLI (Python)
 
 ```bash
 # Clone the repository
 git clone https://github.com/p988744/FinAgent.git
-cd FinAgent/backend
+cd FinAgent
 
 # Install dependencies
 uv sync
@@ -183,5 +215,5 @@ For issues and questions:
 ---
 
 **Status**: Beta
-**Version**: 0.1.0
-**Last Updated**: 2025-01-12
+**Version**: 0.0.2
+**Last Updated**: 2025-01-14
