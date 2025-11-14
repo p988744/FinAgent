@@ -163,21 +163,35 @@ class PlanningAgent:
             state["research_tasks"] = [t.task for t in tasks]
             state["plan_analysis"] = analysis.dict()
 
+            # Convert tasks to todo items and store in state (Phase 5)
+            from finagent.models.todo_item import TodoItem
+            todos = []
+            for t in tasks:
+                # Determine category based on task content
+                if "搜" in t.task or "檢索" in t.task or "深度搜索" in t.task:
+                    category = "retrieval"
+                elif "驗證" in t.task:
+                    category = "validation"
+                elif "生成" in t.task or "答案" in t.task:
+                    category = "synthesis"
+                else:
+                    category = "analysis"
+
+                todo = TodoItem(
+                    id=f"task_{t.id}",
+                    content=t.task,
+                    active_form=f"正在執行 {t.task}",
+                    status="pending",
+                    category=category,
+                )
+                todos.append(todo)
+
+            # Store todos in state for cross-agent access
+            state["todos"] = todos
+
             # Emit todo list created callback
             if self.ui_callback:
                 try:
-                    # Convert tasks to todo items for callback
-                    from finagent.models.todo_item import TodoItem
-                    todos = [
-                        TodoItem(
-                            id=f"task_{t.id}",
-                            content=t.task,
-                            active_form=f"正在執行 {t.task}",
-                            status="pending",
-                            category="retrieval" if "搜" in t.task else "analysis",
-                        )
-                        for t in tasks
-                    ]
                     asyncio.create_task(self.ui_callback.on_todo_list_created(todos))
                 except RuntimeError:
                     pass

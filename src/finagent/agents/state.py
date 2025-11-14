@@ -6,6 +6,7 @@ from finagent.document_processing.retriever import RetrievedChunk
 from finagent.models.answers import LegalAnswer
 from finagent.models.citations import LegalCitation
 from finagent.models.queries import Query
+from finagent.models.todo_item import TodoItem
 
 
 class AgentState(TypedDict):
@@ -43,6 +44,9 @@ class AgentState(TypedDict):
     search_iteration: int  # Current iteration (0 = first search, 1-2 = re-search)
     max_search_iterations: int  # Maximum iterations allowed (default: 2)
     search_strategy: str  # Current search strategy: "strict", "relaxed", "broad"
+
+    # Todo tracking (Phase 5)
+    todos: list[TodoItem] | None  # Task tracking with real-time status updates
 
     # Metadata
     processing_steps: list[str]
