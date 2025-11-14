@@ -48,6 +48,19 @@ class ValidationAgent:
         """
         logger.info("Validation agent checking citation integrity")
 
+        # Phase 5: Find and mark validation todo as in_progress
+        todos = state.get("todos", [])
+        validation_todo = next((t for t in todos if t.category == "validation"), None)
+
+        if validation_todo and validation_todo.status == "pending":
+            validation_todo.mark_started()
+            if self.ui_callback:
+                import asyncio
+                try:
+                    asyncio.create_task(self.ui_callback.on_todo_started(validation_todo))
+                except RuntimeError:
+                    pass
+
         # Emit validation start callback
         if self.ui_callback:
             import asyncio
@@ -148,6 +161,19 @@ class ValidationAgent:
                 state["processing_steps"].append(f"驗證代理：發現 {len(issues)} 個潛在問題")
                 logger.warning(f"Validation found {len(issues)} issues: {issues}")
 
+            # Phase 5: Mark validation todo as completed (always mark as completed, even with warnings)
+            if validation_todo:
+                validation_todo.mark_completed(result={"passed": validation_passed, "issues": len(issues)})
+                if self.ui_callback:
+                    import asyncio
+                    try:
+                        asyncio.create_task(self.ui_callback.on_todo_completed(validation_todo))
+                    except RuntimeError:
+                        pass
+
+            # Update state with todos
+            state["todos"] = todos
+
             # Emit validation complete callback
             if self.ui_callback:
                 import asyncio
@@ -166,5 +192,18 @@ class ValidationAgent:
             state["errors"].append(f"驗證失敗：{str(e)}")
             state["validation_passed"] = False
             state["validation_issues"] = [f"驗證過程錯誤：{str(e)}"]
+
+            # Phase 5: Mark validation todo as failed
+            todos = state.get("todos", [])
+            validation_todo = next((t for t in todos if t.category == "validation"), None)
+            if validation_todo:
+                validation_todo.mark_failed(error=str(e))
+                if self.ui_callback:
+                    import asyncio
+                    try:
+                        asyncio.create_task(self.ui_callback.on_todo_failed(validation_todo, str(e)))
+                    except RuntimeError:
+                        pass
+            state["todos"] = todos
 
         return state

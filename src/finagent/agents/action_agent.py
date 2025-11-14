@@ -73,6 +73,19 @@ class ActionAgent:
         )
 
         try:
+            # Phase 5: Find and mark retrieval todo as in_progress
+            todos = state.get("todos", [])
+            retrieval_todo = next((t for t in todos if t.category == "retrieval"), None)
+
+            if retrieval_todo and retrieval_todo.status == "pending":
+                retrieval_todo.mark_started()
+                if self.ui_callback:
+                    import asyncio
+                    try:
+                        asyncio.create_task(self.ui_callback.on_todo_started(retrieval_todo))
+                    except RuntimeError:
+                        pass
+
             # Emit retrieval start callback
             if self.ui_callback:
                 import asyncio
@@ -178,11 +191,37 @@ class ActionAgent:
                     f"提取 {len(citations)} 個引用"
                 )
 
+            # Phase 5: Mark retrieval todo as completed
+            if retrieval_todo:
+                retrieval_todo.mark_completed(result={"count": len(all_chunks)})
+                if self.ui_callback:
+                    import asyncio
+                    try:
+                        asyncio.create_task(self.ui_callback.on_todo_completed(retrieval_todo))
+                    except RuntimeError:
+                        pass
+
+            # Update state with todos
+            state["todos"] = todos
+
         except Exception as e:
             logger.error(f"Action execution failed: {e}", exc_info=True)
             state["errors"].append(f"檢索失敗：{str(e)}")
             state["retrieved_chunks"] = []
             state["citations"] = []
+
+            # Phase 5: Mark retrieval todo as failed
+            todos = state.get("todos", [])
+            retrieval_todo = next((t for t in todos if t.category == "retrieval"), None)
+            if retrieval_todo:
+                retrieval_todo.mark_failed(error=str(e))
+                if self.ui_callback:
+                    import asyncio
+                    try:
+                        asyncio.create_task(self.ui_callback.on_todo_failed(retrieval_todo, str(e)))
+                    except RuntimeError:
+                        pass
+            state["todos"] = todos
 
         return state
 

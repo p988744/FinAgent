@@ -160,6 +160,19 @@ class AnswerAgent:
 
         logger.info("Answer agent synthesizing final response")
 
+        # Phase 5: Find and mark synthesis todo as in_progress
+        todos = state.get("todos", [])
+        synthesis_todo = next((t for t in todos if t.category == "synthesis"), None)
+
+        if synthesis_todo and synthesis_todo.status == "pending":
+            synthesis_todo.mark_started()
+            if self.ui_callback:
+                import asyncio
+                try:
+                    asyncio.create_task(self.ui_callback.on_todo_started(synthesis_todo))
+                except RuntimeError:
+                    pass
+
         # Emit answer generation start callback
         if self.ui_callback:
             import asyncio
@@ -217,6 +230,19 @@ class AnswerAgent:
                 except RuntimeError:
                     pass
 
+            # Phase 5: Mark synthesis todo as completed
+            if synthesis_todo:
+                synthesis_todo.mark_completed(result={"citations": len(answer.citations)})
+                if self.ui_callback:
+                    import asyncio
+                    try:
+                        asyncio.create_task(self.ui_callback.on_todo_completed(synthesis_todo))
+                    except RuntimeError:
+                        pass
+
+            # Update state with todos
+            state["todos"] = todos
+
             logger.info("Answer synthesis completed")
 
         except Exception as e:
@@ -224,6 +250,19 @@ class AnswerAgent:
             state["errors"].append(f"答案生成失敗：{str(e)}")
             answer = self._generate_fallback_answer(query, f"系統錯誤：{str(e)}")
             state["answer"] = answer
+
+            # Phase 5: Mark synthesis todo as failed
+            todos = state.get("todos", [])
+            synthesis_todo = next((t for t in todos if t.category == "synthesis"), None)
+            if synthesis_todo:
+                synthesis_todo.mark_failed(error=str(e))
+                if self.ui_callback:
+                    import asyncio
+                    try:
+                        asyncio.create_task(self.ui_callback.on_todo_failed(synthesis_todo, str(e)))
+                    except RuntimeError:
+                        pass
+            state["todos"] = todos
 
         return state
 
