@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from finagent.config import settings
 from finagent.config_manager import get_config_manager
 from finagent.database.db import Database
-from finagent.rag.vector_store import get_vector_store
+from finagent.document_processing.vector_store import get_vector_store
 
 router = APIRouter(prefix="/health", tags=["Health"])
 
@@ -105,16 +105,16 @@ async def check_vector_db() -> dict:
         start_time = time.time()
         vector_store = get_vector_store()
 
-        # Get collection info
-        collection = vector_store._collection
-        document_count = collection.count()
+        # Get collection info from Chroma vector store
+        collection_name = vector_store._collection.name
+        document_count = vector_store._collection.count()
 
         response_time_ms = int((time.time() - start_time) * 1000)
 
         return {
             "status": "ok",
             "response_time_ms": response_time_ms,
-            "collection": collection.name,
+            "collection": collection_name,
             "document_count": document_count,
         }
 
