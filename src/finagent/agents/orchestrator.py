@@ -23,7 +23,10 @@ class AgentOrchestrator:
     """
 
     def __init__(
-        self, enable_query_logging: bool = True, clarification_handler=None
+        self,
+        enable_query_logging: bool = True,
+        clarification_handler=None,
+        ui_callback=None,
     ):
         """
         Initialize orchestrator with LangGraph workflow.
@@ -32,10 +35,12 @@ class AgentOrchestrator:
             enable_query_logging: Whether to log queries to database (default: True)
             clarification_handler: Optional async callback for user clarification
                                    Signature: async def handler(clarification_request) -> str
+            ui_callback: Optional UICallback for progress updates
         """
         self.logger = logger
         self.enable_query_logging = enable_query_logging
         self.clarification_handler = clarification_handler
+        self.ui_callback = ui_callback
 
         # Initialize query memo logger
         if enable_query_logging:
@@ -49,10 +54,11 @@ class AgentOrchestrator:
             self.use_rag = self.retriever.collection_exists()
             if self.use_rag:
                 self.logger.info("RAG retriever initialized successfully")
-                # Initialize LangGraph workflow with clarification handler
+                # Initialize LangGraph workflow with clarification handler and UI callback
                 self.workflow = LegalResearchWorkflow(
                     retriever=self.retriever,
                     clarification_handler=clarification_handler,
+                    ui_callback=ui_callback,
                 )
                 self.logger.info("LangGraph workflow initialized successfully")
             else:

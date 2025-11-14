@@ -40,12 +40,34 @@ class QueryAnalysisAgent:
     4. Enriches the query with understood context
     """
 
-    def __init__(self):
-        """Initialize query analysis agent."""
-        from finagent.config_manager import get_config_manager
+    def __init__(self, ui_callback=None):
+        """Initialize query analysis agent.
 
-        config = get_config_manager()
-        self.llm = config.create_llm()
+        Args:
+            ui_callback: Optional UICallback for progress updates
+        """
+        from finagent.config import settings
+        from langchain_openai import ChatOpenAI
+
+        self.ui_callback = ui_callback
+
+        # Initialize LLM using settings (same pattern as other agents)
+        base_url = settings.effective_llm_base_url
+        if base_url:
+            # Custom endpoint (e.g., Ollama)
+            self.llm = ChatOpenAI(
+                model=settings.llm_model,
+                api_key=settings.effective_llm_api_key,
+                base_url=base_url,
+                temperature=0.0,  # Deterministic for analysis
+            )
+        else:
+            # OpenAI default
+            self.llm = ChatOpenAI(
+                model=settings.llm_model,
+                api_key=settings.effective_llm_api_key,
+                temperature=0.0,  # Deterministic for analysis
+            )
 
         # System prompt for query analysis
         self.system_prompt = """你是一個金融法律研究系統的查詢分析專家。
@@ -124,7 +146,17 @@ class QueryAnalysisAgent:
         Returns:
             Updated state with clarification request (if needed)
         """
-        query_text = state["query"].text
+        query = state["query"]
+        query_text = query.text
+
+        # Emit analysis start callback
+        if self.ui_callback:
+            import asyncio
+            try:
+                asyncio.create_task(self.ui_callback.on_analysis_start(query))
+            except RuntimeError:
+                # If no event loop is running, skip callback
+                pass
 
         # Create structured output chain
         analysis_chain = self.llm.with_structured_output(ClarificationRequest)
@@ -163,6 +195,26 @@ class QueryAnalysisAgent:
 
             # Store understood intent for later use
             state["query_intent"] = result.understood_intent
+
+            # Emit analysis complete callback
+            if self.ui_callback:
+                analysis_summary = {
+                    "intent": result.understood_intent,
+                    "confidence": result.confidence,
+                    "needs_clarification": result.needs_clarification,
+                }
+                import asyncio
+                try:
+                    asyncio.create_task(self.ui_callback.on_analysis_complete(analysis_summary))
+                except RuntimeError:
+                    pass
+
+            # Emit clarification request callback if needed
+            if result.needs_clarification and self.ui_callback:
+                try:
+                    asyncio.create_task(self.ui_callback.on_clarification_requested(result.questions))
+                except RuntimeError:
+                    pass
 
         except Exception as e:
             # If analysis fails, proceed without clarification

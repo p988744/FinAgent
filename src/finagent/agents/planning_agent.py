@@ -28,10 +28,16 @@ class PlanningAgent:
     - Determine required data sources
     """
 
-    def __init__(self, model: str | None = None):
-        """Initialize planning agent with LLM."""
+    def __init__(self, model: str | None = None, ui_callback=None):
+        """Initialize planning agent with LLM.
+
+        Args:
+            model: Optional model name override
+            ui_callback: Optional UICallback for progress updates
+        """
         effective_model = model or settings.llm_model
         base_url = settings.effective_llm_base_url
+        self.ui_callback = ui_callback
 
         if base_url:
             # Custom endpoint
@@ -143,10 +149,40 @@ class PlanningAgent:
             # Step 4: Display plan to user
             self._display_plan(plan)
 
+            # Emit plan created callback
+            if self.ui_callback:
+                import asyncio
+                try:
+                    # Convert ResearchPlan to dict for callback
+                    asyncio.create_task(self.ui_callback.on_plan_created(plan))
+                except RuntimeError:
+                    pass
+
             # Step 5: Update state
             state["plan"] = plan.dict()
             state["research_tasks"] = [t.task for t in tasks]
             state["plan_analysis"] = analysis.dict()
+
+            # Emit todo list created callback
+            if self.ui_callback:
+                try:
+                    # Convert tasks to todo items for callback
+                    from finagent.models.todo_item import TodoItem
+                    todos = [
+                        TodoItem(
+                            id=f"task_{t.id}",
+                            content=t.task,
+                            active_form=f"正在執行 {t.task}",
+                            status="pending",
+                            category="retrieval" if "搜" in t.task else "analysis",
+                        )
+                        for t in tasks
+                    ]
+                    asyncio.create_task(self.ui_callback.on_todo_list_created(todos))
+                except RuntimeError:
+                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to emit todo list callback: {e}")
 
             # Add detailed analysis to processing steps (user-visible)
             analysis_header = (

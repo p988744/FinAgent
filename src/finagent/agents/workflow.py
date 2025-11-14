@@ -45,6 +45,7 @@ class LegalResearchWorkflow:
         retriever: DocumentRetriever,
         max_search_iterations: int = 2,
         clarification_handler=None,
+        ui_callback=None,
     ):
         """
         Initialize workflow with agents.
@@ -54,18 +55,20 @@ class LegalResearchWorkflow:
             max_search_iterations: Maximum re-search iterations (default: 2)
             clarification_handler: Optional callback for requesting user clarification
                                    Signature: async def handler(clarification_request) -> str
+            ui_callback: Optional UICallback for progress updates
         """
         self.retriever = retriever
         self.max_search_iterations = max_search_iterations
         self.clarification_handler = clarification_handler
+        self.ui_callback = ui_callback
 
-        # Initialize agents
-        self.query_analysis_agent = QueryAnalysisAgent()
-        self.planning_agent = PlanningAgent()
-        self.action_agent = ActionAgent(retriever=retriever)
-        self.validation_agent = ValidationAgent()
+        # Initialize agents with UI callback
+        self.query_analysis_agent = QueryAnalysisAgent(ui_callback=ui_callback)
+        self.planning_agent = PlanningAgent(ui_callback=ui_callback)
+        self.action_agent = ActionAgent(retriever=retriever, ui_callback=ui_callback)
+        self.validation_agent = ValidationAgent(ui_callback=ui_callback)
         self.reference_guard = ReferenceGuard(max_iterations=max_search_iterations)
-        self.answer_agent = AnswerAgent()
+        self.answer_agent = AnswerAgent(ui_callback=ui_callback)
 
         # Build workflow graph
         self.graph = self._build_graph()

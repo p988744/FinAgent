@@ -25,14 +25,16 @@ class ValidationAgent:
     - Flag potential issues for review
     """
 
-    def __init__(self, min_citations: int = 1):
+    def __init__(self, min_citations: int = 1, ui_callback=None):
         """
         Initialize validation agent.
 
         Args:
             min_citations: Minimum number of citations required
+            ui_callback: Optional UICallback for progress updates
         """
         self.min_citations = min_citations
+        self.ui_callback = ui_callback
 
     def validate(self, state: AgentState) -> AgentState:
         """
@@ -45,6 +47,14 @@ class ValidationAgent:
             Updated state with validation results
         """
         logger.info("Validation agent checking citation integrity")
+
+        # Emit validation start callback
+        if self.ui_callback:
+            import asyncio
+            try:
+                asyncio.create_task(self.ui_callback.on_validation_start())
+            except RuntimeError:
+                pass
 
         citations = state.get("citations", [])
         retrieved_chunks = state.get("retrieved_chunks", [])
@@ -137,6 +147,19 @@ class ValidationAgent:
             else:
                 state["processing_steps"].append(f"驗證代理：發現 {len(issues)} 個潛在問題")
                 logger.warning(f"Validation found {len(issues)} issues: {issues}")
+
+            # Emit validation complete callback
+            if self.ui_callback:
+                import asyncio
+                try:
+                    asyncio.create_task(
+                        self.ui_callback.on_validation_complete(
+                            passed=validation_passed,
+                            issues=issues
+                        )
+                    )
+                except RuntimeError:
+                    pass
 
         except Exception as e:
             logger.error(f"Validation failed: {e}", exc_info=True)

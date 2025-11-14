@@ -27,10 +27,16 @@ class AnswerAgent:
     - Identify limitations
     """
 
-    def __init__(self, model: str | None = None):
-        """Initialize answer agent with LLM."""
+    def __init__(self, model: str | None = None, ui_callback=None):
+        """Initialize answer agent with LLM.
+
+        Args:
+            model: Optional model name override
+            ui_callback: Optional UICallback for progress updates
+        """
         effective_model = model or settings.llm_model
         base_url = settings.effective_llm_base_url
+        self.ui_callback = ui_callback
 
         if base_url:
             # Custom endpoint
@@ -154,6 +160,14 @@ class AnswerAgent:
 
         logger.info("Answer agent synthesizing final response")
 
+        # Emit answer generation start callback
+        if self.ui_callback:
+            import asyncio
+            try:
+                asyncio.create_task(self.ui_callback.on_answer_generation_start())
+            except RuntimeError:
+                pass
+
         try:
             if not chunks:
                 # No documents found - generate fallback answer
@@ -179,9 +193,29 @@ class AnswerAgent:
             # Parse LLM response into structured answer
             answer = self._parse_response(response, chunks, citations, state["processing_steps"])
 
+            # Emit citations extracted callback
+            if self.ui_callback:
+                import asyncio
+                try:
+                    asyncio.create_task(
+                        self.ui_callback.on_citations_extracted(citations=citations)
+                    )
+                except RuntimeError:
+                    pass
+
             # Update state
             state["answer"] = answer
             state["processing_steps"].append("答案代理：生成完整法律研究報告")
+
+            # Emit answer generation complete callback
+            if self.ui_callback:
+                import asyncio
+                try:
+                    asyncio.create_task(
+                        self.ui_callback.on_answer_generation_complete(answer=answer)
+                    )
+                except RuntimeError:
+                    pass
 
             logger.info("Answer synthesis completed")
 

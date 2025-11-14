@@ -29,6 +29,7 @@ class ActionAgent:
         retriever: DocumentRetriever,
         relevance_threshold: float = 0.8,
         db_path: str = "data/finagent.db",
+        ui_callback=None,
     ):
         """
         Initialize action agent with retriever.
@@ -38,10 +39,12 @@ class ActionAgent:
             relevance_threshold: Maximum distance threshold (lower is better, default 0.8)
                                 Documents with distance > threshold are filtered out
             db_path: Path to database for hard search
+            ui_callback: Optional UICallback for progress updates
         """
         self.retriever = retriever
         self.relevance_threshold = relevance_threshold
         self.hard_searcher = HardSearcher(db_path=db_path)
+        self.ui_callback = ui_callback
 
     def execute(self, state: AgentState) -> AgentState:
         """
@@ -70,6 +73,20 @@ class ActionAgent:
         )
 
         try:
+            # Emit retrieval start callback
+            if self.ui_callback:
+                import asyncio
+                try:
+                    asyncio.create_task(
+                        self.ui_callback.on_retrieval_start(
+                            query=query.text,
+                            strategy=strategy,
+                            max_results=max_results
+                        )
+                    )
+                except RuntimeError:
+                    pass
+
             # Execute RAG retrieval with iteration-specific params
             all_chunks = self.retriever.retrieve(query=query.text, n_results=max_results)
 
@@ -94,6 +111,20 @@ class ActionAgent:
                 f"Retrieved {len(retrieved_chunks)} relevant chunks with {strategy} strategy "
                 f"(scores: {[f'{c.score:.3f}' for c in retrieved_chunks]})"
             )
+
+            # Emit retrieval result callback
+            if self.ui_callback:
+                import asyncio
+                try:
+                    asyncio.create_task(
+                        self.ui_callback.on_retrieval_result(
+                            strategy=strategy,
+                            count=len(retrieved_chunks),
+                            total=len(all_chunks)
+                        )
+                    )
+                except RuntimeError:
+                    pass
 
             # Hard search if enabled in plan
             hard_chunks = []

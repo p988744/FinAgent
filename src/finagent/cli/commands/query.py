@@ -26,8 +26,15 @@ console = Console()
 _orchestrator = None
 
 
-def get_orchestrator() -> AgentOrchestrator:
-    """Get or create orchestrator instance with CLI clarification handler."""
+def get_orchestrator(ui_callback=None) -> AgentOrchestrator:
+    """Get or create orchestrator instance with CLI clarification handler and UI callback.
+
+    Args:
+        ui_callback: Optional UICallback for progress updates
+
+    Returns:
+        AgentOrchestrator instance
+    """
     global _orchestrator
     if _orchestrator is None:
         # Create clarification handler for CLI
@@ -35,7 +42,8 @@ def get_orchestrator() -> AgentOrchestrator:
             return await handle_cli_clarification(clarification_request, console)
 
         _orchestrator = AgentOrchestrator(
-            clarification_handler=cli_clarification_handler
+            clarification_handler=cli_clarification_handler,
+            ui_callback=ui_callback,
         )
     return _orchestrator
 
@@ -53,6 +61,7 @@ def execute_query(
     start_date: str | None = None,
     end_date: str | None = None,
     session_id: str | None = None,
+    use_new_ui: bool = True,
 ) -> LegalAnswer | None:
     """
     Execute a legal research query using the orchestrator directly.
@@ -64,6 +73,7 @@ def execute_query(
         start_date: Optional start date filter (YYYY-MM-DD)
         end_date: Optional end date filter (YYYY-MM-DD)
         session_id: Optional session ID for history tracking
+        use_new_ui: Use new UI-driven flow with progress updates (default: True)
 
     Returns:
         LegalAnswer if successful, None otherwise
@@ -83,13 +93,25 @@ def execute_query(
             end_date=end_date,
         )
 
-        # Get orchestrator
-        orchestrator = get_orchestrator()
+        if use_new_ui:
+            # Use new UI-driven flow with progress updates
+            from finagent.cli.callbacks.progress_callback import CLIProgressCallback
 
-        # Show loading spinner and execute query
-        with Live(Spinner("dots", text="正在處理查詢..."), console=console):
-            # Execute query through LangGraph workflow
+            callback = CLIProgressCallback(verbose=True)
+
+            # Get orchestrator with UI callback
+            orchestrator = get_orchestrator(ui_callback=callback)
+
+            # Execute query through LangGraph workflow with UI updates
             answer = asyncio.run(orchestrator.process_query(query))
+        else:
+            # Original flow without UI updates
+            orchestrator = get_orchestrator()
+
+            # Show loading spinner and execute query
+            with Live(Spinner("dots", text="正在處理查詢..."), console=console):
+                # Execute query through LangGraph workflow
+                answer = asyncio.run(orchestrator.process_query(query))
 
         return answer
 
