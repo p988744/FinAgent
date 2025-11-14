@@ -18,8 +18,20 @@ FinAgent is a **Financial Legal Research Agent System** (金融法律研究代�
 # Install dependencies
 uv sync
 
-# Run CLI
+# Run interactive CLI (REPL mode)
 uv run finagent
+
+# Run single query
+uv run finagent query "玉山銀行洗錢防制裁罰"
+
+# Reindex documents (fast mode without LLM)
+uv run finagent reindex --skip-init
+
+# Reindex documents (full mode with LLM metadata)
+uv run finagent reindex
+
+# Clear and rebuild index
+uv run finagent reindex --clear --yes
 
 # Build package
 uv build

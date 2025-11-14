@@ -18,8 +18,14 @@ class AgentState(TypedDict):
     # Input
     query: Query
 
+    # Query Analysis Agent outputs (runs before planning)
+    clarification_request: dict[str, Any] | None  # Clarification request details
+    clarification_response: str | None  # User's clarification response
+    query_intent: str | None  # Understood user intent
+
     # Planning Agent outputs
     plan: dict[str, Any] | None
+    plan_analysis: dict[str, Any] | None  # Query analysis results
     research_tasks: list[str] | None
 
     # Action Agent outputs
@@ -32,6 +38,11 @@ class AgentState(TypedDict):
 
     # Answer Agent outputs
     answer: LegalAnswer | None
+
+    # Re-search tracking
+    search_iteration: int  # Current iteration (0 = first search, 1-2 = re-search)
+    max_search_iterations: int  # Maximum iterations allowed (default: 2)
+    search_strategy: str  # Current search strategy: "strict", "relaxed", "broad"
 
     # Metadata
     processing_steps: list[str]

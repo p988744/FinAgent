@@ -3,6 +3,13 @@
 import logging
 
 from finagent.agents.state import AgentState
+from finagent.utils.keyword_extraction import (
+    extract_critical_keywords,
+    extract_must_have_keywords,
+    identify_entity_type,
+    validate_keyword_presence,
+    validate_entity_type_match,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +48,8 @@ class ValidationAgent:
 
         citations = state.get("citations", [])
         retrieved_chunks = state.get("retrieved_chunks", [])
+        query = state.get("query")
+        query_text = query.text if query else ""
         issues = []
 
         try:
@@ -63,6 +72,57 @@ class ValidationAgent:
                     issues.append(f"引用 {citation.id} 缺少標題")
                 if not citation.issuing_authority:
                     issues.append(f"引用 {citation.id} 缺少發布機關")
+
+            # Check 4: Keyword validation (NEW - CRITICAL)
+            if query_text and retrieved_chunks:
+                # Extract critical keywords from query
+                critical_keywords = extract_critical_keywords(query_text)
+                must_have_keywords = extract_must_have_keywords(query_text)
+
+                logger.info(f"Critical keywords for validation: {critical_keywords}")
+                logger.info(f"Must-have keywords: {must_have_keywords}")
+
+                if must_have_keywords:
+                    # Check if AT LEAST ONE chunk contains the must-have keywords
+                    chunks_with_keywords = []
+
+                    for chunk in retrieved_chunks:
+                        chunk_text = chunk.page_content if hasattr(chunk, 'page_content') else str(chunk)
+                        has_all_keywords, missing = validate_keyword_presence(must_have_keywords, chunk_text)
+
+                        if not missing:  # All must-have keywords present
+                            chunks_with_keywords.append(chunk)
+
+                    if not chunks_with_keywords:
+                        # CRITICAL: No chunks contain must-have keywords
+                        issues.append(
+                            f"⚠️ 關鍵字檢查失敗：所有引用文件都缺少必要關鍵字 {must_have_keywords}。"
+                            f"這些文件可能與查詢主題不符。"
+                        )
+                        logger.warning(f"Keyword validation failed: No chunks contain {must_have_keywords}")
+
+            # Check 5: Entity type validation (NEW)
+            if query_text and retrieved_chunks:
+                query_entity_type = identify_entity_type(query_text)
+
+                if query_entity_type != "unknown":
+                    # Query specifies an entity type - validate chunks match
+                    mismatched_chunks = []
+
+                    for idx, chunk in enumerate(retrieved_chunks):
+                        chunk_text = chunk.page_content if hasattr(chunk, 'page_content') else str(chunk)
+                        chunk_entity_type = identify_entity_type(chunk_text)
+
+                        if chunk_entity_type != "unknown" and chunk_entity_type != query_entity_type:
+                            mismatched_chunks.append((idx + 1, chunk_entity_type))
+
+                    if mismatched_chunks:
+                        mismatch_details = ", ".join([f"文件{idx}({etype})" for idx, etype in mismatched_chunks])
+                        issues.append(
+                            f"⚠️ 實體類型不符：查詢要求 {query_entity_type}，"
+                            f"但以下文件類型不符：{mismatch_details}"
+                        )
+                        logger.warning(f"Entity type mismatch: Query={query_entity_type}, Mismatches={mismatched_chunks}")
 
             # Determine validation result
             validation_passed = len(issues) == 0

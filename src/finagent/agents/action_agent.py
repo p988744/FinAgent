@@ -2,7 +2,9 @@
 
 import logging
 
+from finagent.agents.reference_guard import get_search_params
 from finagent.agents.state import AgentState
+from finagent.document_processing.hard_searcher import HardSearcher
 from finagent.document_processing.retriever import DocumentRetriever, RetrievedChunk
 from finagent.models.citations import CitationAuthority, CitationType, LegalCitation
 
@@ -22,7 +24,12 @@ class ActionAgent:
     - API calls to regulatory bodies
     """
 
-    def __init__(self, retriever: DocumentRetriever, relevance_threshold: float = 0.8):
+    def __init__(
+        self,
+        retriever: DocumentRetriever,
+        relevance_threshold: float = 0.8,
+        db_path: str = "data/finagent.db",
+    ):
         """
         Initialize action agent with retriever.
 
@@ -30,9 +37,11 @@ class ActionAgent:
             retriever: Document retriever instance
             relevance_threshold: Maximum distance threshold (lower is better, default 0.8)
                                 Documents with distance > threshold are filtered out
+            db_path: Path to database for hard search
         """
         self.retriever = retriever
         self.relevance_threshold = relevance_threshold
+        self.hard_searcher = HardSearcher(db_path=db_path)
 
     def execute(self, state: AgentState) -> AgentState:
         """
@@ -47,47 +56,96 @@ class ActionAgent:
         query = state["query"]
         plan = state["plan"]
 
-        logger.info("Action agent executing research tasks")
+        # Get search parameters based on current iteration
+        search_iteration = state.get("search_iteration", 0)
+        search_params = get_search_params(search_iteration)
+
+        strategy = search_params["strategy"]
+        threshold = search_params["threshold"]
+        max_results = search_params["max_results"]
+
+        logger.info(
+            f"Action agent executing research tasks: iteration={search_iteration}, "
+            f"strategy={strategy}, threshold={threshold}, max_results={max_results}"
+        )
 
         try:
-            # Execute RAG retrieval
-            max_results = plan.get("max_results", 5) if plan else 5
+            # Execute RAG retrieval with iteration-specific params
             all_chunks = self.retriever.retrieve(query=query.text, n_results=max_results)
 
-            # Filter by relevance threshold
-            retrieved_chunks = [
-                chunk for chunk in all_chunks if chunk.score <= self.relevance_threshold
-            ]
+            # Filter by threshold (from search strategy)
+            retrieved_chunks = [chunk for chunk in all_chunks if chunk.score <= threshold]
 
             # Log filtering results
             if len(all_chunks) > len(retrieved_chunks):
                 filtered_count = len(all_chunks) - len(retrieved_chunks)
                 logger.info(
-                    f"Filtered out {filtered_count} low-relevance chunks "
-                    f"(threshold: {self.relevance_threshold})"
+                    f"Filtered out {filtered_count} low-relevance chunks (threshold: {threshold})"
                 )
 
             if not retrieved_chunks:
                 logger.warning("No relevant documents found after filtering")
-                state["errors"].append(f"未找到相關文件（相似度門檻：{self.relevance_threshold}）")
+                state["errors"].append(f"未找到相關文件（相似度門檻：{threshold}）")
                 state["retrieved_chunks"] = []
                 state["citations"] = []
                 return state
 
             logger.info(
-                f"Retrieved {len(retrieved_chunks)} relevant chunks "
+                f"Retrieved {len(retrieved_chunks)} relevant chunks with {strategy} strategy "
                 f"(scores: {[f'{c.score:.3f}' for c in retrieved_chunks]})"
             )
 
-            # Extract citations from retrieved documents
-            citations = self._extract_citations(retrieved_chunks)
+            # Hard search if enabled in plan
+            hard_chunks = []
+            if plan and plan.get("use_hard_search"):
+                plan_analysis = state.get("plan_analysis", {})
+                must_have_keywords = plan_analysis.get("must_have_keywords", [])
+
+                if must_have_keywords:
+                    logger.info(f"Executing hard search for keywords: {must_have_keywords}")
+                    state["processing_steps"].append(
+                        f"行動代理：執行深度搜索，搜尋關鍵字「{', '.join(must_have_keywords)}」"
+                    )
+
+                    try:
+                        hard_chunks = self.hard_searcher.search(
+                            keywords=must_have_keywords,
+                            max_results=max_results,
+                        )
+                        logger.info(f"Hard search found {len(hard_chunks)} matches")
+                        state["processing_steps"].append(
+                            f"行動代理：深度搜索找到 {len(hard_chunks)} 筆精確匹配"
+                        )
+                    except Exception as e:
+                        logger.error(f"Hard search failed: {e}", exc_info=True)
+                        state["processing_steps"].append(
+                            f"行動代理：深度搜索失敗（{str(e)}）"
+                        )
+
+            # Merge vector and hard search results
+            all_chunks = self._merge_chunks(retrieved_chunks, hard_chunks)
+
+            logger.info(f"Total chunks after merge: {len(all_chunks)}")
+
+            # Extract citations from all retrieved documents
+            citations = self._extract_citations(all_chunks)
 
             # Update state
-            state["retrieved_chunks"] = retrieved_chunks
+            state["retrieved_chunks"] = all_chunks
             state["citations"] = citations
-            state["processing_steps"].append(
-                f"行動代理：檢索到 {len(retrieved_chunks)} 筆文件，提取 {len(citations)} 個引用"
-            )
+
+            # Add final summary to processing steps
+            if hard_chunks:
+                state["processing_steps"].append(
+                    f"行動代理（{strategy}策略）：向量搜索 {len(retrieved_chunks)} 筆 + "
+                    f"深度搜索 {len(hard_chunks)} 筆 = 總計 {len(all_chunks)} 筆文件，"
+                    f"提取 {len(citations)} 個引用"
+                )
+            else:
+                state["processing_steps"].append(
+                    f"行動代理（{strategy}策略）：檢索到 {len(all_chunks)} 筆文件，"
+                    f"提取 {len(citations)} 個引用"
+                )
 
         except Exception as e:
             logger.error(f"Action execution failed: {e}", exc_info=True)
@@ -136,3 +194,60 @@ class ActionAgent:
             citations.append(citation)
 
         return citations
+
+    def _merge_chunks(
+        self,
+        vector_chunks: list[RetrievedChunk],
+        hard_chunks: list[RetrievedChunk],
+    ) -> list[RetrievedChunk]:
+        """
+        Merge vector and hard search chunks, deduplicating by file+position.
+
+        Strategy:
+        1. Keep all hard search chunks (high priority)
+        2. Add vector chunks that don't overlap with hard chunks
+        3. Sort by relevance score (descending)
+        4. Return merged list
+
+        Args:
+            vector_chunks: Chunks from vector search
+            hard_chunks: Chunks from hard search
+
+        Returns:
+            Merged and deduplicated list of chunks
+        """
+        if not hard_chunks:
+            return vector_chunks
+
+        if not vector_chunks:
+            return hard_chunks
+
+        # Track seen chunks by (filename, text_hash)
+        seen = set()
+        merged = []
+
+        # Add all hard search chunks first (higher priority)
+        for chunk in hard_chunks:
+            key = (chunk.metadata.get("filename"), hash(chunk.text[:100]))
+            if key not in seen:
+                seen.add(key)
+                merged.append(chunk)
+
+        # Add vector chunks that don't overlap
+        for chunk in vector_chunks:
+            key = (chunk.metadata.get("filename"), hash(chunk.text[:100]))
+            if key not in seen:
+                seen.add(key)
+                merged.append(chunk)
+
+        # Sort by score (lower is better for distance, higher is better for hard search)
+        # Hard search chunks have score ~0.95, vector chunks have score 0.0-0.8
+        # So reverse sort will put hard search first
+        merged.sort(key=lambda c: c.score, reverse=True)
+
+        logger.info(
+            f"Merged {len(vector_chunks)} vector + {len(hard_chunks)} hard = "
+            f"{len(merged)} unique chunks"
+        )
+
+        return merged

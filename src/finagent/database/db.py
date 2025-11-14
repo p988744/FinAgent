@@ -3,10 +3,11 @@
 import json
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .models import Document, History, ModelConfig, Setting
+from .models import Concept, Document, DocumentConcept, History, ModelConfig, Setting
 
 
 class Database:
@@ -728,6 +729,364 @@ class Database:
                 "total_chunks": total_chunks,
                 "by_document_type": by_type,
                 "by_issuing_authority": by_authority,
+            }
+
+    # ==================== Concept Methods ====================
+
+    def add_concept(self, concept: Concept) -> Concept:
+        """
+        Add or update a concept.
+
+        Args:
+            concept: Concept object
+
+        Returns:
+            Concept with id populated
+        """
+        with self.get_connection() as conn:
+            # Serialize keywords to JSON
+            keywords_json = json.dumps(concept.keywords, ensure_ascii=False)
+            metadata_json = json.dumps(concept.metadata or {}, ensure_ascii=False)
+
+            cursor = conn.execute(
+                """
+                INSERT INTO concepts (
+                    concept_name, concept_type, description, keywords,
+                    document_count, metadata
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(concept_name) DO UPDATE SET
+                    concept_type = excluded.concept_type,
+                    description = excluded.description,
+                    keywords = excluded.keywords,
+                    metadata = excluded.metadata
+                RETURNING *
+                """,
+                (
+                    concept.concept_name,
+                    concept.concept_type,
+                    concept.description,
+                    keywords_json,
+                    concept.document_count,
+                    metadata_json,
+                ),
+            )
+
+            row = cursor.fetchone()
+            conn.commit()
+
+            # Parse back
+            return Concept(
+                id=row["id"],
+                concept_name=row["concept_name"],
+                concept_type=row["concept_type"],
+                description=row["description"],
+                keywords=json.loads(row["keywords"]) if row["keywords"] else [],
+                document_count=row["document_count"],
+                metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+                created_at=datetime.fromisoformat(row["created_at"]),
+                updated_at=datetime.fromisoformat(row["updated_at"]),
+            )
+
+    def get_concept(self, concept_id: int) -> Concept | None:
+        """Get concept by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM concepts WHERE id = ?", (concept_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                return None
+
+            return Concept(
+                id=row["id"],
+                concept_name=row["concept_name"],
+                concept_type=row["concept_type"],
+                description=row["description"],
+                keywords=json.loads(row["keywords"]) if row["keywords"] else [],
+                document_count=row["document_count"],
+                metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+                created_at=datetime.fromisoformat(row["created_at"]),
+                updated_at=datetime.fromisoformat(row["updated_at"]),
+            )
+
+    def get_concept_by_name(self, concept_name: str) -> Concept | None:
+        """Get concept by name."""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM concepts WHERE concept_name = ?", (concept_name,)
+            )
+            row = cursor.fetchone()
+
+            if not row:
+                return None
+
+            return Concept(
+                id=row["id"],
+                concept_name=row["concept_name"],
+                concept_type=row["concept_type"],
+                description=row["description"],
+                keywords=json.loads(row["keywords"]) if row["keywords"] else [],
+                document_count=row["document_count"],
+                metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+                created_at=datetime.fromisoformat(row["created_at"]),
+                updated_at=datetime.fromisoformat(row["updated_at"]),
+            )
+
+    def get_all_concepts(self) -> list[Concept]:
+        """Get all concepts."""
+        with self.get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM concepts ORDER BY document_count DESC")
+            concepts = []
+
+            for row in cursor.fetchall():
+                concepts.append(
+                    Concept(
+                        id=row["id"],
+                        concept_name=row["concept_name"],
+                        concept_type=row["concept_type"],
+                        description=row["description"],
+                        keywords=json.loads(row["keywords"]) if row["keywords"] else [],
+                        document_count=row["document_count"],
+                        metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+                        created_at=datetime.fromisoformat(row["created_at"]),
+                        updated_at=datetime.fromisoformat(row["updated_at"]),
+                    )
+                )
+
+            return concepts
+
+    def search_concepts(self, keyword: str) -> list[Concept]:
+        """Search concepts by keyword in name, description, or keywords."""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                """
+                SELECT * FROM concepts
+                WHERE concept_name LIKE ?
+                   OR description LIKE ?
+                   OR keywords LIKE ?
+                ORDER BY document_count DESC
+                """,
+                (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"),
+            )
+            concepts = []
+
+            for row in cursor.fetchall():
+                concepts.append(
+                    Concept(
+                        id=row["id"],
+                        concept_name=row["concept_name"],
+                        concept_type=row["concept_type"],
+                        description=row["description"],
+                        keywords=json.loads(row["keywords"]) if row["keywords"] else [],
+                        document_count=row["document_count"],
+                        metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+                        created_at=datetime.fromisoformat(row["created_at"]),
+                        updated_at=datetime.fromisoformat(row["updated_at"]),
+                    )
+                )
+
+            return concepts
+
+    def get_top_concepts(self, limit: int = 50) -> list[Concept]:
+        """Get top concepts by document count."""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM concepts ORDER BY document_count DESC LIMIT ?", (limit,)
+            )
+            concepts = []
+
+            for row in cursor.fetchall():
+                concepts.append(
+                    Concept(
+                        id=row["id"],
+                        concept_name=row["concept_name"],
+                        concept_type=row["concept_type"],
+                        description=row["description"],
+                        keywords=json.loads(row["keywords"]) if row["keywords"] else [],
+                        document_count=row["document_count"],
+                        metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+                        created_at=datetime.fromisoformat(row["created_at"]),
+                        updated_at=datetime.fromisoformat(row["updated_at"]),
+                    )
+                )
+
+            return concepts
+
+    def get_concepts_by_type(self, concept_type: str) -> list[Concept]:
+        """Get all concepts of a specific type."""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM concepts WHERE concept_type = ? ORDER BY document_count DESC",
+                (concept_type,),
+            )
+            concepts = []
+
+            for row in cursor.fetchall():
+                concepts.append(
+                    Concept(
+                        id=row["id"],
+                        concept_name=row["concept_name"],
+                        concept_type=row["concept_type"],
+                        description=row["description"],
+                        keywords=json.loads(row["keywords"]) if row["keywords"] else [],
+                        document_count=row["document_count"],
+                        metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+                        created_at=datetime.fromisoformat(row["created_at"]),
+                        updated_at=datetime.fromisoformat(row["updated_at"]),
+                    )
+                )
+
+            return concepts
+
+    def delete_concept(self, concept_id: int) -> bool:
+        """Delete a concept and all its mappings."""
+        with self.get_connection() as conn:
+            cursor = conn.execute("DELETE FROM concepts WHERE id = ?", (concept_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    # ==================== Document-Concept Mapping Methods ====================
+
+    def link_document_concept(
+        self, doc_id: str, concept_id: int, relevance_score: float = 1.0
+    ) -> bool:
+        """
+        Link a document to a concept.
+
+        Args:
+            doc_id: Document ID
+            concept_id: Concept ID
+            relevance_score: Relevance score (0-1)
+
+        Returns:
+            True if created or updated
+        """
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO document_concepts (doc_id, concept_id, relevance_score)
+                VALUES (?, ?, ?)
+                ON CONFLICT(doc_id, concept_id) DO UPDATE SET
+                    relevance_score = excluded.relevance_score
+                """,
+                (doc_id, concept_id, relevance_score),
+            )
+            conn.commit()
+            return True
+
+    def get_document_concepts(self, doc_id: str) -> list[Concept]:
+        """Get all concepts linked to a document."""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                """
+                SELECT c.* FROM concepts c
+                JOIN document_concepts dc ON c.id = dc.concept_id
+                WHERE dc.doc_id = ?
+                ORDER BY dc.relevance_score DESC, c.document_count DESC
+                """,
+                (doc_id,),
+            )
+            concepts = []
+
+            for row in cursor.fetchall():
+                concepts.append(
+                    Concept(
+                        id=row["id"],
+                        concept_name=row["concept_name"],
+                        concept_type=row["concept_type"],
+                        description=row["description"],
+                        keywords=json.loads(row["keywords"]) if row["keywords"] else [],
+                        document_count=row["document_count"],
+                        metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+                        created_at=datetime.fromisoformat(row["created_at"]),
+                        updated_at=datetime.fromisoformat(row["updated_at"]),
+                    )
+                )
+
+            return concepts
+
+    def get_concept_documents(self, concept_id: int) -> list[Document]:
+        """Get all documents linked to a concept."""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                """
+                SELECT d.* FROM documents d
+                JOIN document_concepts dc ON d.doc_id = dc.doc_id
+                WHERE dc.concept_id = ?
+                ORDER BY dc.relevance_score DESC, d.created_at DESC
+                """,
+                (concept_id,),
+            )
+            documents = []
+
+            for row in cursor.fetchall():
+                documents.append(
+                    Document(
+                        id=row["id"],
+                        doc_id=row["doc_id"],
+                        filename=row["filename"],
+                        file_path=row["file_path"],
+                        description=row["description"],
+                        document_type=row["document_type"],
+                        keywords=json.loads(row["keywords"]) if row["keywords"] else [],
+                        document_date=row["document_date"],
+                        issuing_authority=row["issuing_authority"],
+                        related_institutions=(
+                            json.loads(row["related_institutions"])
+                            if row["related_institutions"]
+                            else []
+                        ),
+                        penalty_amount=row["penalty_amount"],
+                        violation_types=(
+                            json.loads(row["violation_types"]) if row["violation_types"] else []
+                        ),
+                        custom_fields=(
+                            json.loads(row["custom_fields"]) if row["custom_fields"] else {}
+                        ),
+                        indexed=bool(row["indexed"]),
+                        chunk_count=row["chunk_count"],
+                        created_at=datetime.fromisoformat(row["created_at"]),
+                        updated_at=datetime.fromisoformat(row["updated_at"]),
+                    )
+                )
+
+            return documents
+
+    def unlink_document_concept(self, doc_id: str, concept_id: int) -> bool:
+        """Remove link between document and concept."""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM document_concepts WHERE doc_id = ? AND concept_id = ?",
+                (doc_id, concept_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_concept_statistics(self) -> dict[str, Any]:
+        """Get statistics about concepts."""
+        with self.get_connection() as conn:
+            # Total concepts
+            cursor = conn.execute("SELECT COUNT(*) as total FROM concepts")
+            total = cursor.fetchone()["total"]
+
+            # By type
+            cursor = conn.execute(
+                """
+                SELECT concept_type, COUNT(*) as count
+                FROM concepts
+                GROUP BY concept_type
+                ORDER BY count DESC
+                """
+            )
+            by_type = {row["concept_type"]: row["count"] for row in cursor.fetchall()}
+
+            # Total document-concept mappings
+            cursor = conn.execute("SELECT COUNT(*) as total FROM document_concepts")
+            total_mappings = cursor.fetchone()["total"]
+
+            return {
+                "total_concepts": total,
+                "by_type": by_type,
+                "total_document_concept_mappings": total_mappings,
             }
 
 

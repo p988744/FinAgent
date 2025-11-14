@@ -186,6 +186,59 @@ class DocumentRetriever:
 
         return all_chunks
 
+    def retrieve_with_concept_filtering(
+        self,
+        query: str,
+        n_results: int = 5,
+        use_concept_filtering: bool = True,
+        min_confidence: float = 0.5,
+    ) -> list[RetrievedChunk]:
+        """
+        Retrieve chunks with optional semantic concept pre-filtering.
+
+        Two-stage retrieval:
+        1. Pre-filter: Get documents matching query concepts
+        2. Vector search: Search within candidate documents
+
+        Args:
+            query: Query text
+            n_results: Number of results to return
+            use_concept_filtering: Whether to use concept pre-filtering
+            min_confidence: Minimum confidence for concept matching
+
+        Returns:
+            List of RetrievedChunk objects
+        """
+        if not use_concept_filtering:
+            # Standard retrieval without filtering
+            return self.retrieve(query, n_results)
+
+        # Get concepts matching the query
+        from finagent.document_processing.semantic_mapper import (
+            get_query_concepts_for_filtering,
+            get_documents_by_concepts,
+        )
+
+        concept_keys = get_query_concepts_for_filtering(query)
+
+        if not concept_keys:
+            # No concepts matched, use standard retrieval
+            return self.retrieve(query, n_results)
+
+        # Get candidate documents
+        candidate_filenames = get_documents_by_concepts(concept_keys, min_confidence=min_confidence)
+
+        if not candidate_filenames:
+            # No documents match the concepts, use standard retrieval as fallback
+            return self.retrieve(query, n_results)
+
+        # Create metadata filter for Chroma
+        # Chroma uses "$or" for OR logic
+        filters = {"filename": {"$in": candidate_filenames}}
+
+        # Retrieve within candidate documents
+        return self.retrieve(query, n_results, filters=filters)
+
     def get_context_window(self, chunk_id: str, window_size: int = 1) -> list[RetrievedChunk]:
         """
         Get surrounding chunks for context.

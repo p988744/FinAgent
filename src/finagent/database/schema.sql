@@ -126,3 +126,64 @@ FOR EACH ROW
 BEGIN
     UPDATE documents SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
 END;
+
+-- Concepts table: Store extracted topics/concepts for faster retrieval
+CREATE TABLE IF NOT EXISTS concepts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    concept_name TEXT NOT NULL UNIQUE,  -- e.g., "洗錢防制", "內線交易", "資訊揭露"
+    concept_type TEXT,  -- e.g., "violation_type", "institution", "authority", "topic"
+    description TEXT,  -- Brief description of the concept
+    keywords TEXT,  -- JSON array of related keywords
+    document_count INTEGER DEFAULT 0,  -- Number of documents related to this concept
+    metadata TEXT,  -- JSON object for additional metadata
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for concepts
+CREATE INDEX IF NOT EXISTS idx_concepts_name ON concepts(concept_name);
+CREATE INDEX IF NOT EXISTS idx_concepts_type ON concepts(concept_type);
+CREATE INDEX IF NOT EXISTS idx_concepts_count ON concepts(document_count DESC);
+
+-- Document-Concept mapping table (many-to-many relationship)
+CREATE TABLE IF NOT EXISTS document_concepts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id TEXT NOT NULL,  -- References documents.doc_id
+    concept_id INTEGER NOT NULL,  -- References concepts.id
+    relevance_score REAL DEFAULT 1.0,  -- How relevant this concept is to the document (0-1)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+    UNIQUE(doc_id, concept_id)  -- Prevent duplicate mappings
+);
+
+-- Create indexes for document_concepts
+CREATE INDEX IF NOT EXISTS idx_doc_concepts_doc_id ON document_concepts(doc_id);
+CREATE INDEX IF NOT EXISTS idx_doc_concepts_concept_id ON document_concepts(concept_id);
+CREATE INDEX IF NOT EXISTS idx_doc_concepts_relevance ON document_concepts(relevance_score DESC);
+
+-- Trigger to update concepts.document_count when mapping changes
+CREATE TRIGGER IF NOT EXISTS update_concept_count_insert
+AFTER INSERT ON document_concepts
+FOR EACH ROW
+BEGIN
+    UPDATE concepts
+    SET document_count = (SELECT COUNT(*) FROM document_concepts WHERE concept_id = NEW.concept_id)
+    WHERE id = NEW.concept_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_concept_count_delete
+AFTER DELETE ON document_concepts
+FOR EACH ROW
+BEGIN
+    UPDATE concepts
+    SET document_count = (SELECT COUNT(*) FROM document_concepts WHERE concept_id = OLD.concept_id)
+    WHERE id = OLD.concept_id;
+END;
+
+-- Trigger to update concepts.updated_at
+CREATE TRIGGER IF NOT EXISTS update_concepts_timestamp
+AFTER UPDATE ON concepts
+FOR EACH ROW
+BEGIN
+    UPDATE concepts SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+END;

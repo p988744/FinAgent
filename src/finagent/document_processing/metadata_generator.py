@@ -1,6 +1,7 @@
 """LLM-based document metadata generator."""
 
 import json
+from datetime import datetime
 
 from openai import OpenAI
 from pydantic import BaseModel, Field
@@ -120,27 +121,57 @@ class MetadataGenerator:
 """
 
         try:
-            # Call LLM with structured output
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.0,
-                response_format={"type": "json_object"},
-            )
+            # Call LLM
+            # Note: response_format is not well-supported by many OpenAI-compatible endpoints
+            # Skip it for non-OpenAI endpoints to avoid issues
+            base_url = settings.effective_llm_base_url
+            use_response_format = not base_url or "api.openai.com" in base_url
+
+            if use_response_format:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.0,
+                    response_format={"type": "json_object"},
+                )
+            else:
+                # Don't use response_format for custom endpoints (Ollama, local models, etc.)
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.0,
+                )
 
             # Parse response
             result_text = response.choices[0].message.content
+
+            # Check if response is empty
+            if not result_text or result_text.strip() == "":
+                raise RuntimeError(f"LLM returned empty response for {filename}")
+
+            # Try to extract JSON if response contains other text
+            result_text = result_text.strip()
+            if not result_text.startswith("{"):
+                # Try to find JSON in the response
+                import re
+                json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+                if json_match:
+                    result_text = json_match.group(0)
+                else:
+                    raise RuntimeError(f"LLM response is not valid JSON: {result_text[:200]}")
+
             result_data = json.loads(result_text)
 
             # Validate and create result
             result = MetadataGenerationResult(**result_data)
 
             # Convert to DocumentMetadata
-            from datetime import datetime
-
             now = datetime.now().isoformat()
 
             metadata = DocumentMetadata(

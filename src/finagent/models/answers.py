@@ -56,6 +56,9 @@ class LegalAnswer(BaseModel):
 
     # Metadata
     processing_time_ms: int | None = Field(None, description="Processing time in milliseconds")
+    processing_steps: list[str] = Field(
+        default_factory=list, description="Processing steps taken by the workflow"
+    )
 
     class Config:
         json_schema_extra = {

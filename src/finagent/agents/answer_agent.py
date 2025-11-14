@@ -177,7 +177,7 @@ class AnswerAgent:
             )
 
             # Parse LLM response into structured answer
-            answer = self._parse_response(response, chunks, citations)
+            answer = self._parse_response(response, chunks, citations, state["processing_steps"])
 
             # Update state
             state["answer"] = answer
@@ -216,7 +216,11 @@ class AnswerAgent:
         return "\n\n".join(citations_parts)
 
     def _parse_response(
-        self, response: str, chunks: list[RetrievedChunk], citations: list[LegalCitation]
+        self,
+        response: str,
+        chunks: list[RetrievedChunk],
+        citations: list[LegalCitation],
+        processing_steps: list[str],
     ) -> LegalAnswer:
         """
         Parse LLM response into structured LegalAnswer.
@@ -225,6 +229,7 @@ class AnswerAgent:
             response: Raw LLM response text
             chunks: Retrieved chunks
             citations: Citations list
+            processing_steps: Workflow processing steps
 
         Returns:
             Structured LegalAnswer object
@@ -288,6 +293,7 @@ class AnswerAgent:
             confidence_score=confidence_score,
             confidence_explanation=confidence_explanation,
             limitations=["本系統基於已索引文件進行分析，實際案件可能更多"],
+            processing_steps=processing_steps,  # Add processing steps
         )
 
     def _generate_fallback_answer(self, query, reason: str) -> LegalAnswer:

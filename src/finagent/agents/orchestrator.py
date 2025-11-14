@@ -3,8 +3,10 @@
 import logging
 from datetime import datetime
 
+from finagent.agents.query_memo import QueryMemoLogger
 from finagent.agents.state import AgentState
 from finagent.agents.workflow import LegalResearchWorkflow
+from finagent.config import settings
 from finagent.document_processing import DocumentRetriever
 from finagent.models.answers import ConfidenceLevel, LegalAnswer
 from finagent.models.citations import CitationAuthority, CitationType, LegalCitation
@@ -20,9 +22,26 @@ class AgentOrchestrator:
     Coordinates Planning → Action → Validation → Answer agents.
     """
 
-    def __init__(self):
-        """Initialize orchestrator with LangGraph workflow."""
+    def __init__(
+        self, enable_query_logging: bool = True, clarification_handler=None
+    ):
+        """
+        Initialize orchestrator with LangGraph workflow.
+
+        Args:
+            enable_query_logging: Whether to log queries to database (default: True)
+            clarification_handler: Optional async callback for user clarification
+                                   Signature: async def handler(clarification_request) -> str
+        """
         self.logger = logger
+        self.enable_query_logging = enable_query_logging
+        self.clarification_handler = clarification_handler
+
+        # Initialize query memo logger
+        if enable_query_logging:
+            self.query_logger = QueryMemoLogger()
+        else:
+            self.query_logger = None
 
         # Initialize RAG retriever
         try:
@@ -30,8 +49,11 @@ class AgentOrchestrator:
             self.use_rag = self.retriever.collection_exists()
             if self.use_rag:
                 self.logger.info("RAG retriever initialized successfully")
-                # Initialize LangGraph workflow
-                self.workflow = LegalResearchWorkflow(retriever=self.retriever)
+                # Initialize LangGraph workflow with clarification handler
+                self.workflow = LegalResearchWorkflow(
+                    retriever=self.retriever,
+                    clarification_handler=clarification_handler,
+                )
                 self.logger.info("LangGraph workflow initialized successfully")
             else:
                 self.logger.warning("Vector database is empty, using fallback mode")
@@ -88,40 +110,82 @@ class AgentOrchestrator:
         """
         self.logger.info("Processing query with LangGraph workflow")
 
+        # Start query logging
+        if self.query_logger:
+            self.query_logger.start_query()
+
         # Initialize state
         initial_state: AgentState = {
             "query": query,
             "plan": None,
+            "plan_analysis": None,  # Query analysis results
             "research_tasks": None,
             "retrieved_chunks": None,
             "citations": None,
             "validation_passed": False,
             "validation_issues": None,
             "answer": None,
+            "search_iteration": 0,  # Start at iteration 0
+            "max_search_iterations": 2,  # Max 2 re-searches
+            "search_strategy": "strict",  # Start with strict strategy
             "processing_steps": [],
             "errors": [],
         }
 
-        # Run workflow
-        final_state = self.workflow.run(initial_state)
+        try:
+            # Run workflow
+            final_state = self.workflow.run(initial_state)
 
-        # Extract answer from final state
-        answer = final_state.get("answer")
+            # Extract answer from final state
+            answer = final_state.get("answer")
 
-        if not answer:
-            # Workflow failed to generate answer
-            return await self._generate_fallback_answer(query, "工作流程失敗")
+            if not answer:
+                # Workflow failed to generate answer
+                if self.query_logger:
+                    self.query_logger.log_query(
+                        query=query,
+                        answer=None,
+                        state=final_state,
+                        model_used=settings.llm_model,
+                        success=False,
+                        error_message="工作流程失敗",
+                    )
+                return await self._generate_fallback_answer(query, "工作流程失敗")
 
-        # Log processing steps for debugging
-        if final_state.get("processing_steps"):
-            for step in final_state["processing_steps"]:
-                self.logger.info(f"Workflow step: {step}")
+            # Log processing steps for debugging
+            if final_state.get("processing_steps"):
+                for step in final_state["processing_steps"]:
+                    self.logger.info(f"Workflow step: {step}")
 
-        if final_state.get("errors"):
-            for error in final_state["errors"]:
-                self.logger.warning(f"Workflow error: {error}")
+            if final_state.get("errors"):
+                for error in final_state["errors"]:
+                    self.logger.warning(f"Workflow error: {error}")
 
-        return answer
+            # Log successful query
+            if self.query_logger:
+                history_id = self.query_logger.log_query(
+                    query=query,
+                    answer=answer,
+                    state=final_state,
+                    model_used=settings.llm_model,
+                    success=True,
+                )
+                self.logger.info(f"Query logged to database with ID {history_id}")
+
+            return answer
+
+        except Exception as e:
+            # Log failed query
+            if self.query_logger:
+                self.query_logger.log_query(
+                    query=query,
+                    answer=None,
+                    state=initial_state,
+                    model_used=settings.llm_model,
+                    success=False,
+                    error_message=str(e),
+                )
+            raise
 
     async def _process_with_rag(self, query: Query) -> LegalAnswer:
         """

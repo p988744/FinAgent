@@ -73,3 +73,27 @@ class Document(BaseModel):
     chunk_count: int = Field(default=0, description="Number of chunks in vector DB")
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class Concept(BaseModel):
+    """Concept/topic extracted from documents for faster retrieval."""
+
+    id: int | None = None
+    concept_name: str = Field(..., description="Concept name (e.g., 洗錢防制, 內線交易)")
+    concept_type: str | None = Field(None, description="Type: violation_type, institution, authority, topic")
+    description: str | None = Field(None, description="Brief description")
+    keywords: list[str] = Field(default_factory=list, description="Related keywords")
+    document_count: int = Field(default=0, description="Number of documents with this concept")
+    metadata: dict | None = Field(default_factory=dict, description="Additional metadata")
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class DocumentConcept(BaseModel):
+    """Many-to-many mapping between documents and concepts."""
+
+    id: int | None = None
+    doc_id: str = Field(..., description="Document ID")
+    concept_id: int = Field(..., description="Concept ID")
+    relevance_score: float = Field(default=1.0, description="Relevance score (0-1)")
+    created_at: datetime | None = None

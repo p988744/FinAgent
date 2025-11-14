@@ -23,6 +23,7 @@ def cli(ctx, version):
     Examples:
         finagent                              # Start interactive REPL
         finagent query "玉山銀行洗錢防制裁罰"    # Single query mode
+        finagent reindex --skip-init          # Reindex documents (fast mode)
     """
     if version:
         from finagent.cli import __version__
@@ -67,6 +68,42 @@ def query(text, max_results, regulator, start_date, end_date, format):
         end_date=end_date,
         output_format=format,
     )
+
+
+@cli.command()
+@click.option("--clear", is_flag=True, help="Clear existing index before reindexing")
+@click.option("--skip-init", is_flag=True, help="Skip LLM metadata generation (faster)")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+def reindex(clear, skip_init, yes):
+    """
+    Reindex all documents in the data/documents directory.
+
+    This command processes all documents sequentially:
+    1. Load document
+    2. Index to vector database
+    3. Generate metadata (with LLM or basic)
+    4. Save to database
+    5. Extract and link concepts
+    6. Update TABLE_OF_CONTENTS.md
+
+    Examples:
+        finagent reindex                    # Full reindex with LLM metadata
+        finagent reindex --skip-init        # Fast reindex without LLM (~5 min)
+        finagent reindex --clear            # Clear and rebuild from scratch
+        finagent reindex --clear --yes      # Clear without confirmation
+    """
+    from finagent.cli.commands.reindex import execute_reindex
+
+    # Handle confirmation for --clear
+    if clear and not yes:
+        console.print()
+        console.print("[bold yellow]⚠️  Warning:[/bold yellow] This will delete all existing indexes and rebuild!")
+        console.print()
+        if not click.confirm("Continue?", default=False):
+            console.print("[yellow]Cancelled.[/yellow]")
+            return
+
+    execute_reindex(clear=clear, skip_init=skip_init, use_sequential=True)
 
 
 if __name__ == "__main__":

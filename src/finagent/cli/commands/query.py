@@ -13,6 +13,7 @@ from finagent.cli.formatters.answer import (
     format_answer_markdown,
     format_legal_answer,
 )
+from finagent.cli.formatters.query_analysis import handle_cli_clarification
 from finagent.config_manager import get_config_manager
 from finagent.database.db import Database
 from finagent.models.answers import LegalAnswer
@@ -26,10 +27,16 @@ _orchestrator = None
 
 
 def get_orchestrator() -> AgentOrchestrator:
-    """Get or create orchestrator instance."""
+    """Get or create orchestrator instance with CLI clarification handler."""
     global _orchestrator
     if _orchestrator is None:
-        _orchestrator = AgentOrchestrator()
+        # Create clarification handler for CLI
+        async def cli_clarification_handler(clarification_request):
+            return await handle_cli_clarification(clarification_request, console)
+
+        _orchestrator = AgentOrchestrator(
+            clarification_handler=cli_clarification_handler
+        )
     return _orchestrator
 
 

@@ -91,6 +91,8 @@ class ReplSession:
 - `/config llm` - 設定 LLM (OpenAI 或本地模型)
 - `/history` - 查看查詢歷史
 - `/reindex` - 重新索引文件
+  - `/reindex --skip-init` - 跳過 LLM 元資料初始化（快速索引）
+  - `/reindex --clear` - 清空後重建索引
 - `/exit` - 離開程式
 
 **範例查詢：**
