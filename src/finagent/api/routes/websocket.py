@@ -106,10 +106,10 @@ class WebSocketUICallback(UICallback):
         todo_list = []
         for todo in todos:
             todo_list.append({
-                "id": str(todo.id) if hasattr(todo, 'id') else str(hash(todo.description)),
-                "description": todo.description,
-                "status": todo.status.value if hasattr(todo.status, 'value') else str(todo.status),
-                "priority": todo.priority if hasattr(todo, 'priority') else 1,
+                "id": str(todo.id),
+                "description": todo.content,  # TodoItem uses 'content' not 'description'
+                "status": todo.status if isinstance(todo.status, str) else str(todo.status),
+                "priority": 1,
             })
         await self._send("todo_update", {
             "todos": todo_list,
@@ -121,19 +121,19 @@ class WebSocketUICallback(UICallback):
     async def on_todo_started(self, todo: TodoItem):
         """A todo item has started."""
         await self._send("todo_item_update", {
-            "id": str(todo.id) if hasattr(todo, 'id') else str(hash(todo.description)),
+            "id": str(todo.id),
             "status": "in_progress",
-            "description": todo.description,
+            "description": todo.content,
         })
         await self._send("activity_log", {
             "level": "info",
-            "message": f"開始任務: {todo.description}",
+            "message": f"開始任務: {todo.content}",
         })
 
     async def on_todo_progress(self, todo: TodoItem, percentage: int, message: str = ""):
         """Progress update for a todo item."""
         await self._send("todo_item_update", {
-            "id": str(todo.id) if hasattr(todo, 'id') else str(hash(todo.description)),
+            "id": str(todo.id),
             "status": "in_progress",
             "progress": percentage,
             "message": message,
@@ -142,25 +142,25 @@ class WebSocketUICallback(UICallback):
     async def on_todo_completed(self, todo: TodoItem):
         """A todo item has completed."""
         await self._send("todo_item_update", {
-            "id": str(todo.id) if hasattr(todo, 'id') else str(hash(todo.description)),
+            "id": str(todo.id),
             "status": "completed",
-            "description": todo.description,
+            "description": todo.content,
         })
         await self._send("activity_log", {
             "level": "success",
-            "message": f"完成任務: {todo.description}",
+            "message": f"完成任務: {todo.content}",
         })
 
     async def on_todo_failed(self, todo: TodoItem, error: str):
         """A todo item has failed."""
         await self._send("todo_item_update", {
-            "id": str(todo.id) if hasattr(todo, 'id') else str(hash(todo.description)),
+            "id": str(todo.id),
             "status": "failed",
             "error": error,
         })
         await self._send("activity_log", {
             "level": "error",
-            "message": f"任務失敗: {todo.description} - {error}",
+            "message": f"任務失敗: {todo.content} - {error}",
         })
 
     async def on_retrieval_result(self, strategy: str, count: int, total_chunks: int):
@@ -232,6 +232,73 @@ class WebSocketUICallback(UICallback):
             "message": f"錯誤: {error}",
         })
 
+    # Additional methods called by agents but not in base UICallback interface
+    # These must be async since agents wrap them in asyncio.create_task()
+    async def on_retrieval_start(self, query: str, strategy: str, max_results: int):
+        """RAG retrieval has started."""
+        await self._send("activity_log", {
+            "level": "info",
+            "message": f"開始檢索: 查詢={query[:30]}..., 策略={strategy}, 最大結果={max_results}",
+        })
+
+    async def on_validation_start(self):
+        """Validation has started."""
+        await self._send("activity_log", {
+            "level": "info",
+            "message": "開始驗證引用完整性",
+        })
+
+    def on_validation_complete(self, is_valid: bool, issues: list[str] = None):
+        """Validation completed (non-async, called directly without create_task)."""
+        import asyncio
+        try:
+            if is_valid:
+                asyncio.create_task(self._send("activity_log", {
+                    "level": "success",
+                    "message": "引用完整性驗證通過",
+                }))
+            else:
+                asyncio.create_task(self._send("activity_log", {
+                    "level": "warning",
+                    "message": f"驗證發現問題: {', '.join(issues or [])}",
+                }))
+        except Exception:
+            pass
+
+    def on_citations_extracted(self, citations: list[LegalCitation]):
+        """Citations have been extracted (non-async, called directly without create_task)."""
+        import asyncio
+        try:
+            asyncio.create_task(self._send("activity_log", {
+                "level": "info",
+                "message": f"提取 {len(citations)} 個引用來源",
+            }))
+        except Exception:
+            pass
+
+    def on_answer_generation_complete(self, answer: LegalAnswer):
+        """Answer generation completed (non-async, called directly without create_task)."""
+        import asyncio
+        try:
+            confidence = answer.confidence.value if hasattr(answer.confidence, 'value') else str(answer.confidence)
+            asyncio.create_task(self._send("activity_log", {
+                "level": "success",
+                "message": f"答案生成完成 - 信心度: {confidence}",
+            }))
+        except Exception:
+            pass
+
+    def on_clarification_requested(self, questions: list[str]):
+        """Clarification questions requested (non-async, called directly without create_task)."""
+        import asyncio
+        try:
+            asyncio.create_task(self._send("activity_log", {
+                "level": "warning",
+                "message": f"需要澄清: {', '.join(questions)}",
+            }))
+        except Exception:
+            pass
+
 
 @router.websocket("/ws/query")
 async def websocket_query_endpoint(websocket: WebSocket):
@@ -293,21 +360,21 @@ async def websocket_query_endpoint(websocket: WebSocket):
 
                     # Send complete result
                     result = {
-                        "summary": answer.summary,
+                        "summary": answer.executive_summary,
                         "key_findings": answer.key_findings,
                         "detailed_analysis": answer.detailed_analysis,
-                        "confidence": answer.confidence.value if hasattr(answer.confidence, 'value') else str(answer.confidence),
-                        "processing_time_ms": answer.processing_time_ms,
+                        "confidence": answer.confidence_score.value if hasattr(answer.confidence_score, 'value') else str(answer.confidence_score),
+                        "processing_time_ms": answer.processing_time_ms or 0,
                         "citations": [
                             {
-                                "id": i + 1,
-                                "source": c.source,
+                                "id": c.id,
+                                "source": c.formatted_citation or c.title,
                                 "authority": c.authority.value if hasattr(c.authority, 'value') else str(c.authority),
-                                "citation_type": c.citation_type.value if hasattr(c.citation_type, 'value') else str(c.citation_type),
+                                "citation_type": c.type.value if hasattr(c.type, 'value') else str(c.type),
                                 "date": c.date,
-                                "relevance": c.relevance,
+                                "relevance": 1.0,  # Default relevance since it's not in the model
                             }
-                            for i, c in enumerate(answer.citations)
+                            for c in answer.citations
                         ],
                     }
 
