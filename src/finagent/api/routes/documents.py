@@ -16,7 +16,6 @@ from pydantic import BaseModel
 from finagent.document_processing.metadata_store import DocumentMetadataStore
 from finagent.document_processing.indexer import DocumentIndexer
 from finagent.document_processing.loader import DocumentLoader
-from finagent.document_processing.chunker import ChineseTextChunker
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 
@@ -304,13 +303,9 @@ async def reindex_single_document(document_id: str) -> DocumentResponse:
     loader = DocumentLoader()
     document = loader.load_txt(str(file_path))
 
-    # Chunk document
-    chunker = ChineseTextChunker()
-    chunks = chunker.chunk_text(document.content)
-
-    # Index chunks
+    # Index document (indexer handles chunking internally)
     indexer = DocumentIndexer()
-    indexer.index_document(document, chunks)
+    num_chunks = indexer.index_document(document)
 
     # Update metadata to mark as indexed
     metadata = store.get_metadata(document_id)
@@ -319,11 +314,11 @@ async def reindex_single_document(document_id: str) -> DocumentResponse:
             document_id,
             {
                 "indexed": True,
-                "chunk_count": len(chunks),
+                "chunk_count": num_chunks,
             },
         )
         metadata.indexed = True
-        metadata.chunk_count = len(chunks)
+        metadata.chunk_count = num_chunks
 
     return _metadata_to_response(metadata, str(file_path))
 
@@ -339,7 +334,6 @@ async def reindex_all_documents() -> ReindexProgress:
     failed = 0
 
     loader = DocumentLoader()
-    chunker = ChineseTextChunker()
     indexer = DocumentIndexer()
 
     for metadata in all_metadata:
@@ -350,14 +344,13 @@ async def reindex_all_documents() -> ReindexProgress:
                 continue
 
             document = loader.load_txt(doc.file_path)
-            chunks = chunker.chunk_text(document.content)
-            indexer.index_document(document, chunks)
+            num_chunks = indexer.index_document(document)
 
             store.update_metadata(
                 metadata.doc_id,
                 {
                     "indexed": True,
-                    "chunk_count": len(chunks),
+                    "chunk_count": num_chunks,
                 },
             )
             processed += 1
