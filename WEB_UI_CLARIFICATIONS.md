@@ -98,6 +98,27 @@ check "Migration script exists" "test -f src/finagent/database/migrations/002_we
 - Todos: Show list, update on WebSocket message
 - Log: Append-only list, no filtering
 
+**Enhancement Strategy (Base → Enhanced):**
+```typescript
+// alpha.2: Base Implementation
+<AgentWorkflowStepper steps={steps} />
+// - Static step names
+// - Basic color changes (pending/active/done)
+// - No animations
+
+// beta.1: Enhanced Implementation (extends base)
+<AgentWorkflowStepper
+  steps={steps}
+  showElapsedTime={true}      // NEW: timing display
+  expandable={true}           // NEW: click to show details
+  animated={true}             // NEW: pulse animation
+  showIteration={true}        // NEW: re-search counter
+/>
+// - Same component, more props
+// - Backward compatible
+// - Feature flags for new capabilities
+```
+
 ---
 
 ### 6. Missing: Error Recovery Strategy
