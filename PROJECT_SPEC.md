@@ -556,6 +556,78 @@ uv run finagent
 /init --reindex  # Re-index all documents
 ```
 
+## Development Roadmap
+
+### Current Version: v0.0.1-beta
+- Multi-agent LangGraph workflow
+- RAG pipeline with Chroma vector database
+- Interactive CLI with Rich formatting
+- Database configuration management
+- 494 documents indexed (2,858 chunks)
+
+### Next Major Version: v0.1.0 (Web UI)
+
+Full web interface implementation with 5 core modules:
+
+| Version | Codename | Focus Area | Key Features |
+|---------|----------|------------|--------------|
+| **v0.1.0-alpha.1** | Foundation | Backend + Setup | API routes, DB schema, frontend scaffold |
+| **v0.1.0-alpha.2** | Query Core | Real-time Monitoring | WebSocket streaming, agent pipeline viz, todo tracking |
+| **v0.1.0-alpha.3** | Config & Models | Management UI | Settings editor, model switching, presets |
+| **v0.1.0-alpha.4** | Documents | File Management | Upload, versioning, indexing controls |
+| **v0.1.0-alpha.5** | Wiki | Knowledge Base | Auto-generated wiki, entity extraction, search |
+| **v0.1.0-beta.1** | Integration | Full Testing | Performance optimization, error handling |
+| **v0.1.0** | Release | Production Ready | Stable release with all features |
+
+**Technology Stack (Frontend):**
+- React 18 + TypeScript + Vite
+- Tailwind CSS + shadcn/ui components
+- WebSocket for real-time updates
+- React Query for state management
+
+**Core Web UI Features:**
+1. **Query Interface** - Full CLI parity with real-time monitoring panel
+2. **Configuration Management** - Visual settings editor with validation
+3. **Model Management** - LLM/embedding selection with usage stats
+4. **Document Wiki** - Auto-generated from indexed documents
+5. **Document Management** - Upload, version control, batch operations
+
+**Validation Framework:**
+```bash
+# Validate milestone completion
+./scripts/validate.sh v0.1.0-alpha.1
+
+# Automated checks include:
+# - File existence verification
+# - Code pattern matching
+# - Build success testing
+# - Type safety validation
+```
+
+**Detailed Specifications:**
+- [WEB_UI_SPEC.md](WEB_UI_SPEC.md) - Complete feature specifications
+- [WEB_UI_MILESTONES.md](WEB_UI_MILESTONES.md) - Implementation roadmap with validation scripts
+
+### Future Versions (Planned)
+
+**v0.2.0 - Advanced Analytics**
+- Custom dashboards
+- Report generation
+- Trend analysis
+- Predictive insights
+
+**v0.3.0 - Collaboration**
+- Multi-user support
+- Shared query templates
+- Document annotations
+- Comment system
+
+**v0.4.0 - Integration**
+- Export to legal databases
+- Third-party API integration
+- Webhook notifications
+- Email reports
+
 ## Documentation
 
 **In-repo:**
@@ -564,6 +636,8 @@ uv run finagent
 - [CHANGELOG.md](CHANGELOG.md) - Version history
 - [PROJECT_SPEC.md](PROJECT_SPEC.md) - This file (detailed specs)
 - [UNIMPLEMENTED_FEATURES.md](UNIMPLEMENTED_FEATURES.md) - Feature backlog
+- [WEB_UI_SPEC.md](WEB_UI_SPEC.md) - Web UI feature specifications
+- [WEB_UI_MILESTONES.md](WEB_UI_MILESTONES.md) - Implementation milestones
 
 ## Contributing
 
