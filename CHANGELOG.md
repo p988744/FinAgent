@@ -5,97 +5,73 @@ All notable changes to FinAgent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.2] - 2025-01-14
+## [Unreleased]
+
+### Added
+- Phase 5: Todo state synchronization in LangGraph workflow
+- Enhanced agent state with todo tracking across all agents
+- Real-time task status updates (pending → in_progress → completed)
+
+### Removed
+- Electron desktop GUI (reverted due to runtime issues)
+
+## [0.0.1-beta] - 2025-01-12
 
 ### Added
 
-- **Cross-platform Electron desktop application**
-  - Modern graphical interface for Windows and macOS
-  - Traditional Chinese UI optimized for Taiwan users
-  - Real-time backend status monitoring
-  - Query examples for quick start
-
-- **Hybrid Architecture**
-  - Electron frontend with Node.js main process
-  - Python FastAPI backend as subprocess
-  - Automatic health monitoring and recovery
-  - IPC-based communication bridge
-
-- **Build System**
-  - electron-builder configuration for Windows and macOS
-  - Automated Python distribution bundling
-  - Platform-specific installers (NSIS for Windows, DMG for macOS)
-  - Build scripts for cross-platform development
-
-- **Documentation**
-  - Comprehensive Electron Desktop Guide
-  - Development and build instructions
-  - Troubleshooting guide
-  - Architecture documentation
-
-### Changed
-
-- Updated project version from 0.1.0 to 0.0.2
-- Enhanced CLAUDE.md with Electron development commands
-- Updated README.md with desktop app information
-
-### Technical Details
-
-- Electron 28.2.0
-- React-style vanilla JavaScript frontend
-- Secure IPC with context isolation
-- Python subprocess management with graceful shutdown
-- Cross-platform compatibility (Windows 10+, macOS 10.13+)
-
-## [0.0.1-beta] - Previous Release
-
-### Added
-
-- LangGraph multi-agent architecture
+- **LangGraph Multi-Agent Architecture**
   - Planning Agent for query decomposition
   - Action Agent for RAG retrieval
   - Validation Agent for citation verification
-  - Answer Agent for synthesis
+  - Answer Agent for LLM synthesis
 
-- RAG Pipeline
+- **RAG Pipeline**
   - Chroma vector database integration
-  - OpenAI embeddings support
-  - Document chunking and indexing
-  - Semantic search with relevance filtering
+  - OpenAI embeddings support (text-embedding-3-small)
+  - Document chunking and indexing (512 tokens, 128 overlap)
+  - Semantic search with 0.8 relevance filtering
 
-- Database Layer
+- **Database Layer**
   - SQLite for persistent storage
   - Settings and configuration management
   - Query history tracking
   - Model configuration presets
 
-- CLI Interface
+- **CLI Interface**
   - Interactive REPL mode
-  - Command system (/query, /config, /init, etc.)
+  - Commands: /query, /config, /init, /reindex, /help
   - Rich terminal formatting
   - Configuration wizard
 
-- Document Processing
+- **Document Processing**
   - TXT file support
-  - Traditional Chinese with Jieba
+  - Traditional Chinese with Jieba tokenization
   - Paragraph-aware chunking
-  - Metadata extraction
+  - LLM-generated metadata extraction
 
-- Configuration System
+- **Configuration System**
   - Unified OpenAI-compatible API support
   - OpenAI, Ollama, and custom endpoint support
-  - Environment variable configuration
-  - Database-backed settings
+  - Environment variable configuration (.env)
+  - Database-backed settings with priority system
 
 ### Features
 
-- Traditional Chinese language support
-- Taiwan legal citation formatting
-- Confidence scoring for answers
+- Traditional Chinese (繁體中文) language support
+- Taiwan legal citation formatting ([引用1]、[引用2])
+- Confidence scoring (高信心/中信心/低信心)
 - Multi-source document retrieval
-- Real-time query processing
+- Real-time query processing (~40 seconds)
+- Cost tracking (~$0.0015 USD per query)
+
+### Performance
+
+- True positive rate: 95%
+- False positive rate: 0%
+- 494 documents indexed
+- 2,858 vector chunks
 
 ---
 
-[0.0.2]: https://github.com/p988744/FinAgent/compare/v0.0.1...v0.0.2
-[0.0.1-beta]: https://github.com/p988744/FinAgent/releases/tag/v0.0.1
+[Unreleased]: https://github.com/p988744/FinAgent/compare/v0.0.1-beta...HEAD
+[0.0.1-beta]: https://github.com/p988744/FinAgent/releases/tag/v0.0.1-beta
