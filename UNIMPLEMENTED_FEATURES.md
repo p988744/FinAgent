@@ -1,6 +1,6 @@
 # FinAgent - Unimplemented Features Report
 
-**Generated:** 2025-11-13
+**Generated:** 2025-11-17
 **Status:** v0.0.1-beta
 **Purpose:** Track unimplemented features and TODOs for future development
 
@@ -224,8 +224,7 @@ def export_results(self, format: str):
 - Conditional import for `msvcrt`
 
 **Reference:**
-- [ESC_KEY_CANCELLATION.md:210](docs/implementation/ESC_KEY_CANCELLATION.md#L210)
-- [ESC_KEY_NOTE.md:83](docs/implementation/ESC_KEY_NOTE.md#L83)
+- Requires `msvcrt` module for Windows keyboard input handling
 
 **Implementation Complexity:** MEDIUM
 **Estimated Effort:** 2-3 hours (requires Windows testing)

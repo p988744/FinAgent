@@ -1,7 +1,7 @@
 # FinAgent Project Specification
 
 **Version:** 0.0.1-beta
-**Last Updated:** 2025-01-13
+**Last Updated:** 2025-11-17
 **Status:** Beta - Database integration complete
 
 ## Project Overview
@@ -33,7 +33,7 @@ User Query → Planning Agent → Action Agent → Validation Agent → Answer A
 **Core Framework:**
 - Python 3.11+
 - LangChain/LangGraph - Agent orchestration
-- OpenAI GPT-4o-mini - LLM (OpenAI-compatible API support)
+- LLM (OpenAI-compatible API support)
 - Pydantic - Data validation and settings management
 
 **Document Processing:**
@@ -90,16 +90,13 @@ finagent/
 ├── data/                      # Data directory
 │   ├── finagent.db           # SQLite database (auto-created)
 │   ├── vector_db/            # Chroma persistence
-│   ├── documents/            # Source documents (TXT)
-│   └── document_metadata.json # Document metadata
-├── docs/                      # Documentation
-│   ├── guides/               # User guides
-│   ├── implementation/       # Technical docs
-│   └── api/                  # API documentation
-├── spec_tmp/                  # Temporary specs
+│   └── documents/            # Source documents (TXT)
 ├── .env                       # Environment configuration
 ├── model_config.yml          # Model choices (not in DB)
 ├── pyproject.toml            # Project metadata
+├── CLAUDE.md                  # Claude Code instructions
+├── CHANGELOG.md               # Version history
+├── UNIMPLEMENTED_FEATURES.md  # Feature backlog
 └── README.md                 # Project overview
 ```
 
@@ -563,15 +560,10 @@ uv run finagent
 
 **In-repo:**
 - [README.md](README.md) - Project overview
-- [docs/guides/](docs/guides/) - User guides
-- [docs/implementation/](docs/implementation/) - Technical docs
-- [spec_tmp/](spec_tmp/) - Implementation notes
-
-**Key Documents:**
-- `DATABASE_IMPLEMENTATION.md` - Database architecture
-- `CLI_DATABASE_INTEGRATION.md` - CLI integration guide
-- `LANGGRAPH_IMPLEMENTATION.md` - Multi-agent workflow
-- `BOUNDARY_TESTS.md` - Edge case testing
+- [CLAUDE.md](CLAUDE.md) - Claude Code instructions
+- [CHANGELOG.md](CHANGELOG.md) - Version history
+- [PROJECT_SPEC.md](PROJECT_SPEC.md) - This file (detailed specs)
+- [UNIMPLEMENTED_FEATURES.md](UNIMPLEMENTED_FEATURES.md) - Feature backlog
 
 ## Contributing
 
@@ -606,5 +598,5 @@ TBD - To be determined
 
 ---
 
-*Last Updated: 2025-01-13*
+*Last Updated: 2025-11-17*
 *Specification Version: 1.0*
