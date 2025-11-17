@@ -194,69 +194,81 @@ function stopPythonBackend() {
 }
 
 /**
- * IPC Handlers
+ * IPC Handlers Setup
  */
-
-// Submit research query
-ipcMain.handle('query:submit', async (event, queryText) => {
-  try {
-    log.info(`Submitting query: ${queryText}`);
-    const response = await axios.post(`${BACKEND_URL}/api/v1/research/query/sync`, {
-      text: queryText,
-      filters: {}
-    });
-    return { success: true, data: response.data };
-  } catch (error) {
-    log.error(`Query submission failed: ${error.message}`);
-    return { success: false, error: error.message };
-  }
-});
-
-// Check backend status
-ipcMain.handle('backend:status', async () => {
-  try {
-    const response = await axios.get(`${BACKEND_URL}/health/ready`, {
-      timeout: 2000
-    });
-    return { success: true, data: response.data };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// Get application info
-ipcMain.handle('app:info', () => {
-  return {
-    version: app.getVersion(),
-    name: app.getName(),
-    platform: process.platform,
-    arch: process.arch
-  };
-});
-
-// Show error dialog
-ipcMain.handle('dialog:error', async (event, title, message) => {
-  await dialog.showMessageBox(mainWindow, {
-    type: 'error',
-    title: title,
-    message: message,
-    buttons: ['OK']
+function setupIpcHandlers() {
+  // Submit research query
+  ipcMain.handle('query:submit', async (event, queryText) => {
+    try {
+      log.info(`Submitting query: ${queryText}`);
+      const response = await axios.post(`${BACKEND_URL}/api/v1/research/query/sync`, {
+        text: queryText,
+        filters: {}
+      });
+      return { success: true, data: response.data };
+    } catch (error) {
+      log.error(`Query submission failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
   });
-});
+
+  // Check backend status
+  ipcMain.handle('backend:status', async () => {
+    try {
+      const response = await axios.get(`${BACKEND_URL}/health/ready`, {
+        timeout: 2000
+      });
+      return { success: true, data: response.data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get application info
+  ipcMain.handle('app:info', () => {
+    return {
+      version: app.getVersion(),
+      name: app.getName(),
+      platform: process.platform,
+      arch: process.arch
+    };
+  });
+
+  // Show error dialog
+  ipcMain.handle('dialog:error', async (event, title, message) => {
+    await dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: title,
+      message: message,
+      buttons: ['OK']
+    });
+  });
+}
 
 /**
  * App Lifecycle
  */
 
 app.whenReady().then(async () => {
+  // Setup IPC handlers first
+  setupIpcHandlers();
   try {
-    // Start Python backend first
-    await startPythonBackend();
+    // Check if backend is already running
+    log.info('Checking if backend is already running...');
+    const alreadyRunning = await checkBackendHealth();
 
-    // Wait for backend to be ready
-    const isReady = await checkBackendHealth();
-    if (!isReady) {
-      throw new Error('Backend failed health check');
+    if (!alreadyRunning) {
+      // Start Python backend if not already running
+      log.info('Backend not running, starting it now...');
+      await startPythonBackend();
+
+      // Wait for backend to be ready
+      const isReady = await checkBackendHealth();
+      if (!isReady) {
+        throw new Error('Backend failed health check');
+      }
+    } else {
+      log.info('Backend is already running, skipping startup');
     }
 
     // Create window

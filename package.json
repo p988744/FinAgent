@@ -7,10 +7,10 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "start": "electron .",
+    "start": "./node_modules/.bin/electron .",
     "dev": "concurrently \"npm run dev:python\" \"npm run dev:electron\"",
-    "dev:python": "cd .. && uv run uvicorn finagent.main:app --reload --port 8000",
-    "dev:electron": "electron . --dev",
+    "dev:python": "uv run python -m uvicorn finagent.main:app --reload --port 8000",
+    "dev:electron": "./node_modules/.bin/electron . --dev",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "electron": "^28.2.0",
+    "electron": "27.3.11",
     "electron-builder": "^24.13.3"
   },
   "build": {
