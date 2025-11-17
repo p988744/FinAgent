@@ -36,12 +36,12 @@ test.describe('v0.1.0-alpha.1: Infrastructure Validation', () => {
     // Navigate to models page
     await page.click('text=模型')
     await expect(page).toHaveURL('/models')
-    await expect(page.getByText('模型管理')).toBeVisible()
+    await expect(page.getByRole('heading', { name: '模型管理' })).toBeVisible()
 
     // Navigate to documents page
     await page.click('text=文件')
     await expect(page).toHaveURL('/documents')
-    await expect(page.getByText('文件管理')).toBeVisible()
+    await expect(page.getByRole('heading', { name: '文件管理' })).toBeVisible()
   })
 
   test('should highlight active navigation item', async ({ page }) => {
