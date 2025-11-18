@@ -52,7 +52,7 @@ class MetadataExtractor:
 
     def __init__(self):
         self.llm = ChatOpenAI(
-            model=settings.effective_llm_model,
+            model=settings.llm_model,
             base_url=settings.effective_llm_base_url,
             api_key=settings.effective_llm_api_key,
             temperature=0.0,  # Deterministic for metadata extraction
