@@ -244,6 +244,110 @@ curl "http://localhost:8000/api/v1/wiki/search?q=銀行&limit=5"
 - ✅ Error handling returns structured responses
 - ✅ OpenAPI docs auto-generated correctly
 
+### Integration Testing ✅
+
+**Test Suite:** `tests/test_api_wiki.py` (500+ lines)
+
+**Test Coverage:**
+- 33 integration tests
+- All tests passing (100% success rate)
+- Test execution time: ~0.21s
+
+**Test Categories:**
+
+1. **Wiki Overview Tests** (1 test)
+   - Verifies overview endpoint returns complete data
+   - Validates all required fields and data types
+
+2. **Category Endpoint Tests** (9 tests)
+   - Tests all 4 category types (authority, institution, violation, doc_type)
+   - Validates category detail endpoint
+   - Tests error cases (invalid type, missing params, not found)
+
+3. **Document Endpoint Tests** (6 tests)
+   - Tests document listing with pagination
+   - Tests category filtering
+   - Tests document detail endpoint
+   - Tests with/without content inclusion
+   - Tests error cases (not found)
+
+4. **Search Endpoint Tests** (4 tests)
+   - Tests basic search functionality
+   - Tests with filters (document_type, etc.)
+   - Tests pagination
+   - Tests error cases (missing query)
+
+5. **Statistics Endpoint Tests** (5 tests)
+   - Tests timeline stats (year/month granularity)
+   - Tests by-authority aggregation
+   - Tests by-violation aggregation
+   - Tests error cases (invalid granularity)
+
+6. **Wiki Management Tests** (3 tests)
+   - Tests refresh statistics
+   - Tests wiki rebuild
+   - Tests rebuild with relationships
+
+7. **Error Handling Tests** (2 tests)
+   - Tests invalid endpoints (404)
+   - Tests invalid methods (405)
+
+8. **Performance Tests** (2 tests)
+   - Tests overview response time (<500ms)
+   - Tests search response time (<500ms)
+
+9. **Data Consistency Tests** (2 tests)
+   - Tests category document count accuracy
+   - Tests total document count consistency
+
+**Test Results:**
+```bash
+$ uv run pytest tests/test_api_wiki.py -v
+
+============================= test session starts ==============================
+collected 33 items
+
+tests/test_api_wiki.py::test_get_wiki_overview PASSED                    [  3%]
+tests/test_api_wiki.py::test_get_categories_authority PASSED             [  6%]
+tests/test_api_wiki.py::test_get_categories_institution PASSED           [  9%]
+tests/test_api_wiki.py::test_get_categories_violation PASSED             [ 12%]
+tests/test_api_wiki.py::test_get_categories_doc_type PASSED              [ 15%]
+tests/test_api_wiki.py::test_get_categories_invalid_type PASSED          [ 18%]
+tests/test_api_wiki.py::test_get_categories_missing_type PASSED          [ 21%]
+tests/test_api_wiki.py::test_get_category_detail PASSED                  [ 24%]
+tests/test_api_wiki.py::test_get_category_detail_not_found PASSED        [ 27%]
+tests/test_api_wiki.py::test_get_documents_all PASSED                    [ 30%]
+tests/test_api_wiki.py::test_get_documents_pagination PASSED             [ 33%]
+tests/test_api_wiki.py::test_get_documents_by_category PASSED            [ 36%]
+tests/test_api_wiki.py::test_get_document_detail PASSED                  [ 39%]
+tests/test_api_wiki.py::test_get_document_detail_no_content PASSED       [ 42%]
+tests/test_api_wiki.py::test_get_document_detail_not_found PASSED        [ 45%]
+tests/test_api_wiki.py::test_search_documents PASSED                     [ 48%]
+tests/test_api_wiki.py::test_search_documents_with_filters PASSED        [ 51%]
+tests/test_api_wiki.py::test_search_documents_pagination PASSED          [ 54%]
+tests/test_api_wiki.py::test_search_documents_no_query PASSED            [ 57%]
+tests/test_api_wiki.py::test_get_timeline_stats_year PASSED              [ 60%]
+tests/test_api_wiki.py::test_get_timeline_stats_month PASSED             [ 63%]
+tests/test_api_wiki.py::test_get_timeline_stats_invalid_granularity PASSED [ 66%]
+tests/test_api_wiki.py::test_get_stats_by_authority PASSED               [ 69%]
+tests/test_api_wiki.py::test_get_stats_by_violation PASSED               [ 72%]
+tests/test_api_wiki.py::test_refresh_stats PASSED                        [ 75%]
+tests/test_api_wiki.py::test_rebuild_wiki_no_clear PASSED                [ 78%]
+tests/test_api_wiki.py::test_rebuild_wiki_with_relationships PASSED      [ 81%]
+tests/test_api_wiki.py::test_invalid_endpoint PASSED                     [ 84%]
+tests/test_api_wiki.py::test_invalid_method PASSED                       [ 87%]
+tests/test_api_wiki.py::test_overview_performance PASSED                 [ 90%]
+tests/test_api_wiki.py::test_search_performance PASSED                   [ 93%]
+tests/test_api_wiki.py::test_category_document_count_consistency PASSED  [ 96%]
+tests/test_api_wiki.py::test_total_documents_consistency PASSED          [100%]
+
+======================= 33 passed in 0.21s ========================
+```
+
+**Bug Fixes During Testing:**
+1. Fixed SQL column name: `d.date` → `d.document_date`
+2. Fixed relationship query: Updated to use correct column names (`doc_id_1`, `doc_id_2`)
+
 ### Performance Testing
 
 **Endpoint Response Times:**
@@ -516,7 +620,7 @@ Features:
 - ✅ Manual testing complete
 - ✅ All endpoints verified
 - ✅ OpenAPI docs validated
-- ⏳ Integration tests (pending)
+- ✅ Integration tests complete (33 tests passing)
 
 ---
 

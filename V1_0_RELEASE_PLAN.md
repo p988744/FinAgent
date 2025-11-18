@@ -415,8 +415,8 @@ src/finagent/main.py (MODIFIED - added wiki router)
 - [x] Test all endpoints manually (curl)
 - [x] Test error cases
 - [x] Test pagination
-- [ ] Create API integration tests (pending)
-- [ ] Load testing (100+ concurrent requests) (pending)
+- [x] Create API integration tests (33 tests, all passing)
+- [ ] Load testing (100+ concurrent requests) (optional, deferred)
 
 **Deliverables:**
 - ✅ All 15+ endpoints implemented and tested

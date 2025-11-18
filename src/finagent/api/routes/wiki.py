@@ -393,7 +393,7 @@ async def get_documents(
             cursor = conn.execute(
                 """
                 SELECT d.doc_id, d.filename, d.document_type, d.issuing_authority,
-                       d.date, d.related_institutions, d.violation_types, d.extraction_confidence
+                       d.document_date, d.related_institutions, d.violation_types, d.extraction_confidence
                 FROM documents d
                 INNER JOIN document_concepts dc ON d.doc_id = dc.doc_id
                 WHERE dc.concept_id = ? AND dc.relevance_score = 1.0
@@ -487,11 +487,11 @@ async def get_document_detail(
             conn = db._get_connection()
             cursor = conn.execute(
                 """
-                SELECT dr.related_doc_id, dr.relationship_type, dr.strength,
+                SELECT dr.doc_id_2, dr.relationship_type, dr.strength,
                        d.filename
                 FROM document_relationships dr
-                INNER JOIN documents d ON dr.related_doc_id = d.doc_id
-                WHERE dr.doc_id = ?
+                INNER JOIN documents d ON dr.doc_id_2 = d.doc_id
+                WHERE dr.doc_id_1 = ?
                 ORDER BY dr.strength DESC
                 LIMIT 10
                 """,
