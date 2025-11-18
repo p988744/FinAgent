@@ -21,26 +21,26 @@ interface AgentStepperProps {
 function getStatusIcon(status: StepStatus) {
   switch (status) {
     case 'done':
-      return <CheckCircle2 className="h-6 w-6 text-green-500" />
+      return <CheckCircle2 className="h-6 w-6 text-success-600" />
     case 'active':
-      return <Loader2 className="h-6 w-6 text-blue-500 animate-spin" />
+      return <Loader2 className="h-6 w-6 text-navy-600 animate-spin" />
     case 'error':
-      return <AlertCircle className="h-6 w-6 text-red-500" />
+      return <AlertCircle className="h-6 w-6 text-red-600" />
     default:
-      return <Circle className="h-6 w-6 text-gray-300" />
+      return <Circle className="h-6 w-6 text-gray-400" />
   }
 }
 
 function getStatusColor(status: StepStatus) {
   switch (status) {
     case 'done':
-      return 'text-green-700 bg-green-50'
+      return 'text-success-800 bg-success-50 border border-success-200'
     case 'active':
-      return 'text-blue-700 bg-blue-50'
+      return 'text-navy-800 bg-navy-50 border border-navy-200'
     case 'error':
-      return 'text-red-700 bg-red-50'
+      return 'text-red-800 bg-red-50 border border-red-200'
     default:
-      return 'text-gray-500 bg-gray-50'
+      return 'text-gray-600 bg-gray-50 border border-gray-200'
   }
 }
 
@@ -53,11 +53,11 @@ function formatTime(ms: number): string {
 
 export function AgentStepper({ steps }: AgentStepperProps) {
   return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">
-        代理工作流程
+    <div className="bg-white rounded-lg shadow border border-gray-200 p-4">
+      <h3 className="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">
+        工作流程
       </h3>
-      <div className="space-y-4">
+      <div className="space-y-3">
         {defaultSteps.map((step, index) => {
           const stepData = steps.get(step.id)
           const status = stepData?.status || 'pending'
@@ -66,28 +66,28 @@ export function AgentStepper({ steps }: AgentStepperProps) {
 
           return (
             <div key={step.id} className="flex items-start">
-              <div className="flex-shrink-0 mr-4">
+              <div className="flex-shrink-0 mr-2">
                 {getStatusIcon(status)}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-900">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-semibold text-gray-900">
                     {step.name}
                   </p>
                   {status !== 'pending' && (
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
                       {formatTime(elapsed)}
                     </span>
                   )}
                 </div>
                 <p
-                  className={`text-xs mt-1 px-2 py-1 rounded-md inline-block ${getStatusColor(status)}`}
+                  className={`text-xs px-2 py-0.5 rounded inline-block font-medium ${getStatusColor(status)}`}
                 >
                   {description}
                 </p>
               </div>
               {index < defaultSteps.length - 1 && (
-                <div className="absolute left-7 mt-8 h-full w-0.5 bg-gray-200" />
+                <div className="absolute left-6 mt-7 h-full w-0.5 bg-gray-300" />
               )}
             </div>
           )

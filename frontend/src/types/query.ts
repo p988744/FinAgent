@@ -51,9 +51,37 @@ export interface QueryResult {
   citations: Citation[]
 }
 
+// Research Plan types
+export interface QueryAnalysis {
+  keywords: string[]
+  must_have_keywords: string[]
+  entity_type: string
+  jurisdiction: string | null
+  time_period: string | null
+  query_type: string
+  complexity: 'simple' | 'medium' | 'complex'
+}
+
+export interface PlanTask {
+  id: number
+  task: string
+  status: 'pending' | 'in_progress' | 'completed' | 'failed'
+  search_method: 'vector_search' | 'hard_search' | 'hybrid'
+  estimated_time: number | null
+}
+
+export interface ResearchPlan {
+  analysis: QueryAnalysis
+  tasks: PlanTask[]
+  max_results: number
+  use_hard_search: boolean
+  estimated_total_time: number
+}
+
 export type WSMessageType =
   | 'query_started'
   | 'step_update'
+  | 'plan_created'
   | 'todo_update'
   | 'todo_item_update'
   | 'activity_log'

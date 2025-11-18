@@ -4,12 +4,14 @@ import { AgentStepper } from '../components/query/AgentStepper'
 import { TodoPanel } from '../components/query/TodoPanel'
 import { ActivityLog } from '../components/query/ActivityLog'
 import { ResultsPanel } from '../components/query/ResultsPanel'
+import { PlanPanel } from '../components/query/PlanPanel'
 import type {
   StepUpdate,
   TodoItem,
   ActivityLogEntry,
   QueryResult,
   WSMessage,
+  ResearchPlan,
 } from '../types/query'
 
 export function QueryPage() {
@@ -20,6 +22,7 @@ export function QueryPage() {
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([])
   const [result, setResult] = useState<QueryResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [plan, setPlan] = useState<ResearchPlan | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -73,6 +76,12 @@ export function QueryPage() {
         setResult(null)
         setSteps(new Map())
         setTodos([])
+        setPlan(null)
+        break
+
+      case 'plan_created':
+        const planData = payload as ResearchPlan
+        setPlan(planData)
         break
 
       case 'step_update':
@@ -140,24 +149,39 @@ export function QueryPage() {
       e.preventDefault()
       if (!queryText.trim() || isQuerying) return
 
+      // Show monitoring panels immediately
+      setIsQuerying(true)
+      setActivityLog([])
+      setSteps(new Map())
+      setTodos([])
+      setResult(null)
+      setError(null)
+      setPlan(null)
+
+      // Add initial activity log entry
+      setActivityLog([
+        {
+          id: `log-${logIdCounter.current++}`,
+          timestamp: new Date().toISOString(),
+          level: 'info',
+          message: `開始處理查詢: ${queryText.substring(0, 50)}${queryText.length > 50 ? '...' : ''}`,
+        },
+      ])
+
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         connectWebSocket()
         // Wait for connection then send
         setTimeout(() => {
           if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ type: 'query', text: queryText }))
+          } else {
+            setError('WebSocket 連線失敗，請重試')
+            setIsQuerying(false)
           }
         }, 1000)
       } else {
         wsRef.current.send(JSON.stringify({ type: 'query', text: queryText }))
       }
-
-      // Reset state
-      setActivityLog([])
-      setSteps(new Map())
-      setTodos([])
-      setResult(null)
-      setError(null)
     },
     [queryText, isQuerying, connectWebSocket]
   )
@@ -193,29 +217,29 @@ export function QueryPage() {
   }, [connectWebSocket])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">法律研究查詢</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          輸入您的法律研究問題，系統將分析相關裁罰案例與判決書
+      <div className="bg-white rounded-lg shadow border border-gray-200 p-4">
+        <h1 className="text-xl font-bold text-gray-900">金融法律研究系統</h1>
+        <p className="mt-1 text-xs text-gray-600">
+          專業的法律研究工具，提供準確的裁罰案例與判決書分析
         </p>
       </div>
 
       {/* Query Input */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="bg-white shadow rounded-lg p-4 border border-gray-200">
+        <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label
               htmlFor="query"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-sm font-semibold text-gray-900 mb-1.5"
             >
               查詢內容
             </label>
             <textarea
               id="query"
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-navy-500 focus:border-navy-500 bg-white text-gray-900 placeholder-gray-500"
               placeholder="例如：玉山銀行洗錢防制裁罰案件"
               value={queryText}
               onChange={(e) => setQueryText(e.target.value)}
@@ -233,9 +257,9 @@ export function QueryPage() {
                     : 'bg-red-500'
                 }`}
               />
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-600">
                 {connectionStatus === 'connected'
-                  ? 'WebSocket 已連線'
+                  ? '已連線'
                   : connectionStatus === 'connecting'
                   ? '連線中...'
                   : '未連線'}
@@ -244,7 +268,7 @@ export function QueryPage() {
             <button
               type="submit"
               disabled={!queryText.trim() || isQuerying}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isQuerying ? (
                 <>
@@ -264,22 +288,24 @@ export function QueryPage() {
 
       {/* Error display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="bg-red-50 border border-red-300 rounded-md p-3">
+          <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
 
       {/* Monitoring Panels */}
       {(isQuerying || result) && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <AgentStepper steps={steps} />
-          <TodoPanel todos={todos} />
           <ActivityLog entries={activityLog} />
         </div>
       )}
 
-      {/* Results */}
-      <ResultsPanel result={result} onExport={handleExport} />
+      {/* Research Plan Panel */}
+      {(isQuerying || plan) && <PlanPanel plan={plan} />}
+
+      {/* Results - Only show after query completes */}
+      {result && <ResultsPanel result={result} onExport={handleExport} />}
     </div>
   )
 }

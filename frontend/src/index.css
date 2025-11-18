@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
-/* Base styles for FinAgent Web UI */
+/* Base styles for FinAgent Web UI - Professional Banking Theme */
 body {
   margin: 0;
-  background-color: #f9fafb;
-  color: #111827;
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  background-color: #f0f4f8;
+  color: #1a2937;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.6;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -16,16 +16,20 @@ body {
   min-height: 100vh;
 }
 
-/* Custom scrollbar for activity log */
+/* Custom scrollbar - Professional theme */
 .scrollbar-thin::-webkit-scrollbar {
   width: 0.5rem;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
-  background-color: #f3f4f6;
+  background-color: #e5e7eb;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: #d1d5db;
+  background-color: #9fb3c8;
   border-radius: 0.25rem;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #627d98;
 }
