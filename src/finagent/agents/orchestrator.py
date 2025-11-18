@@ -193,6 +193,77 @@ class AgentOrchestrator:
                 )
             raise
 
+    def stream_query(self, query: Query, enable_demo_delay: bool = False):
+        """
+        Stream query processing, yielding events for each workflow step.
+
+        Args:
+            query: User query
+            enable_demo_delay: If True, add delays for demo/testing purposes (default: False)
+
+        Yields:
+            Tuples of (node_name, state_update) for each step
+        """
+        if not self.use_rag or not self.workflow:
+            return
+
+        self.logger.info(f"Streaming query with LangGraph workflow (demo_delay={enable_demo_delay})")
+
+        # Initialize state
+        initial_state: AgentState = {
+            "query": query,
+            "plan": None,
+            "plan_analysis": None,
+            "research_tasks": None,
+            "retrieved_chunks": None,
+            "citations": None,
+            "validation_passed": False,
+            "validation_issues": None,
+            "answer": None,
+            "search_iteration": 0,
+            "max_search_iterations": 2,
+            "search_strategy": "strict",
+            "processing_steps": [],
+            "errors": [],
+        }
+
+        # Start query logging
+        if self.query_logger:
+            self.query_logger.start_query()
+
+        try:
+            # Stream workflow execution with optional demo delay
+            final_state = initial_state.copy()
+            for node_name, state_update in self.workflow.stream(initial_state, enable_demo_delay=enable_demo_delay):
+                # Merge state updates
+                final_state.update(state_update)
+                yield node_name, state_update
+
+            # Log successful query
+            answer = final_state.get("answer")
+            if answer and self.query_logger:
+                history_id = self.query_logger.log_query(
+                    query=query,
+                    answer=answer,
+                    state=final_state,
+                    model_used=settings.llm_model,
+                    success=True,
+                )
+                self.logger.info(f"Query logged to database with ID {history_id}")
+
+        except Exception as e:
+            self.logger.error(f"Streaming query failed: {e}", exc_info=True)
+            if self.query_logger:
+                self.query_logger.log_query(
+                    query=query,
+                    answer=None,
+                    state=initial_state,
+                    model_used=settings.llm_model,
+                    success=False,
+                    error_message=str(e),
+                )
+            raise
+
     async def _process_with_rag(self, query: Query) -> LegalAnswer:
         """
         Process query using RAG pipeline with real documents.

@@ -62,12 +62,26 @@ export interface QueryAnalysis {
   complexity: 'simple' | 'medium' | 'complex'
 }
 
+export interface ToolUsage {
+  tool_name: string
+  request_params: Record<string, any>
+  result_count?: number
+  execution_time_ms?: number
+  sample_results?: Array<{
+    source: string
+    relevance?: number
+    snippet?: string
+  }>
+  error?: string
+}
+
 export interface PlanTask {
   id: number
   task: string
   status: 'pending' | 'in_progress' | 'completed' | 'failed'
   search_method: 'vector_search' | 'hard_search' | 'hybrid'
   estimated_time: number | null
+  tool_usage?: ToolUsage
 }
 
 export interface ResearchPlan {
@@ -78,10 +92,45 @@ export interface ResearchPlan {
   estimated_total_time: number
 }
 
+// Dynamic Planning types (new)
+export interface DynamicQueryAnalysis {
+  intent: string
+  entities: string[]
+  has_temporal_constraint: boolean
+  temporal_type: string | null
+  complexity: 'simple' | 'medium' | 'complex'
+  requires_multi_entity: boolean
+  requires_exhaustive_search: boolean
+}
+
+export interface SelectedTool {
+  tool_name: string
+  reason: string
+  parameters: Record<string, any>
+  execution_order: number
+}
+
+export interface ToolExecutionStatus {
+  tool_name: string
+  status: 'planned' | 'executing' | 'completed' | 'failed'
+  result_count?: number
+  execution_time_ms?: number
+  error?: string
+  parameters?: Record<string, any>
+}
+
+export interface DynamicPlanAnalysis {
+  query_analysis: DynamicQueryAnalysis
+  selected_tools: SelectedTool[]
+}
+
 export type WSMessageType =
   | 'query_started'
   | 'step_update'
   | 'plan_created'
+  | 'dynamic_plan_analysis'
+  | 'tool_execution_update'
+  | 'task_tool_usage'
   | 'todo_update'
   | 'todo_item_update'
   | 'activity_log'

@@ -1,6 +1,7 @@
 """LangGraph workflow for multi-agent legal research."""
 
 import logging
+import time
 from typing import Any, Literal
 
 from langgraph.graph import END, START, StateGraph
@@ -305,4 +306,50 @@ class LegalResearchWorkflow:
 
         except Exception as e:
             logger.error(f"Workflow execution failed: {e}", exc_info=True)
+            raise
+
+    def stream(self, state: AgentState, enable_demo_delay: bool = False):
+        """
+        Stream the workflow execution, yielding events for each node.
+
+        Args:
+            state: Initial state with query
+            enable_demo_delay: If True, add delays after each node for demo/testing purposes.
+                               This makes real-time updates more visually obvious.
+                               NOT recommended for production use.
+
+        Yields:
+            Tuples of (node_name, state_update) for each step
+        """
+        logger.info(f"Starting LangGraph workflow with streaming (demo_delay={enable_demo_delay})")
+
+        # Demo delay configuration (seconds) for testing real-time updates
+        demo_delays = {
+            "query_analysis": 2,
+            "planning": 3,
+            "action": 2,
+            "validation": 1,
+            "reference_guard": 1,
+            "answer": 5,
+            "human_clarification": 2,
+        }
+
+        try:
+            # Stream graph execution - yields events for each node
+            for event in self.graph.stream(state, stream_mode="updates"):
+                # event is a dict with node name as key and state update as value
+                for node_name, state_update in event.items():
+                    logger.info(f"Streaming node completed: {node_name}")
+                    yield node_name, state_update
+
+                    # Add demo delay if enabled (for testing/verification)
+                    if enable_demo_delay and node_name in demo_delays:
+                        delay = demo_delays[node_name]
+                        logger.debug(f"Demo delay: sleeping {delay}s after {node_name}")
+                        time.sleep(delay)
+
+            logger.info("Workflow streaming completed successfully")
+
+        except Exception as e:
+            logger.error(f"Workflow streaming failed: {e}", exc_info=True)
             raise

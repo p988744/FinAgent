@@ -5,6 +5,7 @@ import { TodoPanel } from '../components/query/TodoPanel'
 import { ActivityLog } from '../components/query/ActivityLog'
 import { ResultsPanel } from '../components/query/ResultsPanel'
 import { PlanPanel } from '../components/query/PlanPanel'
+import { DynamicPlanPanel } from '../components/query/DynamicPlanPanel'
 import type {
   StepUpdate,
   TodoItem,
@@ -12,6 +13,8 @@ import type {
   QueryResult,
   WSMessage,
   ResearchPlan,
+  DynamicPlanAnalysis,
+  ToolExecutionStatus,
 } from '../types/query'
 
 export function QueryPage() {
@@ -23,6 +26,8 @@ export function QueryPage() {
   const [result, setResult] = useState<QueryResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [plan, setPlan] = useState<ResearchPlan | null>(null)
+  const [dynamicPlan, setDynamicPlan] = useState<DynamicPlanAnalysis | null>(null)
+  const [toolExecutions, setToolExecutions] = useState<Map<string, ToolExecutionStatus>>(new Map())
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -77,11 +82,44 @@ export function QueryPage() {
         setSteps(new Map())
         setTodos([])
         setPlan(null)
+        setDynamicPlan(null)
+        setToolExecutions(new Map())
         break
 
       case 'plan_created':
         const planData = payload as ResearchPlan
         setPlan(planData)
+        break
+
+      case 'task_tool_usage':
+        const taskToolUsage = payload as { task_id: number; tool_usage: any }
+        setPlan((prevPlan) => {
+          if (!prevPlan) return prevPlan
+          return {
+            ...prevPlan,
+            tasks: prevPlan.tasks.map((task) =>
+              task.id === taskToolUsage.task_id
+                ? { ...task, tool_usage: taskToolUsage.tool_usage }
+                : task
+            ),
+          }
+        })
+        break
+
+      case 'dynamic_plan_analysis':
+        const dynamicPlanData = payload as DynamicPlanAnalysis
+        setDynamicPlan(dynamicPlanData)
+        // Initialize tool execution statuses
+        setToolExecutions(new Map())
+        break
+
+      case 'tool_execution_update':
+        const toolUpdate = payload as ToolExecutionStatus
+        setToolExecutions((prev) => {
+          const newExecutions = new Map(prev)
+          newExecutions.set(toolUpdate.tool_name, toolUpdate)
+          return newExecutions
+        })
         break
 
       case 'step_update':
@@ -157,6 +195,8 @@ export function QueryPage() {
       setResult(null)
       setError(null)
       setPlan(null)
+      setDynamicPlan(null)
+      setToolExecutions(new Map())
 
       // Add initial activity log entry
       setActivityLog([
@@ -303,6 +343,9 @@ export function QueryPage() {
 
       {/* Research Plan Panel */}
       {(isQuerying || plan) && <PlanPanel plan={plan} />}
+
+      {/* Dynamic Plan Analysis Panel */}
+      {(isQuerying || dynamicPlan) && <DynamicPlanPanel analysis={dynamicPlan} toolExecutions={toolExecutions} />}
 
       {/* Results - Only show after query completes */}
       {result && <ResultsPanel result={result} onExport={handleExport} />}

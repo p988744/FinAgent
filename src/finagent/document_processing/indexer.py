@@ -2,6 +2,8 @@
 Document indexer for Chroma vector database.
 """
 
+import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -9,9 +11,13 @@ import chromadb
 from chromadb.config import Settings
 
 from finagent.config import settings
+from finagent.database.document_db import DocumentDatabase
 from finagent.document_processing.chunker import ChineseTextChunker
 from finagent.document_processing.embeddings import EmbeddingGenerator
 from finagent.document_processing.loader import Document
+from finagent.document_processing.metadata_extractor import MetadataExtractor
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentIndexer:
@@ -22,6 +28,9 @@ class DocumentIndexer:
         collection_name: str = "legal_documents",
         persist_directory: str | None = None,
         embedding_generator: EmbeddingGenerator | None = None,
+        document_db: DocumentDatabase | None = None,
+        extract_metadata: bool = False,
+        metadata_extractor: MetadataExtractor | None = None,
     ):
         """
         Initialize document indexer.
@@ -30,6 +39,9 @@ class DocumentIndexer:
             collection_name: Name of the Chroma collection
             persist_directory: Directory to persist database (default from settings)
             embedding_generator: EmbeddingGenerator instance (creates new if None)
+            document_db: DocumentDatabase instance (creates new if None)
+            extract_metadata: Whether to extract metadata using LLM (default: False)
+            metadata_extractor: MetadataExtractor instance (creates new if extract_metadata=True)
         """
         self.collection_name = collection_name
         self.persist_directory = persist_directory or settings.chroma_persist_directory
@@ -57,7 +69,21 @@ class DocumentIndexer:
             chunk_size=500, chunk_overlap=50, preserve_paragraphs=True
         )
 
-    def index_document(
+        # Initialize document database
+        self.document_db = document_db or DocumentDatabase()
+
+        # Initialize metadata extraction
+        self.extract_metadata = extract_metadata
+        if extract_metadata:
+            self.metadata_extractor = metadata_extractor or MetadataExtractor(
+                use_new_model=True
+            )
+            logger.info("Metadata extraction enabled (LLM-powered)")
+        else:
+            self.metadata_extractor = None
+            logger.debug("Metadata extraction disabled")
+
+    async def index_document(
         self, document: Document, additional_metadata: dict[str, Any] | None = None
     ) -> int:
         """
@@ -70,10 +96,36 @@ class DocumentIndexer:
         Returns:
             Number of chunks indexed
         """
+        # Extract metadata using LLM if enabled
+        extracted_metadata = None
+        if self.extract_metadata and self.metadata_extractor:
+            try:
+                logger.info(f"Extracting metadata for document: {document.id}")
+                result = await self.metadata_extractor.extract_new(
+                    doc_id=document.id,
+                    filename=Path(document.source).name,
+                    content=document.content,
+                )
+
+                if result.success and result.metadata:
+                    extracted_metadata = result.metadata
+                    logger.info(
+                        f"Metadata extracted: confidence={extracted_metadata.extraction_confidence:.2f}, "
+                        f"time={result.processing_time:.2f}s, cost=${result.llm_cost_usd:.4f}"
+                    )
+                else:
+                    logger.warning(
+                        f"Metadata extraction failed for {document.id}: {result.error}"
+                    )
+            except Exception as e:
+                logger.error(f"Metadata extraction error for {document.id}: {e}")
+                # Continue with indexing even if metadata extraction fails
+
         # Chunk the document
         chunks = self.chunker.chunk_text(document.content, doc_id=document.id)
 
         if not chunks:
+            logger.warning(f"No chunks created for document: {document.id}")
             return 0
 
         # Generate embeddings for all chunks
@@ -123,9 +175,89 @@ class DocumentIndexer:
             ids=ids, embeddings=embeddings, documents=documents_list, metadatas=metadatas
         )
 
+        # Write to SQLite
+        try:
+            # Extract file path from document source
+            file_path = document.source
+            filename = Path(file_path).name
+
+            # Create content preview (first 500 chars)
+            content_preview = document.content[:500] if document.content else None
+
+            # Get file size if file exists
+            file_size = None
+            if Path(file_path).exists():
+                file_size = Path(file_path).stat().st_size
+
+            # Detect MIME type and conditionally store full_content
+            # Only text files store full_content for browser display
+            # Binary files (PDF, Word) will be downloaded via file_path
+            mime_type = "text/plain"  # Default
+            full_content = None
+
+            if filename.endswith(".txt"):
+                mime_type = "text/plain"
+                full_content = document.content  # Store for browser display
+            elif filename.endswith(".pdf"):
+                mime_type = "application/pdf"
+                # Binary file: full_content stays None, use file_path for download
+            elif filename.endswith(".docx"):
+                mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            elif filename.endswith(".doc"):
+                mime_type = "application/msword"
+            elif filename.endswith(".html") or filename.endswith(".htm"):
+                mime_type = "text/html"
+                full_content = document.content
+
+            # Prepare metadata fields for database
+            db_fields = {
+                "doc_id": document.id,
+                "filename": filename,
+                "file_path": file_path,
+                "content_preview": content_preview,
+                "full_content": full_content,  # Only for text files
+                "mime_type": mime_type,
+                "file_size": file_size,
+                "custom_fields": document.metadata,
+            }
+
+            # Add extracted metadata fields if available
+            if extracted_metadata:
+                db_fields.update({
+                    "document_type": extracted_metadata.document_type,
+                    "issuing_authority": extracted_metadata.issuing_authority,
+                    "case_number": extracted_metadata.case_number,
+                    "document_date": extracted_metadata.document_date,
+                    "related_institutions": json.dumps(extracted_metadata.related_institutions, ensure_ascii=False),
+                    "violation_types": json.dumps(extracted_metadata.violation_types, ensure_ascii=False),
+                    "penalty_amount": extracted_metadata.penalty_amount,
+                    "keywords": json.dumps(extracted_metadata.keywords, ensure_ascii=False),
+                    "extraction_confidence": extracted_metadata.extraction_confidence,
+                    "extraction_method": extracted_metadata.extraction_method,
+                })
+                logger.debug(
+                    f"Storing metadata fields: document_type={extracted_metadata.document_type}, "
+                    f"confidence={extracted_metadata.extraction_confidence}"
+                )
+
+            # Upsert document metadata
+            self.document_db.upsert_document(**db_fields)
+
+            # Mark as indexed with chunk count
+            self.document_db.mark_as_indexed(document.id, chunk_count=len(chunks))
+
+            logger.info(
+                f"Indexed document to SQLite: {document.id} ({len(chunks)} chunks)"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to write document to SQLite: {document.id} - {e}")
+            # Don't fail the indexing if SQLite write fails
+            # The document is still in Chroma
+
         return len(chunks)
 
-    def index_documents(
+    async def index_documents(
         self, documents: list[Document], additional_metadata: dict[str, Any] | None = None
     ) -> int:
         """
@@ -141,7 +273,7 @@ class DocumentIndexer:
         total_chunks = 0
 
         for document in documents:
-            chunks_added = self.index_document(document, additional_metadata)
+            chunks_added = await self.index_document(document, additional_metadata)
             total_chunks += chunks_added
 
         return total_chunks
@@ -160,10 +292,23 @@ class DocumentIndexer:
         results = self.collection.get(where={"doc_id": doc_id})
 
         if not results or not results["ids"]:
+            logger.warning(f"No chunks found for document: {doc_id}")
             return 0
 
-        # Delete all chunks
+        # Delete all chunks from Chroma
         self.collection.delete(ids=results["ids"])
+
+        # Delete from SQLite
+        try:
+            deleted = self.document_db.delete_document(doc_id)
+            if deleted:
+                logger.info(f"Deleted document from SQLite: {doc_id}")
+            else:
+                logger.warning(f"Document not found in SQLite: {doc_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete document from SQLite: {doc_id} - {e}")
+            # Don't fail the deletion if SQLite delete fails
+            # The document is already deleted from Chroma
 
         return len(results["ids"])
 

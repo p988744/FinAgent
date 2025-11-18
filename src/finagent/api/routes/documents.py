@@ -72,6 +72,14 @@ class ReindexProgress(BaseModel):
     processed: int
     failed: int
     message: str
+    metadata_extracted: int = 0
+
+
+class ReindexRequest(BaseModel):
+    """Reindex operation request parameters."""
+
+    extract_metadata: bool = False
+    clear_existing: bool = False
 
 
 def _get_metadata_store() -> DocumentMetadataStore:
@@ -287,8 +295,12 @@ async def delete_document(document_id: str) -> dict[str, str]:
 
 
 @router.post("/{document_id}/reindex")
-async def reindex_single_document(document_id: str) -> DocumentResponse:
-    """Reindex a single document."""
+async def reindex_single_document(
+    document_id: str, request: ReindexRequest | None = None
+) -> DocumentResponse:
+    """Reindex a single document with optional metadata extraction."""
+    extract_metadata = request.extract_metadata if request else False
+
     store = _get_metadata_store()
     doc = store.db.get_document(document_id)
 
@@ -303,9 +315,9 @@ async def reindex_single_document(document_id: str) -> DocumentResponse:
     loader = DocumentLoader()
     document = loader.load_txt(str(file_path))
 
-    # Index document (indexer handles chunking internally)
-    indexer = DocumentIndexer()
-    num_chunks = indexer.index_document(document)
+    # Index document with optional metadata extraction (async)
+    indexer = DocumentIndexer(extract_metadata=extract_metadata)
+    num_chunks = await indexer.index_document(document)
 
     # Update metadata to mark as indexed
     metadata = store.get_metadata(document_id)
@@ -324,17 +336,25 @@ async def reindex_single_document(document_id: str) -> DocumentResponse:
 
 
 @router.post("/reindex-all")
-async def reindex_all_documents() -> ReindexProgress:
-    """Reindex all documents (batch operation)."""
+async def reindex_all_documents(request: ReindexRequest | None = None) -> ReindexProgress:
+    """Reindex all documents with optional metadata extraction (batch operation)."""
+    extract_metadata = request.extract_metadata if request else False
+    clear_existing = request.clear_existing if request else False
+
     store = _get_metadata_store()
     all_metadata = store.get_all_metadata()
 
     total = len(all_metadata)
     processed = 0
     failed = 0
+    metadata_extracted = 0
 
     loader = DocumentLoader()
-    indexer = DocumentIndexer()
+    indexer = DocumentIndexer(extract_metadata=extract_metadata)
+
+    # Clear existing vector DB if requested
+    if clear_existing:
+        indexer.clear_collection()
 
     for metadata in all_metadata:
         try:
@@ -344,7 +364,14 @@ async def reindex_all_documents() -> ReindexProgress:
                 continue
 
             document = loader.load_txt(doc.file_path)
-            num_chunks = indexer.index_document(document)
+            num_chunks = await indexer.index_document(document)
+
+            # Check if metadata was extracted
+            if extract_metadata:
+                # Verify metadata was stored
+                updated_doc = store.db.get_document(metadata.doc_id)
+                if updated_doc and updated_doc.get("extraction_confidence"):
+                    metadata_extracted += 1
 
             store.update_metadata(
                 metadata.doc_id,
@@ -359,12 +386,17 @@ async def reindex_all_documents() -> ReindexProgress:
             print(f"Failed to index {metadata.doc_id}: {e}")
             failed += 1
 
+    message = f"Reindexed {processed}/{total} documents, {failed} failed"
+    if extract_metadata:
+        message += f", {metadata_extracted} with metadata extracted"
+
     return ReindexProgress(
         status="completed",
         total=total,
         processed=processed,
         failed=failed,
-        message=f"Reindexed {processed}/{total} documents, {failed} failed",
+        metadata_extracted=metadata_extracted,
+        message=message,
     )
 
 

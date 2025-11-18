@@ -97,7 +97,7 @@ check "Migration script exists" "test -f src/finagent/database/migrations/002_we
 - Steps: Show 4 steps with status colors
 - Todos: Show list, update on WebSocket message
 - Log: Append-only list, no filtering
-
+`
 **Enhancement Strategy (Base → Enhanced):**
 ```typescript
 // alpha.2: Base Implementation

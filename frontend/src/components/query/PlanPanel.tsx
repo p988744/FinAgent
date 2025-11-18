@@ -1,4 +1,5 @@
-import { Search, Clock, Tag, Building, Calendar, Layers } from 'lucide-react'
+import { useState } from 'react'
+import { Search, Clock, Tag, Building, Calendar, Layers, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react'
 import type { ResearchPlan } from '../../types/query'
 
 interface PlanPanelProps {
@@ -31,12 +32,40 @@ function getSearchMethodIcon(method: string) {
   }
 }
 
+function getTaskStatusIcon(status: string) {
+  switch (status) {
+    case 'completed':
+      return <CheckCircle2 className="h-4 w-4 text-success-600" />
+    case 'in_progress':
+      return <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+    case 'failed':
+      return <XCircle className="h-4 w-4 text-red-600" />
+    case 'pending':
+    default:
+      return <AlertCircle className="h-4 w-4 text-gray-400" />
+  }
+}
+
 export function PlanPanel({ plan }: PlanPanelProps) {
+  const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set())
+
   if (!plan) {
     return null
   }
 
   const { analysis, tasks, estimated_total_time, use_hard_search } = plan
+
+  const toggleTask = (taskId: number) => {
+    setExpandedTasks((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId)
+      } else {
+        newSet.add(taskId)
+      }
+      return newSet
+    })
+  }
 
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 p-4 space-y-3">
@@ -154,22 +183,139 @@ export function PlanPanel({ plan }: PlanPanelProps) {
         <div className="border-t pt-3">
           <h4 className="text-xs font-bold text-gray-900 mb-2">研究任務</h4>
           <div className="space-y-2">
-            {tasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center justify-between p-2 bg-gray-50 rounded"
-              >
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm">{getSearchMethodIcon(task.search_method)}</span>
-                  <span className="text-sm text-gray-900">
-                    {task.id}. {task.task}
-                  </span>
+            {tasks.map((task) => {
+              const isExpanded = expandedTasks.has(task.id)
+              const hasToolUsage = !!task.tool_usage
+
+              return (
+                <div
+                  key={task.id}
+                  className="bg-gray-50 rounded border border-gray-200"
+                >
+                  {/* Task Header - Always Visible */}
+                  <div
+                    className={`flex items-center justify-between p-2 ${hasToolUsage ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                    onClick={() => hasToolUsage && toggleTask(task.id)}
+                  >
+                    <div className="flex items-center space-x-2 flex-1">
+                      {hasToolUsage && (
+                        <span className="flex-shrink-0">
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-gray-500" />
+                          )}
+                        </span>
+                      )}
+                      {getTaskStatusIcon(task.status)}
+                      <span className="text-sm">{getSearchMethodIcon(task.search_method)}</span>
+                      <span className="text-sm text-gray-900">
+                        {task.id}. {task.task}
+                      </span>
+                    </div>
+                    {task.estimated_time && (
+                      <span className="text-xs text-gray-500 ml-2">~{task.estimated_time}s</span>
+                    )}
+                  </div>
+
+                  {/* Tool Usage Details - Expandable */}
+                  {isExpanded && task.tool_usage && (
+                    <div className="px-2 pb-2 space-y-2 border-t border-gray-200 mt-2 pt-2">
+                      {/* Tool Info */}
+                      <div className="bg-white rounded p-2 border border-gray-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-gray-900">
+                            🔧 {task.tool_usage.tool_name}
+                          </span>
+                          {task.tool_usage.result_count !== undefined && (
+                            <span className="text-xs text-success-700 font-medium">
+                              ✓ {task.tool_usage.result_count} 個結果
+                            </span>
+                          )}
+                          {task.tool_usage.error && (
+                            <span className="text-xs text-red-700 font-medium">
+                              ✗ 執行失敗
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Execution Time */}
+                        {task.tool_usage.execution_time_ms !== undefined && (
+                          <div className="text-xs text-gray-600 mb-2">
+                            ⏱️ 執行時間: {task.tool_usage.execution_time_ms}ms
+                          </div>
+                        )}
+
+                        {/* Request Parameters */}
+                        <div className="mb-2">
+                          <div className="text-xs font-semibold text-gray-700 mb-1">
+                            📋 請求參數
+                          </div>
+                          <div className="bg-gray-50 rounded p-2 text-xs font-mono">
+                            <pre className="whitespace-pre-wrap text-gray-800">
+                              {JSON.stringify(task.tool_usage.request_params, null, 2)}
+                            </pre>
+                          </div>
+                        </div>
+
+                        {/* Error Message */}
+                        {task.tool_usage.error && (
+                          <div className="bg-red-50 border border-red-200 rounded p-2">
+                            <div className="text-xs font-semibold text-red-800 mb-1">
+                              ❌ 錯誤訊息
+                            </div>
+                            <div className="text-xs text-red-700">
+                              {task.tool_usage.error}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Sample Results */}
+                        {task.tool_usage.sample_results && task.tool_usage.sample_results.length > 0 && (
+                          <div>
+                            <div className="text-xs font-semibold text-gray-700 mb-1">
+                              📄 檢索結果範例 (前 {Math.min(3, task.tool_usage.sample_results.length)} 筆)
+                            </div>
+                            <div className="space-y-1">
+                              {task.tool_usage.sample_results.slice(0, 3).map((result, idx) => (
+                                <div
+                                  key={idx}
+                                  className="bg-blue-50 border border-blue-200 rounded p-2"
+                                >
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs font-medium text-blue-900 truncate">
+                                      {result.source}
+                                    </span>
+                                    {result.relevance !== undefined && (
+                                      <span className="text-xs text-blue-700 font-medium ml-2 flex-shrink-0">
+                                        {(result.relevance * 100).toFixed(0)}%
+                                      </span>
+                                    )}
+                                  </div>
+                                  {result.snippet && (
+                                    <div className="text-xs text-gray-700 line-clamp-2">
+                                      {result.snippet}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Verification Note */}
+                      <div className="bg-blue-50 border border-blue-200 rounded p-2">
+                        <div className="text-xs text-blue-800">
+                          <span className="font-semibold">💡 驗證提示：</span>
+                          您可以檢查上述請求參數和結果，確認系統是否正確理解您的查詢並檢索到相關文件。
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {task.estimated_time && (
-                  <span className="text-xs text-gray-500">~{task.estimated_time}s</span>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 

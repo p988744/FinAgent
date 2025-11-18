@@ -5,6 +5,7 @@ WebSocket API for real-time query progress streaming.
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any, Optional
 
@@ -21,6 +22,10 @@ from finagent.models.resolution_plan import ResolutionPlan
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["websocket"])
+
+# Demo delay for testing real-time workflow monitoring
+# Set ENABLE_DEMO_DELAY=true in environment to enable
+ENABLE_DEMO_DELAY = os.getenv("ENABLE_DEMO_DELAY", "false").lower() == "true"
 
 
 class WebSocketUICallback(UICallback):
@@ -70,6 +75,61 @@ class WebSocketUICallback(UICallback):
         await self._send("activity_log", {
             "level": "success",
             "message": f"分析完成 - 識別意圖: {analysis.get('intent', 'unknown')}",
+        })
+
+    async def on_dynamic_plan_analysis(self, query_analysis: dict[str, Any], selected_tools: list[dict[str, Any]]):
+        """Dynamic planning analysis completed (query analysis + tool selection)."""
+        await self._send("dynamic_plan_analysis", {
+            "query_analysis": query_analysis,
+            "selected_tools": selected_tools,
+        })
+        await self._send("activity_log", {
+            "level": "info",
+            "message": f"動態規劃: 識別意圖={query_analysis.get('intent', 'unknown')}, 選擇工具={len(selected_tools)}個",
+        })
+
+    async def on_tool_execution_start(self, tool_name: str, parameters: dict[str, Any]):
+        """Tool execution has started."""
+        await self._send("tool_execution_update", {
+            "tool_name": tool_name,
+            "status": "executing",
+            "parameters": parameters,
+        })
+        await self._send("activity_log", {
+            "level": "info",
+            "message": f"執行工具: {tool_name}",
+        })
+
+    async def on_tool_execution_complete(self, tool_name: str, result_count: int, execution_time_ms: int):
+        """Tool execution has completed."""
+        await self._send("tool_execution_update", {
+            "tool_name": tool_name,
+            "status": "completed",
+            "result_count": result_count,
+            "execution_time_ms": execution_time_ms,
+        })
+        await self._send("activity_log", {
+            "level": "success",
+            "message": f"工具完成: {tool_name} - {result_count} 個結果 ({execution_time_ms}ms)",
+        })
+
+    async def on_tool_execution_failed(self, tool_name: str, error: str):
+        """Tool execution has failed."""
+        await self._send("tool_execution_update", {
+            "tool_name": tool_name,
+            "status": "failed",
+            "error": error,
+        })
+        await self._send("activity_log", {
+            "level": "error",
+            "message": f"工具失敗: {tool_name} - {error}",
+        })
+
+    async def on_task_tool_usage(self, task_id: int, tool_usage: dict[str, Any]):
+        """Update task with tool usage information."""
+        await self._send("task_tool_usage", {
+            "task_id": task_id,
+            "tool_usage": tool_usage,
         })
 
     async def on_clarification_request(self, questions: list[str]) -> Optional[str]:
@@ -163,11 +223,13 @@ class WebSocketUICallback(UICallback):
             "message": f"任務失敗: {todo.content} - {error}",
         })
 
-    async def on_retrieval_result(self, strategy: str, count: int, total_chunks: int):
+    async def on_retrieval_result(self, strategy: str = "", count: int = 0, total_chunks: int = 0, **kwargs):
         """RAG retrieval completed."""
+        # Handle both old and new parameter names
+        total = kwargs.get('total', total_chunks)
         await self._send("activity_log", {
             "level": "info",
-            "message": f"檢索完成: {count} 相關文件 (共 {total_chunks} 區塊)",
+            "message": f"檢索完成: {count} 相關文件 (共 {total} 區塊)",
         })
 
     async def on_answer_generation_start(self):
@@ -248,56 +310,42 @@ class WebSocketUICallback(UICallback):
             "message": "開始驗證引用完整性",
         })
 
-    def on_validation_complete(self, is_valid: bool, issues: list[str] = None):
-        """Validation completed (non-async, called directly without create_task)."""
-        import asyncio
-        try:
-            if is_valid:
-                asyncio.create_task(self._send("activity_log", {
-                    "level": "success",
-                    "message": "引用完整性驗證通過",
-                }))
-            else:
-                asyncio.create_task(self._send("activity_log", {
-                    "level": "warning",
-                    "message": f"驗證發現問題: {', '.join(issues or [])}",
-                }))
-        except Exception:
-            pass
-
-    def on_citations_extracted(self, citations: list[LegalCitation]):
-        """Citations have been extracted (non-async, called directly without create_task)."""
-        import asyncio
-        try:
-            asyncio.create_task(self._send("activity_log", {
-                "level": "info",
-                "message": f"提取 {len(citations)} 個引用來源",
-            }))
-        except Exception:
-            pass
-
-    def on_answer_generation_complete(self, answer: LegalAnswer):
-        """Answer generation completed (non-async, called directly without create_task)."""
-        import asyncio
-        try:
-            confidence = answer.confidence.value if hasattr(answer.confidence, 'value') else str(answer.confidence)
-            asyncio.create_task(self._send("activity_log", {
+    async def on_validation_complete(self, is_valid: bool = True, issues: list[str] = None, **kwargs):
+        """Validation completed."""
+        # Handle both old and new parameter names
+        passed = kwargs.get('passed', is_valid)
+        if passed:
+            await self._send("activity_log", {
                 "level": "success",
-                "message": f"答案生成完成 - 信心度: {confidence}",
-            }))
-        except Exception:
-            pass
-
-    def on_clarification_requested(self, questions: list[str]):
-        """Clarification questions requested (non-async, called directly without create_task)."""
-        import asyncio
-        try:
-            asyncio.create_task(self._send("activity_log", {
+                "message": "引用完整性驗證通過",
+            })
+        else:
+            await self._send("activity_log", {
                 "level": "warning",
-                "message": f"需要澄清: {', '.join(questions)}",
-            }))
-        except Exception:
-            pass
+                "message": f"驗證發現問題: {', '.join(issues or [])}",
+            })
+
+    async def on_citations_extracted(self, citations: list[LegalCitation]):
+        """Citations have been extracted."""
+        await self._send("activity_log", {
+            "level": "info",
+            "message": f"提取 {len(citations)} 個引用來源",
+        })
+
+    async def on_answer_generation_complete(self, answer: LegalAnswer):
+        """Answer generation completed."""
+        confidence = answer.confidence.value if hasattr(answer.confidence, 'value') else str(answer.confidence)
+        await self._send("activity_log", {
+            "level": "success",
+            "message": f"答案生成完成 - 信心度: {confidence}",
+        })
+
+    async def on_clarification_requested(self, questions: list[str]):
+        """Clarification questions requested."""
+        await self._send("activity_log", {
+            "level": "warning",
+            "message": f"需要澄清: {', '.join(questions)}",
+        })
 
 
 @router.websocket("/ws/query")
@@ -346,16 +394,143 @@ async def websocket_query_endpoint(websocket: WebSocket):
                     "payload": {"query": query_text},
                 })
 
-                try:
-                    answer = await orchestrator.process_query(query)
+                # Send initial step update immediately to show progress
+                await callback.on_analysis_start(query)
 
-                    # Mark answer step as done
-                    elapsed = int((datetime.now() - callback.step_start_times.get("answer", datetime.now())).total_seconds() * 1000)
-                    await callback._send("step_update", {
-                        "step": "answer",
-                        "status": "done",
-                        "description": "答案生成完成",
-                        "elapsed_ms": elapsed,
+                try:
+                    # Process query with real-time streaming
+                    start_time = datetime.now()
+                    answer = None
+                    final_plan = None
+
+                    # Map LangGraph node names to UI step names
+                    node_to_step = {
+                        "query_analysis": "planning",
+                        "planning": "planning",
+                        "action": "action",
+                        "validation": "validation",
+                        "reference_guard": "validation",
+                        "answer": "answer",
+                    }
+
+                    # Stream workflow execution using queue for real-time updates
+                    import queue
+                    import threading
+
+                    event_queue: queue.Queue = queue.Queue()
+
+                    def run_streaming():
+                        """Run the streaming workflow in a thread, putting events in queue."""
+                        try:
+                            for node_name, state_update in orchestrator.stream_query(query, enable_demo_delay=ENABLE_DEMO_DELAY):
+                                event_queue.put((node_name, state_update))
+                            event_queue.put(None)  # Signal completion
+                        except Exception as e:
+                            event_queue.put(("error", {"error": str(e)}))
+                            event_queue.put(None)
+
+                    # Start streaming in background thread
+                    stream_thread = threading.Thread(target=run_streaming, daemon=True)
+                    stream_thread.start()
+
+                    # Process events as they arrive
+                    last_node = None
+                    while True:
+                        # Check for events with short timeout to stay responsive
+                        try:
+                            event = event_queue.get(timeout=0.1)
+                        except queue.Empty:
+                            # Yield to event loop to allow WebSocket sends to complete
+                            await asyncio.sleep(0)
+                            continue
+
+                        if event is None:
+                            # Streaming complete
+                            break
+
+                        node_name, state_update = event
+
+                        if node_name == "error":
+                            raise Exception(state_update.get("error", "Unknown error"))
+
+                        step_name = node_to_step.get(node_name, None)
+                        current_time = datetime.now()
+
+                        if step_name and step_name != last_node:
+                            # Mark previous step as done
+                            if last_node and last_node in callback.step_start_times:
+                                elapsed = int((current_time - callback.step_start_times[last_node]).total_seconds() * 1000)
+                                await callback._send("step_update", {
+                                    "step": last_node,
+                                    "status": "done",
+                                    "description": f"{last_node} 完成",
+                                    "elapsed_ms": elapsed,
+                                })
+
+                            # Start new step
+                            callback.step_start_times[step_name] = current_time
+                            callback.current_step = step_name
+
+                            step_descriptions = {
+                                "planning": "分析查詢意圖與關鍵字",
+                                "action": "執行 RAG 檢索",
+                                "validation": "驗證引用完整性",
+                                "answer": "生成最終答案",
+                            }
+
+                            await callback._send("step_update", {
+                                "step": step_name,
+                                "status": "active",
+                                "description": step_descriptions.get(step_name, step_name),
+                                "elapsed_ms": 0,
+                            })
+
+                            await callback._send("activity_log", {
+                                "level": "info",
+                                "message": f"執行節點: {node_name}",
+                            })
+
+                            last_node = step_name
+
+                            # Small delay to ensure messages are sent one at a time
+                            await asyncio.sleep(0.01)
+
+                        # Extract plan data when planning completes
+                        if node_name == "planning" and "plan" in state_update:
+                            final_plan = state_update.get("plan")
+                            if final_plan:
+                                # Send real plan data
+                                await callback._send("plan_created", final_plan)
+                                await callback._send("activity_log", {
+                                    "level": "success",
+                                    "message": f"研究計畫建立完成，共 {len(final_plan.get('tasks', []))} 項任務",
+                                })
+
+                        # Extract answer when complete
+                        if "answer" in state_update and state_update["answer"]:
+                            answer = state_update["answer"]
+
+                    # Wait for thread to finish
+                    stream_thread.join(timeout=5)
+
+                    total_time = int((datetime.now() - start_time).total_seconds() * 1000)
+
+                    # Mark final step as done
+                    if last_node and last_node in callback.step_start_times:
+                        elapsed = int((datetime.now() - callback.step_start_times[last_node]).total_seconds() * 1000)
+                        await callback._send("step_update", {
+                            "step": last_node,
+                            "status": "done",
+                            "description": f"{last_node} 完成",
+                            "elapsed_ms": elapsed,
+                        })
+
+                    if not answer:
+                        raise Exception("工作流程未生成答案")
+
+                    await callback._send("activity_log", {
+                        "level": "success",
+                        "message": f"查詢完成，共耗時 {total_time/1000:.1f} 秒",
                     })
 
                     # Send complete result
