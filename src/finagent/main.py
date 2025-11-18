@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from finagent.api.routes import health, research, config, models, documents, websocket
+from finagent.api.routes import health, research, config, models, documents, websocket, wiki
 from finagent.config import settings
 
 # Configure logging
@@ -73,6 +73,7 @@ app.include_router(config.router)
 app.include_router(models.router)
 app.include_router(documents.router)
 app.include_router(websocket.router)
+app.include_router(wiki.router)
 
 
 @app.get("/")
