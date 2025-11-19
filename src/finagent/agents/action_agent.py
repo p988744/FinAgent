@@ -46,7 +46,7 @@ class ActionAgent:
         self.hard_searcher = HardSearcher(db_path=db_path)
         self.ui_callback = ui_callback
 
-    def execute(self, state: AgentState) -> AgentState:
+    async def execute(self, state: AgentState) -> AgentState:
         """
         Execute research tasks from plan.
 
@@ -80,27 +80,26 @@ class ActionAgent:
             if retrieval_todo and retrieval_todo.status == "pending":
                 retrieval_todo.mark_started()
                 if self.ui_callback:
-                    import asyncio
                     try:
-                        asyncio.create_task(self.ui_callback.on_todo_started(retrieval_todo))
-                    except RuntimeError:
-                        pass
+                        await self.ui_callback.on_todo_started(retrieval_todo)
+                    except Exception as e:
+                        logger.warning(f"Failed to send callback: {e}")
 
             # Emit retrieval start callback
             if self.ui_callback:
-                import asyncio
                 try:
-                    asyncio.create_task(
-                        self.ui_callback.on_retrieval_start(
-                            query=query.text,
-                            strategy=strategy,
-                            max_results=max_results
-                        )
+                    await self.ui_callback.on_retrieval_start(
+                        query=query.text,
+                        strategy=strategy,
+                        max_results=max_results
                     )
-                except RuntimeError:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to send callback: {e}")
 
             # Execute RAG retrieval with iteration-specific params
+            # Note: retriever.retrieve is likely sync, if it does I/O it should ideally be async too
+            # but for now we keep it sync or wrap it if needed.
+            # Assuming retriever.retrieve is CPU bound or sync I/O.
             all_chunks = self.retriever.retrieve(query=query.text, n_results=max_results)
 
             # Filter by threshold (from search strategy)
@@ -127,17 +126,14 @@ class ActionAgent:
 
             # Emit retrieval result callback
             if self.ui_callback:
-                import asyncio
                 try:
-                    asyncio.create_task(
-                        self.ui_callback.on_retrieval_result(
-                            strategy=strategy,
-                            count=len(retrieved_chunks),
-                            total=len(all_chunks)
-                        )
+                    await self.ui_callback.on_retrieval_result(
+                        strategy=strategy,
+                        count=len(retrieved_chunks),
+                        total=len(all_chunks)
                     )
-                except RuntimeError:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to send callback: {e}")
 
             # Hard search if enabled in plan
             hard_chunks = []
@@ -195,11 +191,10 @@ class ActionAgent:
             if retrieval_todo:
                 retrieval_todo.mark_completed(result={"count": len(all_chunks)})
                 if self.ui_callback:
-                    import asyncio
                     try:
-                        asyncio.create_task(self.ui_callback.on_todo_completed(retrieval_todo))
-                    except RuntimeError:
-                        pass
+                        await self.ui_callback.on_todo_completed(retrieval_todo)
+                    except Exception as e:
+                        logger.warning(f"Failed to send callback: {e}")
 
             # Update state with todos
             state["todos"] = todos
@@ -216,11 +211,10 @@ class ActionAgent:
             if retrieval_todo:
                 retrieval_todo.mark_failed(error=str(e))
                 if self.ui_callback:
-                    import asyncio
                     try:
-                        asyncio.create_task(self.ui_callback.on_todo_failed(retrieval_todo, str(e)))
-                    except RuntimeError:
-                        pass
+                        await self.ui_callback.on_todo_failed(retrieval_todo, str(e))
+                    except Exception as e:
+                        logger.warning(f"Failed to send callback: {e}")
             state["todos"] = todos
 
         return state

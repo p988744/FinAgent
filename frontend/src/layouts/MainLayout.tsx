@@ -1,8 +1,9 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { Search, Settings, Database, FileText, BarChart3 } from 'lucide-react'
+import { Search, Settings, Database, FileText, BarChart3, BookOpen } from 'lucide-react'
 
 const navigation = [
   { name: '查詢', href: '/query', icon: Search },
+  { name: '百科', href: '/wiki', icon: BookOpen },
   { name: '設定', href: '/config', icon: Settings },
   { name: '模型', href: '/models', icon: BarChart3 },
   { name: '文件', href: '/documents', icon: FileText },

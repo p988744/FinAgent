@@ -15,6 +15,18 @@ export interface DocumentResponse {
   updated_at: string
   description: string | null
   document_type: string | null
+
+  // Pipeline monitoring fields
+  pipeline_stage?: string
+  pipeline_status?: string
+  pipeline_started_at?: string
+  pipeline_completed_at?: string
+
+  // Metadata extraction fields
+  metadata_extracted?: boolean
+  metadata_extraction_status?: string
+  metadata_extraction_error?: string | null
+  extraction_confidence?: number | null
 }
 
 export interface DocumentVersion {

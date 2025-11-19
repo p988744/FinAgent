@@ -117,7 +117,7 @@ class PlanningAgent:
 
 請務必以繁體中文回應，並確保計劃具體可執行。"""
 
-    def plan(self, state: AgentState) -> AgentState:
+    async def plan(self, state: AgentState) -> AgentState:
         """
         Create research plan from query with detailed analysis.
 
@@ -132,6 +132,7 @@ class PlanningAgent:
 
         try:
             # Step 1: Analyze query
+            # This is sync, but fast enough
             analysis = self._analyze_query(query.text)
 
             # Step 2: Generate research tasks
@@ -151,11 +152,10 @@ class PlanningAgent:
 
             # Emit plan created callback
             if self.ui_callback:
-                import asyncio
                 try:
                     # Convert ResearchPlan to dict for callback
-                    asyncio.create_task(self.ui_callback.on_plan_created(plan))
-                except RuntimeError:
+                    await self.ui_callback.on_plan_created(plan)
+                except Exception as e:
                     pass
 
             # Step 5: Update state
@@ -192,9 +192,7 @@ class PlanningAgent:
             # Emit todo list created callback
             if self.ui_callback:
                 try:
-                    asyncio.create_task(self.ui_callback.on_todo_list_created(todos))
-                except RuntimeError:
-                    pass
+                    await self.ui_callback.on_todo_list_created(todos)
                 except Exception as e:
                     logger.warning(f"Failed to emit todo list callback: {e}")
 
@@ -227,9 +225,28 @@ class PlanningAgent:
             logger.error(f"Planning failed: {e}", exc_info=True)
             state["errors"].append(f"規劃失敗：{str(e)}")
 
-            # Fallback to simple plan
-            state["plan"] = {"max_results": query.max_results or 5}
-            state["research_tasks"] = ["檢索相關文件", "驗證引用", "生成答案"]
+            # Fallback to simple plan with complete structure
+            fallback_analysis = {
+                "keywords": query.query.split()[:5],
+                "must_have_keywords": [],
+                "entity_type": "unknown",
+                "jurisdiction": None,
+                "time_period": None,
+                "query_type": "general_search",
+                "complexity": "simple"
+            }
+            fallback_tasks = [
+                {"id": 1, "task": "檢索相關文件", "status": "pending", "search_method": "vector_search", "estimated_time": 10},
+                {"id": 2, "task": "驗證引用", "status": "pending", "search_method": "vector_search", "estimated_time": 5},
+                {"id": 3, "task": "生成答案", "status": "pending", "search_method": "vector_search", "estimated_time": 5}
+            ]
+            state["plan"] = {
+                "analysis": fallback_analysis,
+                "tasks": fallback_tasks,
+                "max_results": query.max_results or 5,
+                "use_hard_search": False,
+                "estimated_total_time": 20
+            }
 
         return state
 
@@ -243,10 +260,15 @@ class PlanningAgent:
         Returns:
             QueryAnalysis object with extracted information
         """
-        # Expand query with semantic concepts
-        from finagent.document_processing.semantic_mapper import expand_query_with_concepts
-
-        query_expansion = expand_query_with_concepts(query_text)
+        # Try semantic query expansion (if concept_synonyms table exists)
+        try:
+            from finagent.document_processing.semantic_mapper import expand_query_with_concepts
+            
+            query_expansion = expand_query_with_concepts(query_text)
+        except Exception as e:
+            # Fallback if concept expansion fails (e.g., missing table)
+            logger.debug(f"Query expansion failed: {e}")
+            query_expansion = {"expanded_terms": []}
 
         # Extract keywords (combine original + expanded from concepts)
         keywords = extract_critical_keywords(query_text)

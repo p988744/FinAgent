@@ -18,6 +18,8 @@ from finagent.config import settings
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    filename="backend.log",
+    filemode="a",
 )
 logger = logging.getLogger(__name__)
 
@@ -57,10 +59,14 @@ app = FastAPI(
 )
 
 # Configure CORS
+# In development, allow all origins for WebSocket support
+logger.info(f"DEBUG: is_development={settings.is_development}, cors_origins={settings.cors_origins}")
+cors_origins = settings.cors_origins if not settings.is_development else ["*"]
+logger.info(f"DEBUG: effective cors_origins={cors_origins}")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=not (cors_origins == ["*"]),  # credentials not allowed with wildcard
     allow_methods=["*"],
     allow_headers=["*"],
 )

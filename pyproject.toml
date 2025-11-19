@@ -32,6 +32,8 @@ dependencies = [
     "rich>=13.7.0",
     "prompt-toolkit>=3.0.43",
     "pyyaml>=6.0.1",
+    "celery>=5.5.3",
+    "redis>=7.0.1",
 ]
 
 [project.optional-dependencies]

@@ -137,7 +137,7 @@ class QueryAnalysisAgent:
 - 一次最多問3個問題
 """
 
-    def analyze_query(self, state: AgentState) -> AgentState:
+    async def analyze_query(self, state: AgentState) -> AgentState:
         """Analyze query and determine if clarification is needed.
 
         Args:
@@ -151,10 +151,9 @@ class QueryAnalysisAgent:
 
         # Emit analysis start callback
         if self.ui_callback:
-            import asyncio
             try:
-                asyncio.create_task(self.ui_callback.on_analysis_start(query))
-            except RuntimeError:
+                await self.ui_callback.on_analysis_start(query)
+            except Exception as e:
                 # If no event loop is running, skip callback
                 pass
 
@@ -169,9 +168,15 @@ class QueryAnalysisAgent:
 請判斷是否需要向使用者澄清，並說明理由。"""
 
         try:
-            result = analysis_chain.invoke(
-                [SystemMessage(content=self.system_prompt), {"role": "user", "content": user_message}]
-            )
+            # Use async invoke if available
+            if hasattr(analysis_chain, "ainvoke"):
+                result = await analysis_chain.ainvoke(
+                    [SystemMessage(content=self.system_prompt), {"role": "user", "content": user_message}]
+                )
+            else:
+                result = analysis_chain.invoke(
+                    [SystemMessage(content=self.system_prompt), {"role": "user", "content": user_message}]
+                )
 
             # Add to processing steps
             step = f"Query Analysis: {'需要澄清' if result.needs_clarification else '理解清晰'}"
@@ -203,17 +208,16 @@ class QueryAnalysisAgent:
                     "confidence": result.confidence,
                     "needs_clarification": result.needs_clarification,
                 }
-                import asyncio
                 try:
-                    asyncio.create_task(self.ui_callback.on_analysis_complete(analysis_summary))
-                except RuntimeError:
+                    await self.ui_callback.on_analysis_complete(analysis_summary)
+                except Exception as e:
                     pass
 
             # Emit clarification request callback if needed
             if result.needs_clarification and self.ui_callback:
                 try:
-                    asyncio.create_task(self.ui_callback.on_clarification_requested(result.questions))
-                except RuntimeError:
+                    await self.ui_callback.on_clarification_requested(result.questions)
+                except Exception as e:
                     pass
 
         except Exception as e:

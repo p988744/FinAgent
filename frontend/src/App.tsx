@@ -5,6 +5,8 @@ import { QueryPage } from './pages/QueryPage'
 import { ConfigPage } from './pages/ConfigPage'
 import { ModelsPage } from './pages/ModelsPage'
 import { DocumentsPage } from './pages/DocumentsPage'
+import { WikiPage } from './pages/WikiPage'
+import { DocumentDetailPage } from './pages/DocumentDetailPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +25,8 @@ function App() {
           <Route path="/" element={<MainLayout />}>
             <Route index element={<Navigate to="/query" replace />} />
             <Route path="query" element={<QueryPage />} />
+            <Route path="wiki" element={<WikiPage />} />
+            <Route path="wiki/document/:docId" element={<DocumentDetailPage />} />
             <Route path="config" element={<ConfigPage />} />
             <Route path="models" element={<ModelsPage />} />
             <Route path="documents" element={<DocumentsPage />} />

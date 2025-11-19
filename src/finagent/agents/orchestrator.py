@@ -193,7 +193,7 @@ class AgentOrchestrator:
                 )
             raise
 
-    def stream_query(self, query: Query, enable_demo_delay: bool = False):
+    async def stream_query(self, query: Query, enable_demo_delay: bool = False):
         """
         Stream query processing, yielding events for each workflow step.
 
@@ -234,7 +234,8 @@ class AgentOrchestrator:
         try:
             # Stream workflow execution with optional demo delay
             final_state = initial_state.copy()
-            for node_name, state_update in self.workflow.stream(initial_state, enable_demo_delay=enable_demo_delay):
+            # async for loop for async generator
+            async for node_name, state_update in self.workflow.stream(initial_state, enable_demo_delay=enable_demo_delay):
                 # Merge state updates
                 final_state.update(state_update)
                 yield node_name, state_update

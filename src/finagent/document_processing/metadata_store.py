@@ -171,28 +171,89 @@ class DocumentMetadataStore:
     def update_metadata(self, doc_id: str, updates: dict[str, Any]) -> DocumentMetadata | None:
         """
         Update specific fields of document metadata.
+        If document doesn't exist, creates a new one with the provided fields.
 
         Args:
             doc_id: Document ID
             updates: Dictionary of fields to update
 
         Returns:
-            Updated DocumentMetadata if exists, None otherwise
+            Updated DocumentMetadata if exists, newly created if not exists, None on error
         """
+        from datetime import datetime, timezone
+
         # Get current document
         doc = self.db.get_document(doc_id)
         if not doc:
-            return None
+            # Document doesn't exist - create a new one with minimal defaults
+            now = datetime.now(timezone.utc).isoformat()
+            meta = DocumentMetadata(
+                doc_id=doc_id,
+                filename=updates.get('filename', f'{doc_id}.txt'),
+                description=updates.get('description', ''),
+                document_type=updates.get('document_type', 'uploaded'),
+                keywords=updates.get('keywords', []),
+                date=updates.get('date'),
+                issuing_authority=updates.get('issuing_authority'),
+                related_institutions=updates.get('related_institutions', []),
+                penalty_amount=updates.get('penalty_amount'),
+                violation_types=updates.get('violation_types', []),
+                custom_fields=updates.get('custom_fields', {}),
+                indexed=updates.get('indexed', False),
+                chunk_count=updates.get('chunk_count', 0),
+                created_at=updates.get('created_at', now),
+                updated_at=updates.get('updated_at', now),
+            )
+            # Apply any additional updates
+            for key, value in updates.items():
+                if hasattr(meta, key) and key not in ['doc_id', 'created_at']:
+                    setattr(meta, key, value)
+
+            # Save new metadata
+            self.add_metadata(meta, file_path=updates.get('file_path', ''))
+
+            # Now update pipeline fields directly in database (they're not in DocumentMetadata)
+            pipeline_fields = {
+                'pipeline_stage', 'pipeline_status', 'pipeline_data',
+                'pipeline_started_at', 'pipeline_completed_at'
+            }
+            pipeline_updates = {k: v for k, v in updates.items() if k in pipeline_fields}
+
+            if pipeline_updates:
+                # Use Database connection to update pipeline fields
+                with self.db.get_connection() as conn:
+                    # Build UPDATE SQL
+                    set_clauses = []
+                    values = []
+                    for key, value in pipeline_updates.items():
+                        set_clauses.append(f"{key} = ?")
+                        values.append(value)
+
+                    if set_clauses:
+                        values.append(doc_id)
+                        sql = f"UPDATE documents SET {', '.join(set_clauses)} WHERE doc_id = ?"
+                        conn.execute(sql, values)
+                        conn.commit()
+
+            return meta
 
         # Convert to DocumentMetadata, update fields, and save back
         meta = DocumentMetadata.from_document(doc)
 
-        # Update fields (map field names from DocumentMetadata to Document model)
+        # Separate pipeline fields from metadata fields
+        pipeline_fields = {
+            'pipeline_stage', 'pipeline_status', 'pipeline_data',
+            'pipeline_started_at', 'pipeline_completed_at'
+        }
+        metadata_updates = {k: v for k, v in updates.items() if k not in pipeline_fields}
+        pipeline_updates = {k: v for k, v in updates.items() if k in pipeline_fields}
+
+        # Update metadata fields
         field_mapping = {
             "date": "document_date",  # DocumentMetadata.date -> Document.document_date
         }
 
-        for key, value in updates.items():
+        for key, value in metadata_updates.items():
             # Use mapped field name if it exists
             meta_key = key
             if hasattr(meta, meta_key):
@@ -200,6 +261,23 @@ class DocumentMetadataStore:
 
         # Save updated metadata back to database
         self.add_metadata(meta, file_path=doc.file_path)
+
+        # Update pipeline fields directly in database
+        if pipeline_updates:
+            # Use Database connection to update pipeline fields
+            with self.db.get_connection() as conn:
+                # Build UPDATE SQL
+                set_clauses = []
+                values = []
+                for key, value in pipeline_updates.items():
+                    set_clauses.append(f"{key} = ?")
+                    values.append(value)
+
+                if set_clauses:
+                    values.append(doc_id)
+                    sql = f"UPDATE documents SET {', '.join(set_clauses)} WHERE doc_id = ?"
+                    conn.execute(sql, values)
+                    conn.commit()
 
         return meta
 

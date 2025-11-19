@@ -84,6 +84,19 @@ class DocumentDatabase:
                 "extraction_confidence",
                 "document_status",
                 "custom_fields",  # JSON
+                # Metadata extraction status fields
+                "metadata_extracted",
+                "metadata_extraction_status",
+                "metadata_extraction_error",
+                "metadata_extraction_attempts",
+                "metadata_last_extracted_at",
+                "metadata_edited_by_user",
+                # Pipeline monitoring fields
+                "pipeline_stage",
+                "pipeline_status",
+                "pipeline_data",  # JSON
+                "pipeline_started_at",
+                "pipeline_completed_at",
             ]
 
             for field in optional_fields:

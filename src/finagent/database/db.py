@@ -473,8 +473,11 @@ class Database:
                 INSERT INTO documents (
                     doc_id, filename, file_path, description, document_type,
                     keywords, document_date, issuing_authority, related_institutions,
-                    penalty_amount, violation_types, custom_fields, indexed, chunk_count
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    penalty_amount, violation_types, custom_fields, indexed, chunk_count,
+                    metadata_extracted, metadata_extraction_status, metadata_extraction_error,
+                    metadata_extraction_attempts, metadata_last_extracted_at,
+                    metadata_edited_by_user, extraction_confidence
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(doc_id) DO UPDATE SET
                     filename = excluded.filename,
                     file_path = excluded.file_path,
@@ -488,7 +491,14 @@ class Database:
                     violation_types = excluded.violation_types,
                     custom_fields = excluded.custom_fields,
                     indexed = excluded.indexed,
-                    chunk_count = excluded.chunk_count
+                    chunk_count = excluded.chunk_count,
+                    metadata_extracted = excluded.metadata_extracted,
+                    metadata_extraction_status = excluded.metadata_extraction_status,
+                    metadata_extraction_error = excluded.metadata_extraction_error,
+                    metadata_extraction_attempts = excluded.metadata_extraction_attempts,
+                    metadata_last_extracted_at = excluded.metadata_last_extracted_at,
+                    metadata_edited_by_user = excluded.metadata_edited_by_user,
+                    extraction_confidence = excluded.extraction_confidence
                 """,
                 (
                     document.doc_id,
@@ -505,6 +515,13 @@ class Database:
                     custom_json,
                     document.indexed,
                     document.chunk_count,
+                    document.metadata_extracted,
+                    document.metadata_extraction_status,
+                    document.metadata_extraction_error,
+                    document.metadata_extraction_attempts,
+                    document.metadata_last_extracted_at,
+                    document.metadata_edited_by_user,
+                    document.extraction_confidence,
                 ),
             )
 

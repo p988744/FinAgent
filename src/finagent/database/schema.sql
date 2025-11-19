@@ -107,6 +107,20 @@ CREATE TABLE IF NOT EXISTS documents (
     custom_fields TEXT,  -- JSON object for additional custom metadata
     indexed BOOLEAN DEFAULT 0,  -- Whether document is indexed in vector DB
     chunk_count INTEGER DEFAULT 0,  -- Number of chunks in vector DB
+    -- Metadata extraction status fields (added 2025-01-19)
+    metadata_extracted BOOLEAN DEFAULT 0,  -- Whether metadata has been extracted by LLM
+    metadata_extraction_status TEXT DEFAULT 'pending',  -- Status: pending, processing, completed, failed, user_edited
+    metadata_extraction_error TEXT,  -- Error message if extraction failed
+    metadata_extraction_attempts INTEGER DEFAULT 0,  -- Number of extraction attempts
+    metadata_last_extracted_at TIMESTAMP,  -- Timestamp of last extraction
+    metadata_edited_by_user BOOLEAN DEFAULT 0,  -- Whether user manually edited metadata
+    extraction_confidence REAL,  -- Extraction confidence score (0-1)
+    -- Pipeline monitoring fields (added 2025-11-19)
+    pipeline_stage TEXT DEFAULT 'uploaded',  -- Current pipeline stage
+    pipeline_status TEXT DEFAULT 'in_progress',  -- Overall pipeline status
+    pipeline_data TEXT,  -- JSON data with detailed pipeline stage information
+    pipeline_started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Pipeline start time
+    pipeline_completed_at TIMESTAMP,  -- Pipeline completion time
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

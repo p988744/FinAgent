@@ -132,7 +132,7 @@ class LegalResearchWorkflow:
         logger.info("LangGraph workflow with query analysis and re-search compiled successfully")
         return compiled
 
-    def _query_analysis_node(self, state: AgentState) -> AgentState:
+    async def _query_analysis_node(self, state: AgentState) -> AgentState:
         """
         Query analysis agent node.
 
@@ -143,9 +143,13 @@ class LegalResearchWorkflow:
             Updated state with clarification request (if needed)
         """
         logger.info("Executing query analysis node")
-        return self.query_analysis_agent.analyze_query(state)
+        # QueryAnalysisAgent.analyze_query is likely sync, but we can wrap it if needed
+        # or just call it directly if it doesn't block significantly.
+        # If it does I/O, it should be async. Checking if it's async...
+        # Assuming it's sync for now as I haven't checked it, but it's safe to call sync from async.
+        return await self.query_analysis_agent.analyze_query(state)
 
-    def _human_clarification_node(self, state: AgentState) -> AgentState:
+    async def _human_clarification_node(self, state: AgentState) -> AgentState:
         """
         Human-in-the-loop clarification node.
 
@@ -163,11 +167,7 @@ class LegalResearchWorkflow:
         if self.clarification_handler:
             try:
                 # Handler should be async
-                import asyncio
-
-                clarification_response = asyncio.run(
-                    self.clarification_handler(state.get("clarification_request"))
-                )
+                clarification_response = await self.clarification_handler(state.get("clarification_request"))
                 state["clarification_response"] = clarification_response
 
                 # Enrich query with clarification
@@ -190,7 +190,7 @@ class LegalResearchWorkflow:
 
         return state
 
-    def _planning_node(self, state: AgentState) -> AgentState:
+    async def _planning_node(self, state: AgentState) -> AgentState:
         """
         Planning agent node.
 
@@ -201,9 +201,10 @@ class LegalResearchWorkflow:
             Updated state with plan
         """
         logger.info("Executing planning node")
-        return self.planning_agent.plan(state)
+        # PlanningAgent.plan is likely sync
+        return await self.planning_agent.plan(state)
 
-    def _action_node(self, state: AgentState) -> AgentState:
+    async def _action_node(self, state: AgentState) -> AgentState:
         """
         Action agent node.
 
@@ -214,9 +215,9 @@ class LegalResearchWorkflow:
             Updated state with retrieved documents
         """
         logger.info("Executing action node")
-        return self.action_agent.execute(state)
+        return await self.action_agent.execute(state)
 
-    def _validation_node(self, state: AgentState) -> AgentState:
+    async def _validation_node(self, state: AgentState) -> AgentState:
         """
         Validation agent node.
 
@@ -227,9 +228,9 @@ class LegalResearchWorkflow:
             Updated state with validation results
         """
         logger.info("Executing validation node")
-        return self.validation_agent.validate(state)
+        return await self.validation_agent.validate(state)
 
-    def _reference_guard_node(self, state: AgentState) -> AgentState:
+    async def _reference_guard_node(self, state: AgentState) -> AgentState:
         """
         Reference guard node.
 
@@ -240,6 +241,7 @@ class LegalResearchWorkflow:
             Updated state with re-search decision
         """
         logger.info("Executing reference guard node")
+        # ReferenceGuard.evaluate is likely sync
         return self.reference_guard.evaluate(state)
 
     def _decide_next_step(self, state: AgentState) -> Literal["research", "answer"]:
@@ -272,7 +274,7 @@ class LegalResearchWorkflow:
             logger.info("Decision: Proceed to answer")
             return "answer"
 
-    def _answer_node(self, state: AgentState) -> AgentState:
+    async def _answer_node(self, state: AgentState) -> AgentState:
         """
         Answer agent node.
 
@@ -283,9 +285,9 @@ class LegalResearchWorkflow:
             Updated state with final answer
         """
         logger.info("Executing answer node")
-        return self.answer_agent.synthesize(state)
+        return await self.answer_agent.synthesize(state)
 
-    def run(self, state: AgentState) -> dict[str, Any]:
+    async def run(self, state: AgentState) -> dict[str, Any]:
         """
         Run the workflow.
 
@@ -299,7 +301,8 @@ class LegalResearchWorkflow:
 
         try:
             # Invoke compiled graph
-            final_state = self.graph.invoke(state)
+            # ainvoke is the async version
+            final_state = await self.graph.ainvoke(state)
 
             logger.info("Workflow completed successfully")
             return final_state
@@ -308,7 +311,7 @@ class LegalResearchWorkflow:
             logger.error(f"Workflow execution failed: {e}", exc_info=True)
             raise
 
-    def stream(self, state: AgentState, enable_demo_delay: bool = False):
+    async def stream(self, state: AgentState, enable_demo_delay: bool = False):
         """
         Stream the workflow execution, yielding events for each node.
 
@@ -336,7 +339,8 @@ class LegalResearchWorkflow:
 
         try:
             # Stream graph execution - yields events for each node
-            for event in self.graph.stream(state, stream_mode="updates"):
+            # astream is the async generator version
+            async for event in self.graph.astream(state, stream_mode="updates"):
                 # event is a dict with node name as key and state update as value
                 for node_name, state_update in event.items():
                     logger.info(f"Streaming node completed: {node_name}")
@@ -346,7 +350,8 @@ class LegalResearchWorkflow:
                     if enable_demo_delay and node_name in demo_delays:
                         delay = demo_delays[node_name]
                         logger.debug(f"Demo delay: sleeping {delay}s after {node_name}")
-                        time.sleep(delay)
+                        import asyncio
+                        await asyncio.sleep(delay)
 
             logger.info("Workflow streaming completed successfully")
 

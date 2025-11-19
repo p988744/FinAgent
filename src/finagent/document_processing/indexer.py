@@ -223,6 +223,7 @@ class DocumentIndexer:
 
             # Add extracted metadata fields if available
             if extracted_metadata:
+                from datetime import datetime, timezone
                 db_fields.update({
                     "document_type": extracted_metadata.document_type,
                     "issuing_authority": extracted_metadata.issuing_authority,
@@ -234,6 +235,11 @@ class DocumentIndexer:
                     "keywords": json.dumps(extracted_metadata.keywords, ensure_ascii=False),
                     "extraction_confidence": extracted_metadata.extraction_confidence,
                     "extraction_method": extracted_metadata.extraction_method,
+                    # Metadata extraction status fields
+                    "metadata_extracted": True,
+                    "metadata_extraction_status": "completed",
+                    "metadata_last_extracted_at": datetime.now(timezone.utc).isoformat(),
+                    "metadata_extraction_attempts": 1,
                 })
                 logger.debug(
                     f"Storing metadata fields: document_type={extracted_metadata.document_type}, "

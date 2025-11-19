@@ -159,7 +159,7 @@ class AnswerAgent:
 4. 不要在 JSON 外添加任何額外文字
 5. 確保 JSON 的引號和逗號正確"""
 
-    def synthesize(self, state: AgentState) -> AgentState:
+    async def synthesize(self, state: AgentState) -> AgentState:
         """
         Synthesize final answer from retrieved context.
 
@@ -182,19 +182,17 @@ class AnswerAgent:
         if synthesis_todo and synthesis_todo.status == "pending":
             synthesis_todo.mark_started()
             if self.ui_callback:
-                import asyncio
                 try:
-                    asyncio.create_task(self.ui_callback.on_todo_started(synthesis_todo))
-                except RuntimeError:
-                    pass
+                    await self.ui_callback.on_todo_started(synthesis_todo)
+                except Exception as e:
+                    logger.warning(f"Failed to send callback: {e}")
 
         # Emit answer generation start callback
         if self.ui_callback:
-            import asyncio
             try:
-                asyncio.create_task(self.ui_callback.on_answer_generation_start())
-            except RuntimeError:
-                pass
+                await self.ui_callback.on_answer_generation_start()
+            except Exception as e:
+                logger.warning(f"Failed to send callback: {e}")
 
         try:
             if not chunks:
@@ -209,14 +207,27 @@ class AnswerAgent:
             citations_text = self._format_citations(citations)
 
             # Invoke LLM to synthesize answer (returns JSON string)
-            response = self.chain.invoke(
-                {
-                    "query": query.text,
-                    "num_chunks": len(chunks),
-                    "context": context,
-                    "citations": citations_text,
-                }
-            )
+            # Note: chain.invoke is sync. Ideally we should use ainvoke if available,
+            # or run in executor if it blocks. LangChain usually supports ainvoke.
+            if hasattr(self.chain, "ainvoke"):
+                response = await self.chain.ainvoke(
+                    {
+                        "query": query.text,
+                        "num_chunks": len(chunks),
+                        "context": context,
+                        "citations": citations_text,
+                    }
+                )
+            else:
+                # Fallback to sync invoke if ainvoke not available
+                response = self.chain.invoke(
+                    {
+                        "query": query.text,
+                        "num_chunks": len(chunks),
+                        "context": context,
+                        "citations": citations_text,
+                    }
+                )
 
             # Parse JSON response to structured output
             structured_response = self._parse_json_response(response)
@@ -228,13 +239,10 @@ class AnswerAgent:
 
             # Emit citations extracted callback
             if self.ui_callback:
-                import asyncio
                 try:
-                    asyncio.create_task(
-                        self.ui_callback.on_citations_extracted(citations=citations)
-                    )
-                except RuntimeError:
-                    pass
+                    await self.ui_callback.on_citations_extracted(citations=citations)
+                except Exception as e:
+                    logger.warning(f"Failed to send callback: {e}")
 
             # Update state
             state["answer"] = answer
@@ -242,23 +250,19 @@ class AnswerAgent:
 
             # Emit answer generation complete callback
             if self.ui_callback:
-                import asyncio
                 try:
-                    asyncio.create_task(
-                        self.ui_callback.on_answer_generation_complete(answer=answer)
-                    )
-                except RuntimeError:
-                    pass
+                    await self.ui_callback.on_answer_generation_complete(answer=answer)
+                except Exception as e:
+                    logger.warning(f"Failed to send callback: {e}")
 
             # Phase 5: Mark synthesis todo as completed
             if synthesis_todo:
                 synthesis_todo.mark_completed(result={"citations": len(answer.citations)})
                 if self.ui_callback:
-                    import asyncio
                     try:
-                        asyncio.create_task(self.ui_callback.on_todo_completed(synthesis_todo))
-                    except RuntimeError:
-                        pass
+                        await self.ui_callback.on_todo_completed(synthesis_todo)
+                    except Exception as e:
+                        logger.warning(f"Failed to send callback: {e}")
 
             # Update state with todos
             state["todos"] = todos
@@ -277,11 +281,10 @@ class AnswerAgent:
             if synthesis_todo:
                 synthesis_todo.mark_failed(error=str(e))
                 if self.ui_callback:
-                    import asyncio
                     try:
-                        asyncio.create_task(self.ui_callback.on_todo_failed(synthesis_todo, str(e)))
-                    except RuntimeError:
-                        pass
+                        await self.ui_callback.on_todo_failed(synthesis_todo, str(e))
+                    except Exception as e:
+                        logger.warning(f"Failed to send callback: {e}")
             state["todos"] = todos
 
         return state

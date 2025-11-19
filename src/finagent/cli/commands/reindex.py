@@ -2,6 +2,7 @@
 Reindex command for rebuilding the vector database.
 """
 
+import asyncio
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -33,7 +34,7 @@ from finagent.database.models import Concept
 console = Console()
 
 
-def reindex_documents_sequential(
+async def reindex_documents_sequential(
     clear_existing: bool = False,
     skip_metadata: bool = False,
     skip_concepts: bool = False,
@@ -136,7 +137,7 @@ def reindex_documents_sequential(
 
                     # Step 2: Index to vector DB
                     progress.update(task, description=f"[blue]📊 索引: {filename[:35]}...")
-                    chunks = indexer.index_document(doc)
+                    chunks = await indexer.index_document(doc)
                     total_chunks += chunks
 
                     # Step 3: Generate or create metadata
@@ -575,11 +576,11 @@ def execute_reindex(clear: bool = False, skip_init: bool = False, use_sequential
     try:
         # Use sequential mode by default (better UX, interruptible)
         if use_sequential:
-            indexed, chunks = reindex_documents_sequential(
+            indexed, chunks = asyncio.run(reindex_documents_sequential(
                 clear_existing=clear,
                 skip_metadata=skip_init,
                 skip_concepts=False,  # Always do concept analysis
-            )
+            ))
         else:
             # Legacy batch mode
             indexed, chunks = reindex_documents(clear_existing=clear, prompt_init=not skip_init)

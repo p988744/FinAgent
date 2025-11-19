@@ -36,7 +36,7 @@ class ValidationAgent:
         self.min_citations = min_citations
         self.ui_callback = ui_callback
 
-    def validate(self, state: AgentState) -> AgentState:
+    async def validate(self, state: AgentState) -> AgentState:
         """
         Validate retrieved documents and citations.
 
@@ -55,19 +55,17 @@ class ValidationAgent:
         if validation_todo and validation_todo.status == "pending":
             validation_todo.mark_started()
             if self.ui_callback:
-                import asyncio
                 try:
-                    asyncio.create_task(self.ui_callback.on_todo_started(validation_todo))
-                except RuntimeError:
-                    pass
+                    await self.ui_callback.on_todo_started(validation_todo)
+                except Exception as e:
+                    logger.warning(f"Failed to send callback: {e}")
 
         # Emit validation start callback
         if self.ui_callback:
-            import asyncio
             try:
-                asyncio.create_task(self.ui_callback.on_validation_start())
-            except RuntimeError:
-                pass
+                await self.ui_callback.on_validation_start()
+            except Exception as e:
+                logger.warning(f"Failed to send callback: {e}")
 
         citations = state.get("citations", [])
         retrieved_chunks = state.get("retrieved_chunks", [])
@@ -165,27 +163,23 @@ class ValidationAgent:
             if validation_todo:
                 validation_todo.mark_completed(result={"passed": validation_passed, "issues": len(issues)})
                 if self.ui_callback:
-                    import asyncio
                     try:
-                        asyncio.create_task(self.ui_callback.on_todo_completed(validation_todo))
-                    except RuntimeError:
-                        pass
+                        await self.ui_callback.on_todo_completed(validation_todo)
+                    except Exception as e:
+                        logger.warning(f"Failed to send callback: {e}")
 
             # Update state with todos
             state["todos"] = todos
 
             # Emit validation complete callback
             if self.ui_callback:
-                import asyncio
                 try:
-                    asyncio.create_task(
-                        self.ui_callback.on_validation_complete(
-                            passed=validation_passed,
-                            issues=issues
-                        )
+                    await self.ui_callback.on_validation_complete(
+                        passed=validation_passed,
+                        issues=issues
                     )
-                except RuntimeError:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to send callback: {e}")
 
         except Exception as e:
             logger.error(f"Validation failed: {e}", exc_info=True)
@@ -199,11 +193,10 @@ class ValidationAgent:
             if validation_todo:
                 validation_todo.mark_failed(error=str(e))
                 if self.ui_callback:
-                    import asyncio
                     try:
-                        asyncio.create_task(self.ui_callback.on_todo_failed(validation_todo, str(e)))
-                    except RuntimeError:
-                        pass
+                        await self.ui_callback.on_todo_failed(validation_todo, str(e))
+                    except Exception as e:
+                        logger.warning(f"Failed to send callback: {e}")
             state["todos"] = todos
 
         return state

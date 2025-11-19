@@ -474,3 +474,44 @@ class MetadataExtractor:
             return await asyncio.gather(*tasks)
 
         return asyncio.run(extract_all())
+
+    async def extract_metadata(self, content: str, filename: str) -> dict:
+        """
+        Simple wrapper for metadata extraction that returns a dict.
+
+        This is used by the API endpoint for single document extraction.
+
+        Args:
+            content: Full document content
+            filename: Document filename
+
+        Returns:
+            Dictionary with extracted metadata fields
+        """
+        # Use new model by default
+        if not self.use_new_model:
+            # Initialize new model if not already done
+            self.__init__(use_new_model=True)
+
+        # Extract metadata
+        result = await self.extract_new(
+            doc_id="temp",  # Temporary ID, not stored
+            filename=filename,
+            content=content
+        )
+
+        if not result.success or not result.metadata:
+            raise Exception(result.error or "Metadata extraction failed")
+
+        # Convert DocumentMetadata to dict
+        metadata_dict = {
+            "document_type": result.metadata.document_type,
+            "issuing_authority": result.metadata.issuing_authority,
+            "related_institutions": result.metadata.related_institutions,
+            "violation_types": result.metadata.violation_types,
+            "penalty_amount": result.metadata.penalty_amount,
+            "keywords": result.metadata.keywords,
+            "confidence": result.metadata.extraction_confidence,
+        }
+
+        return metadata_dict

@@ -348,6 +348,228 @@ class WebSocketUICallback(UICallback):
         })
 
 
+@router.websocket("/ws/upload")
+async def websocket_upload_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for streaming upload and indexing progress.
+
+    Message Protocol:
+    - Client sends: {"type": "upload_start", "filename": "file.txt", "content": "base64...", "auto_index": true, "extract_metadata": false}
+    - Server streams: Progress updates for upload, indexing, metadata extraction
+    - Server sends final: {"type": "upload_complete", "document": {...}}
+    """
+    # Accept WebSocket connection without origin validation
+    # CORS is already handled by middleware for HTTP requests
+    # For WebSockets, we accept all connections (safe for development)
+    await websocket.accept()
+    logger.info("WebSocket connection established for upload")
+
+    try:
+        while True:
+            # Receive message from client
+            data = await websocket.receive_json()
+
+            if data.get("type") == "upload_start":
+                # Import here to avoid circular dependencies
+                import base64
+                import uuid
+                from pathlib import Path
+                from datetime import timezone
+                from finagent.document_processing.loader import DocumentLoader
+                from finagent.document_processing.indexer import DocumentIndexer
+                from finagent.document_processing.metadata_store import DocumentMetadata, get_metadata_store
+
+                filename = data.get("filename")
+                content_b64 = data.get("content")
+                auto_index = data.get("auto_index", False)
+                extract_metadata = data.get("extract_metadata", False)
+
+                if not filename or not content_b64:
+                    await websocket.send_json({
+                        "type": "error",
+                        "timestamp": datetime.now().isoformat(),
+                        "payload": {"message": "Missing filename or content"},
+                    })
+                    continue
+
+                # Progress: Start upload
+                await websocket.send_json({
+                    "type": "progress",
+                    "timestamp": datetime.now().isoformat(),
+                    "payload": {
+                        "stage": "uploading",
+                        "message": f"上傳文件: {filename}",
+                        "progress": 0,
+                    },
+                })
+
+                try:
+                    # Decode base64 content
+                    content = base64.b64decode(content_b64)
+
+                    # Validate file type
+                    if not filename.endswith(".txt"):
+                        await websocket.send_json({
+                            "type": "error",
+                            "timestamp": datetime.now().isoformat(),
+                            "payload": {"message": "Only .txt files are supported"},
+                        })
+                        continue
+
+                    # Generate document ID
+                    doc_id = f"doc_{uuid.uuid4().hex[:8]}"
+
+                    # Save file to disk
+                    DOCUMENTS_PATH = Path("data/documents")
+                    DOCUMENTS_PATH.mkdir(parents=True, exist_ok=True)
+                    file_path = DOCUMENTS_PATH / filename
+
+                    # Handle duplicate filenames
+                    if file_path.exists():
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        stem = file_path.stem
+                        suffix = file_path.suffix
+                        file_path = DOCUMENTS_PATH / f"{stem}_{timestamp}{suffix}"
+
+                    with open(file_path, "wb") as f:
+                        f.write(content)
+
+                    # Progress: File saved
+                    await websocket.send_json({
+                        "type": "progress",
+                        "timestamp": datetime.now().isoformat(),
+                        "payload": {
+                            "stage": "uploaded",
+                            "message": f"文件已儲存: {file_path.name}",
+                            "progress": 25,
+                        },
+                    })
+
+                    # Create metadata
+                    now = datetime.now(timezone.utc).isoformat()
+                    metadata = DocumentMetadata(
+                        doc_id=doc_id,
+                        filename=filename,
+                        description=f"Uploaded file: {filename}",
+                        document_type="uploaded",
+                        keywords=[],
+                        date=None,
+                        issuing_authority=None,
+                        related_institutions=[],
+                        penalty_amount=None,
+                        violation_types=[],
+                        custom_fields={},
+                        indexed=False,
+                        chunk_count=0,
+                        created_at=now,
+                        updated_at=now,
+                    )
+
+                    # Save metadata
+                    store = get_metadata_store()
+                    store.add_metadata(metadata, str(file_path))
+
+                    # Progress: Metadata saved
+                    await websocket.send_json({
+                        "type": "progress",
+                        "timestamp": datetime.now().isoformat(),
+                        "payload": {
+                            "stage": "metadata_saved",
+                            "message": "元數據已儲存",
+                            "progress": 40,
+                        },
+                    })
+
+                    # Auto-index if requested
+                    if auto_index:
+                        # Progress: Starting indexing
+                        await websocket.send_json({
+                            "type": "progress",
+                            "timestamp": datetime.now().isoformat(),
+                            "payload": {
+                                "stage": "indexing",
+                                "message": "正在建立向量索引...",
+                                "progress": 50,
+                            },
+                        })
+
+                        loader = DocumentLoader()
+                        document = loader.load_txt(file_path.name)
+
+                        indexer = DocumentIndexer(extract_metadata=extract_metadata)
+
+                        # Progress: Indexing in progress
+                        await websocket.send_json({
+                            "type": "progress",
+                            "timestamp": datetime.now().isoformat(),
+                            "payload": {
+                                "stage": "indexing",
+                                "message": "分析文件內容...",
+                                "progress": 60,
+                            },
+                        })
+
+                        num_chunks = await indexer.index_document(document)
+
+                        # Progress: Indexing complete
+                        await websocket.send_json({
+                            "type": "progress",
+                            "timestamp": datetime.now().isoformat(),
+                            "payload": {
+                                "stage": "indexed",
+                                "message": f"索引完成 ({num_chunks} 個區塊)",
+                                "progress": 80,
+                                "chunks": num_chunks,
+                            },
+                        })
+
+                        # Update metadata
+                        store.update_metadata(doc_id, {
+                            "indexed": True,
+                            "chunk_count": num_chunks,
+                        })
+                        metadata.indexed = True
+                        metadata.chunk_count = num_chunks
+
+                    # Progress: Complete
+                    await websocket.send_json({
+                        "type": "upload_complete",
+                        "timestamp": datetime.now().isoformat(),
+                        "payload": {
+                            "document": {
+                                "id": metadata.doc_id,
+                                "name": metadata.filename,
+                                "status": "indexed" if metadata.indexed else "pending",
+                                "chunk_count": metadata.chunk_count,
+                                "indexed": metadata.indexed,
+                                "created_at": metadata.created_at,
+                            },
+                            "message": "上傳完成!" if auto_index else "上傳完成 (未索引)",
+                            "progress": 100,
+                        },
+                    })
+
+                except Exception as e:
+                    logger.error(f"Upload error: {e}", exc_info=True)
+                    await websocket.send_json({
+                        "type": "error",
+                        "timestamp": datetime.now().isoformat(),
+                        "payload": {"message": str(e)},
+                    })
+
+            elif data.get("type") == "ping":
+                await websocket.send_json({
+                    "type": "pong",
+                    "timestamp": datetime.now().isoformat(),
+                    "payload": {},
+                })
+
+    except WebSocketDisconnect:
+        logger.info("WebSocket connection closed for upload")
+    except Exception as e:
+        logger.error(f"WebSocket error in upload: {e}", exc_info=True)
+
+
 @router.websocket("/ws/query")
 async def websocket_query_endpoint(websocket: WebSocket):
     """
@@ -413,151 +635,122 @@ async def websocket_query_endpoint(websocket: WebSocket):
                         "answer": "answer",
                     }
 
-                    # Stream workflow execution using queue for real-time updates
-                    import queue
-                    import threading
-
-                    event_queue: queue.Queue = queue.Queue()
-
-                    def run_streaming():
-                        """Run the streaming workflow in a thread, putting events in queue."""
-                        try:
-                            for node_name, state_update in orchestrator.stream_query(query, enable_demo_delay=ENABLE_DEMO_DELAY):
-                                event_queue.put((node_name, state_update))
-                            event_queue.put(None)  # Signal completion
-                        except Exception as e:
-                            event_queue.put(("error", {"error": str(e)}))
-                            event_queue.put(None)
-
-                    # Start streaming in background thread
-                    stream_thread = threading.Thread(target=run_streaming, daemon=True)
-                    stream_thread.start()
-
-                    # Process events as they arrive
                     last_node = None
-                    while True:
-                        # Check for events with short timeout to stay responsive
-                        try:
-                            event = event_queue.get(timeout=0.1)
-                        except queue.Empty:
-                            # Yield to event loop to allow WebSocket sends to complete
-                            await asyncio.sleep(0)
-                            continue
 
-                        if event is None:
-                            # Streaming complete
-                            break
+                    # Stream workflow execution directly (async)
+                    try:
+                        async for node_name, state_update in orchestrator.stream_query(query, enable_demo_delay=ENABLE_DEMO_DELAY):
+                            step_name = node_to_step.get(node_name, None)
+                            current_time = datetime.now()
 
-                        node_name, state_update = event
+                            if step_name and step_name != last_node:
+                                # Mark previous step as done
+                                if last_node and last_node in callback.step_start_times:
+                                    elapsed = int((current_time - callback.step_start_times[last_node]).total_seconds() * 1000)
+                                    await callback._send("step_update", {
+                                        "step": last_node,
+                                        "status": "done",
+                                        "description": f"{last_node} 完成",
+                                        "elapsed_ms": elapsed,
+                                    })
 
-                        if node_name == "error":
-                            raise Exception(state_update.get("error", "Unknown error"))
+                                # Start new step
+                                callback.step_start_times[step_name] = current_time
+                                callback.current_step = step_name
 
-                        step_name = node_to_step.get(node_name, None)
-                        current_time = datetime.now()
+                                step_descriptions = {
+                                    "planning": "分析查詢意圖與關鍵字",
+                                    "action": "執行 RAG 檢索",
+                                    "validation": "驗證引用完整性",
+                                    "answer": "生成最終答案",
+                                }
 
-                        if step_name and step_name != last_node:
-                            # Mark previous step as done
-                            if last_node and last_node in callback.step_start_times:
-                                elapsed = int((current_time - callback.step_start_times[last_node]).total_seconds() * 1000)
                                 await callback._send("step_update", {
-                                    "step": last_node,
-                                    "status": "done",
-                                    "description": f"{last_node} 完成",
-                                    "elapsed_ms": elapsed,
+                                    "step": step_name,
+                                    "status": "active",
+                                    "description": step_descriptions.get(step_name, step_name),
+                                    "elapsed_ms": 0,
                                 })
 
-                            # Start new step
-                            callback.step_start_times[step_name] = current_time
-                            callback.current_step = step_name
-
-                            step_descriptions = {
-                                "planning": "分析查詢意圖與關鍵字",
-                                "action": "執行 RAG 檢索",
-                                "validation": "驗證引用完整性",
-                                "answer": "生成最終答案",
-                            }
-
-                            await callback._send("step_update", {
-                                "step": step_name,
-                                "status": "active",
-                                "description": step_descriptions.get(step_name, step_name),
-                                "elapsed_ms": 0,
-                            })
-
-                            await callback._send("activity_log", {
-                                "level": "info",
-                                "message": f"執行節點: {node_name}",
-                            })
-
-                            last_node = step_name
-
-                            # Small delay to ensure messages are sent one at a time
-                            await asyncio.sleep(0.01)
-
-                        # Extract plan data when planning completes
-                        if node_name == "planning" and "plan" in state_update:
-                            final_plan = state_update.get("plan")
-                            if final_plan:
-                                # Send real plan data
-                                await callback._send("plan_created", final_plan)
                                 await callback._send("activity_log", {
-                                    "level": "success",
-                                    "message": f"研究計畫建立完成，共 {len(final_plan.get('tasks', []))} 項任務",
+                                    "level": "info",
+                                    "message": f"執行節點: {node_name}",
                                 })
 
-                        # Extract answer when complete
-                        if "answer" in state_update and state_update["answer"]:
-                            answer = state_update["answer"]
+                                last_node = step_name
 
-                    # Wait for thread to finish
-                    stream_thread.join(timeout=5)
+                                # Small delay to ensure messages are sent one at a time
+                                await asyncio.sleep(0.01)
 
-                    total_time = int((datetime.now() - start_time).total_seconds() * 1000)
+                            # Extract plan data when planning completes
+                            if node_name == "planning" and "plan" in state_update:
+                                final_plan = state_update.get("plan")
+                                if final_plan:
+                                    # Send real plan data
+                                    await callback._send("plan_created", final_plan)
+                                    await callback._send("activity_log", {
+                                        "level": "success",
+                                        "message": f"研究計畫建立完成，共 {len(final_plan.get('tasks', []))} 項任務",
+                                    })
 
-                    # Mark final step as done
-                    if last_node and last_node in callback.step_start_times:
-                        elapsed = int((datetime.now() - callback.step_start_times[last_node]).total_seconds() * 1000)
-                        await callback._send("step_update", {
-                            "step": last_node,
-                            "status": "done",
-                            "description": f"{last_node} 完成",
-                            "elapsed_ms": elapsed,
+                            # Extract answer when complete
+                            if "answer" in state_update and state_update["answer"]:
+                                answer = state_update["answer"]
+
+                        total_time = int((datetime.now() - start_time).total_seconds() * 1000)
+
+                        # Mark final step as done
+                        if last_node and last_node in callback.step_start_times:
+                            elapsed = int((datetime.now() - callback.step_start_times[last_node]).total_seconds() * 1000)
+                            await callback._send("step_update", {
+                                "step": last_node,
+                                "status": "done",
+                                "description": f"{last_node} 完成",
+                                "elapsed_ms": elapsed,
+                            })
+
+                        if not answer:
+                            raise Exception("工作流程未生成答案")
+
+                        await callback._send("activity_log", {
+                            "level": "success",
+                            "message": f"查詢完成，共耗時 {total_time/1000:.1f} 秒",
                         })
 
-                    if not answer:
-                        raise Exception("工作流程未生成答案")
+                        # Send complete result
+                        result = {
+                            "summary": answer.executive_summary,
+                            "key_findings": answer.key_findings,
+                            "detailed_analysis": answer.detailed_analysis,
+                            "confidence": answer.confidence_score.value if hasattr(answer.confidence_score, 'value') else str(answer.confidence_score),
+                            "processing_time_ms": answer.processing_time_ms or 0,
+                            "citations": [
+                                {
+                                    "id": c.id,
+                                    "source": c.formatted_citation or c.title,
+                                    "authority": c.authority.value if hasattr(c.authority, 'value') else str(c.authority),
+                                    "citation_type": c.type.value if hasattr(c.type, 'value') else str(c.type),
+                                    "date": c.date,
+                                    "relevance": 1.0,  # Default relevance since it's not in the model
+                                }
+                                for c in answer.citations
+                            ],
+                        }
 
-                    await callback._send("activity_log", {
-                        "level": "success",
-                        "message": f"查詢完成，共耗時 {total_time/1000:.1f} 秒",
-                    })
+                        await websocket.send_json({
+                            "type": "query_complete",
+                            "timestamp": datetime.now().isoformat(),
+                            "payload": result,
+                        })
 
-                    # Send complete result
-                    result = {
-                        "summary": answer.executive_summary,
-                        "key_findings": answer.key_findings,
-                        "detailed_analysis": answer.detailed_analysis,
-                        "confidence": answer.confidence_score.value if hasattr(answer.confidence_score, 'value') else str(answer.confidence_score),
-                        "processing_time_ms": answer.processing_time_ms or 0,
-                        "citations": [
-                            {
-                                "id": c.id,
-                                "source": c.formatted_citation or c.title,
-                                "authority": c.authority.value if hasattr(c.authority, 'value') else str(c.authority),
-                                "citation_type": c.type.value if hasattr(c.type, 'value') else str(c.type),
-                                "date": c.date,
-                                "relevance": 1.0,  # Default relevance since it's not in the model
-                            }
-                            for c in answer.citations
-                        ],
-                    }
-
-                    await websocket.send_json({
-                        "type": "query_complete",
-                        "timestamp": datetime.now().isoformat(),
-                        "payload": result,
-                    })
+                    except Exception as e:
+                        logger.error(f"Error processing query: {e}", exc_info=True)
+                        await callback.on_error(str(e))
+                        await websocket.send_json({
+                            "type": "query_failed",
+                            "timestamp": datetime.now().isoformat(),
+                            "payload": {"error": str(e)},
+                        })
 
                 except Exception as e:
                     logger.error(f"Error processing query: {e}", exc_info=True)
