@@ -529,6 +529,7 @@ async def get_document_detail(
 @router.get("/search", response_model=SearchResponse)
 async def search_documents(
     q: str = Query(..., min_length=1, description="Search query"),
+    search_type: str = Query("hybrid", description="Search type: vector, category, entity, file, grep, or hybrid"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     document_type: str | None = Query(None, description="Filter by document type"),
@@ -540,13 +541,19 @@ async def search_documents(
     min_confidence: float | None = Query(None, ge=0, le=1, description="Minimum extraction confidence"),
 ):
     """
-    Search for documents within the wiki.
+    Unified multi-strategy search for documents.
 
-    Simple keyword search implementation for alpha version.
-    Future: Integrate with vector search for semantic search.
+    Supports 5 search types + hybrid:
+    1. **vector**: Semantic similarity search using Chroma vector DB
+    2. **category**: Filter by category taxonomy (authority/institution/violation/doc_type)
+    3. **entity**: Search by entities (institutions, violations)
+    4. **file**: Search by filename patterns
+    5. **grep**: Full-text exact keyword matching
+    6. **hybrid**: Combines vector + grep for best results (default)
 
     Args:
         q: Search query
+        search_type: Type of search to perform
         limit: Results per page
         offset: Pagination offset
         document_type, authority, institution, violation: Filters
@@ -557,8 +564,10 @@ async def search_documents(
         SearchResponse with matching documents
     """
     try:
+        from finagent.document_processing.retriever import DocumentRetriever
+        from finagent.document_processing.hard_searcher import HardSearcher
+
         db = _get_db()
-        all_docs = db.list_documents()
 
         # Build filter object
         filters = SearchFilters(
@@ -571,60 +580,24 @@ async def search_documents(
             min_confidence=min_confidence,
         )
 
-        # Simple keyword search (case-insensitive)
-        query_lower = q.lower()
-        results = []
-
-        for doc in all_docs:
-            # Apply filters
-            if document_type and doc.get("document_type") != document_type:
-                continue
-            if authority and doc.get("issuing_authority") != authority:
-                continue
-            if min_confidence and (doc.get("extraction_confidence") or 0) < min_confidence:
-                continue
-
-            # Check institution filter
-            if institution:
-                related_inst = doc.get("related_institutions") or "[]"
-                if isinstance(related_inst, str):
-                    related_inst = json.loads(related_inst)
-                if institution not in related_inst:
-                    continue
-
-            # Check violation filter
-            if violation:
-                violation_types = doc.get("violation_types") or "[]"
-                if isinstance(violation_types, str):
-                    violation_types = json.loads(violation_types)
-                if violation not in violation_types:
-                    continue
-
-            # Date filters
-            doc_date = doc.get("date")
-            if date_from and doc_date and doc_date < date_from:
-                continue
-            if date_to and doc_date and doc_date > date_to:
-                continue
-
-            # Keyword match (simple)
-            filename_lower = doc.get("filename", "").lower()
-            doc_type_lower = (doc.get("document_type") or "").lower()
-
-            if query_lower in filename_lower or query_lower in doc_type_lower:
-                # Calculate simple relevance score
-                relevance = 1.0 if query_lower in filename_lower else 0.5
-
-                results.append(
-                    SearchResult(
-                        doc_id=doc["doc_id"],
-                        filename=doc["filename"],
-                        document_type=doc.get("document_type"),
-                        relevance_score=relevance,
-                        snippet=doc.get("filename"),
-                        highlights=[query_lower],
-                    )
-                )
+        # Execute search based on type
+        if search_type == "vector":
+            results = await _vector_search(q, limit + offset, filters)
+        elif search_type == "category":
+            results = await _category_search(q, filters)
+        elif search_type == "entity":
+            results = await _entity_search(q, filters)
+        elif search_type == "file":
+            results = await _file_search(q, filters)
+        elif search_type == "grep":
+            results = await _grep_search(q, limit + offset, filters)
+        elif search_type == "hybrid":
+            results = await _hybrid_search(q, limit + offset, filters)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid search_type. Must be one of: vector, category, entity, file, grep, hybrid"
+            )
 
         # Sort by relevance
         results.sort(key=lambda x: x.relevance_score, reverse=True)
@@ -642,9 +615,334 @@ async def search_documents(
             filters_applied=filters,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error searching documents: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Search Implementation Helper Functions
+# ============================================================================
+
+
+async def _vector_search(query: str, max_results: int, filters: SearchFilters) -> list[SearchResult]:
+    """
+    Vector search using Chroma embeddings.
+    Reuses DocumentRetriever from document_processing module.
+    """
+    from finagent.document_processing.retriever import DocumentRetriever
+
+    retriever = DocumentRetriever()
+
+    if not retriever.collection_exists():
+        return []
+
+    # Perform vector search
+    chunks = retriever.retrieve(query, n_results=max_results)
+
+    # Convert to search results and deduplicate by doc_id
+    seen_docs = set()
+    results = []
+
+    for chunk in chunks:
+        doc_id = chunk.metadata.get("doc_id", chunk.doc_id)
+
+        if doc_id in seen_docs:
+            continue
+        seen_docs.add(doc_id)
+
+        # Apply filters
+        if not _matches_filters(chunk.metadata, filters):
+            continue
+
+        # Calculate relevance (distance to similarity)
+        relevance = max(0.0, 1.0 - chunk.score)
+
+        results.append(
+            SearchResult(
+                doc_id=doc_id,
+                filename=chunk.metadata.get("filename", "unknown"),
+                document_type=chunk.metadata.get("document_type"),
+                relevance_score=relevance,
+                snippet=chunk.text[:200] + "..." if len(chunk.text) > 200 else chunk.text,
+                highlights=[query],
+            )
+        )
+
+    return results
+
+
+async def _category_search(query: str, filters: SearchFilters) -> list[SearchResult]:
+    """
+    Category-based search.
+    Searches in concept names and returns documents in matching categories.
+    """
+    db = _get_db()
+    conn = db._get_connection()
+
+    # Search for matching categories
+    query_lower = query.lower()
+    cursor = conn.execute(
+        """
+        SELECT id, concept_name, concept_type
+        FROM concepts
+        WHERE LOWER(concept_name) LIKE ?
+           OR LOWER(description) LIKE ?
+        """,
+        (f"%{query_lower}%", f"%{query_lower}%"),
+    )
+
+    category_ids = [row[0] for row in cursor.fetchall()]
+
+    if not category_ids:
+        return []
+
+    # Get documents in these categories
+    placeholders = ",".join("?" * len(category_ids))
+    cursor = conn.execute(
+        f"""
+        SELECT DISTINCT d.doc_id, d.filename, d.document_type, dc.relevance_score
+        FROM documents d
+        INNER JOIN document_concepts dc ON d.doc_id = dc.doc_id
+        WHERE dc.concept_id IN ({placeholders})
+        ORDER BY dc.relevance_score DESC
+        """,
+        category_ids,
+    )
+
+    results = []
+    for row in cursor.fetchall():
+        doc = db.get_document(row[0])
+        if doc and _matches_filters(doc, filters):
+            results.append(
+                SearchResult(
+                    doc_id=row[0],
+                    filename=row[1],
+                    document_type=row[2],
+                    relevance_score=row[3] if row[3] else 0.8,
+                    snippet=f"Found in category matching: {query}",
+                    highlights=[query],
+                )
+            )
+
+    return results
+
+
+async def _entity_search(query: str, filters: SearchFilters) -> list[SearchResult]:
+    """
+    Entity-based search.
+    Searches in institutions and violation types.
+    """
+    db = _get_db()
+    all_docs = db.list_documents()
+
+    query_lower = query.lower()
+    results = []
+
+    for doc in all_docs:
+        # Apply filters first
+        if not _matches_filters(doc, filters):
+            continue
+
+        # Check institutions
+        related_inst = doc.get("related_institutions") or "[]"
+        if isinstance(related_inst, str):
+            related_inst = json.loads(related_inst)
+
+        institution_match = any(query_lower in inst.lower() for inst in related_inst)
+
+        # Check violations
+        violation_types = doc.get("violation_types") or "[]"
+        if isinstance(violation_types, str):
+            violation_types = json.loads(violation_types)
+
+        violation_match = any(query_lower in viol.lower() for viol in violation_types)
+
+        if institution_match or violation_match:
+            relevance = 1.0 if institution_match else 0.9
+            matched_entities = []
+            if institution_match:
+                matched_entities.extend([i for i in related_inst if query_lower in i.lower()])
+            if violation_match:
+                matched_entities.extend([v for v in violation_types if query_lower in v.lower()])
+
+            results.append(
+                SearchResult(
+                    doc_id=doc["doc_id"],
+                    filename=doc["filename"],
+                    document_type=doc.get("document_type"),
+                    relevance_score=relevance,
+                    snippet=f"Entities: {', '.join(matched_entities[:3])}",
+                    highlights=matched_entities,
+                )
+            )
+
+    return results
+
+
+async def _file_search(query: str, filters: SearchFilters) -> list[SearchResult]:
+    """
+    Filename-based search.
+    Simple pattern matching on filenames.
+    """
+    db = _get_db()
+    all_docs = db.list_documents()
+
+    query_lower = query.lower()
+    results = []
+
+    for doc in all_docs:
+        # Apply filters
+        if not _matches_filters(doc, filters):
+            continue
+
+        filename_lower = doc.get("filename", "").lower()
+
+        if query_lower in filename_lower:
+            # Calculate relevance based on match position
+            match_pos = filename_lower.index(query_lower)
+            relevance = 1.0 if match_pos == 0 else max(0.5, 1.0 - (match_pos / len(filename_lower)))
+
+            results.append(
+                SearchResult(
+                    doc_id=doc["doc_id"],
+                    filename=doc["filename"],
+                    document_type=doc.get("document_type"),
+                    relevance_score=relevance,
+                    snippet=doc.get("filename"),
+                    highlights=[query],
+                )
+            )
+
+    return results
+
+
+async def _grep_search(query: str, max_results: int, filters: SearchFilters) -> list[SearchResult]:
+    """
+    Grep-based full-text search.
+    Reuses HardSearcher from document_processing module.
+    """
+    from finagent.document_processing.hard_searcher import HardSearcher
+
+    searcher = HardSearcher()
+
+    # Split query into keywords
+    keywords = [kw.strip() for kw in query.split() if kw.strip()]
+
+    if not keywords:
+        return []
+
+    # Perform hard search
+    chunks = searcher.search(keywords=keywords, max_results=max_results)
+
+    # Convert to search results and deduplicate
+    seen_docs = set()
+    results = []
+
+    for chunk in chunks:
+        filename = chunk.metadata.get("filename", "unknown")
+
+        if filename in seen_docs:
+            continue
+        seen_docs.add(filename)
+
+        # Apply filters
+        if not _matches_filters(chunk.metadata, filters):
+            continue
+
+        results.append(
+            SearchResult(
+                doc_id=chunk.doc_id,
+                filename=filename,
+                document_type=chunk.metadata.get("document_type"),
+                relevance_score=chunk.score,
+                snippet=chunk.text[:200] + "..." if len(chunk.text) > 200 else chunk.text,
+                highlights=keywords,
+            )
+        )
+
+    return results
+
+
+async def _hybrid_search(query: str, max_results: int, filters: SearchFilters) -> list[SearchResult]:
+    """
+    Hybrid search combining vector and grep.
+    Best of both worlds: semantic understanding + exact matches.
+    """
+    # Run both searches in parallel would be ideal, but for simplicity run sequentially
+    vector_results = await _vector_search(query, max_results, filters)
+    grep_results = await _grep_search(query, max_results, filters)
+
+    # Merge results, deduplicating by doc_id
+    merged = {}
+
+    # Add vector results
+    for result in vector_results:
+        merged[result.doc_id] = result
+
+    # Add grep results, boosting score if already in vector results
+    for result in grep_results:
+        if result.doc_id in merged:
+            # Combine scores (weighted average favoring grep for exact matches)
+            existing = merged[result.doc_id]
+            combined_score = (existing.relevance_score * 0.4 + result.relevance_score * 0.6)
+            existing.relevance_score = combined_score
+            # Merge highlights
+            existing.highlights = list(set(existing.highlights + result.highlights))
+        else:
+            merged[result.doc_id] = result
+
+    return list(merged.values())
+
+
+def _matches_filters(metadata: dict, filters: SearchFilters) -> bool:
+    """
+    Check if document metadata matches search filters.
+    Helper function to avoid code duplication across search methods.
+    """
+    if filters.document_type and metadata.get("document_type") != filters.document_type:
+        return False
+
+    if filters.authority and metadata.get("issuing_authority") != filters.authority:
+        return False
+
+    if filters.min_confidence:
+        confidence = metadata.get("extraction_confidence", 0)
+        if confidence < filters.min_confidence:
+            return False
+
+    # Check institution filter
+    if filters.institution:
+        related_inst = metadata.get("related_institutions", [])
+        if isinstance(related_inst, str):
+            try:
+                related_inst = json.loads(related_inst)
+            except:
+                related_inst = []
+        if filters.institution not in related_inst:
+            return False
+
+    # Check violation filter
+    if filters.violation:
+        violation_types = metadata.get("violation_types", [])
+        if isinstance(violation_types, str):
+            try:
+                violation_types = json.loads(violation_types)
+            except:
+                violation_types = []
+        if filters.violation not in violation_types:
+            return False
+
+    # Date filters
+    doc_date = metadata.get("date") or metadata.get("document_date")
+    if filters.date_from and doc_date and doc_date < filters.date_from:
+        return False
+    if filters.date_to and doc_date and doc_date > filters.date_to:
+        return False
+
+    return True
 
 
 # ============================================================================
