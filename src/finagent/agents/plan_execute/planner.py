@@ -6,6 +6,7 @@ from langchain_openai import ChatOpenAI
 
 from finagent.agents.plan_execute.models import Plan, PlanExecuteState
 from finagent.config import settings
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 class PlannerAgent:
     """Agent responsible for creating the initial research plan."""
@@ -46,6 +47,12 @@ class PlannerAgent:
         
         self.chain = self.prompt | self.llm | self.parser
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(Exception),
+        reraise=True
+    )
     async def plan(self, state: PlanExecuteState) -> dict:
         """Generate a plan based on the input."""
         plan = await self.chain.ainvoke({"input": state["input"]})

@@ -26,6 +26,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.output_parsers import StrOutputParser
 import json
 import re
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 class ReplannerAgent:
     """Agent responsible for updating the plan based on execution results."""
@@ -77,6 +78,12 @@ class ReplannerAgent:
         # Use StrOutputParser to get raw string, then parse manually
         self.chain = self.prompt | self.llm | StrOutputParser()
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(Exception),
+        reraise=True
+    )
     async def replan(self, state: PlanExecuteState) -> dict:
         """Replan based on the current state."""
         # Format past steps for the prompt
