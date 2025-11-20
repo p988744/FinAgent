@@ -39,6 +39,11 @@ backend/test_*.py
 !backend/tests/
 backend/patch_*.py
 
+# Root-level test files (should be in scripts/ or .archive/)
+/test_*.sh
+/test_*.txt
+/ws_output.txt
+
 # Data
 backend/data/vector_db/
 backend/data/*.db
