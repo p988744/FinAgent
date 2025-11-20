@@ -218,21 +218,33 @@ async def get_wiki_overview():
         )[:10]
         recent_summaries = [_db_doc_to_summary(doc) for doc in recent_docs]
 
-        # Get top entities
-        top_ents = summary.get("top_entities", {})
+        # Calculate top entities from concepts table
+        def _get_top_entities(concept_type: str, limit: int = 10) -> list[TopEntity]:
+            """Get top entities for a specific concept type"""
+            cursor = conn.execute(
+                """
+                SELECT concept_name, document_count
+                FROM concepts
+                WHERE concept_type = ? AND document_count > 0
+                ORDER BY document_count DESC
+                LIMIT ?
+                """,
+                (concept_type, limit),
+            )
+            total_docs = max(total_documents, 1)  # Avoid division by zero
+            return [
+                TopEntity(
+                    name=row[0],
+                    count=row[1],
+                    percentage=(row[1] / total_docs) * 100,
+                )
+                for row in cursor.fetchall()
+            ]
+
         top_entities = TopEntitiesStats(
-            institutions=[
-                TopEntity(name=item["name"], count=item["count"], percentage=item["percentage"])
-                for item in top_ents.get("institutions", [])
-            ],
-            violations=[
-                TopEntity(name=item["name"], count=item["count"], percentage=item["percentage"])
-                for item in top_ents.get("violations", [])
-            ],
-            authorities=[
-                TopEntity(name=item["name"], count=item["count"], percentage=item["percentage"])
-                for item in top_ents.get("authorities", [])
-            ],
+            institutions=_get_top_entities("institution"),
+            violations=_get_top_entities("violation"),
+            authorities=_get_top_entities("authority"),
         )
 
         return WikiOverview(
