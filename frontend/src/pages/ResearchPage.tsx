@@ -21,6 +21,7 @@ import type {
 export function ResearchPage() {
   const [queryText, setQueryText] = useState('')
   const [isQuerying, setIsQuerying] = useState(false)
+  const [usePlanExecute, setUsePlanExecute] = useState(false)
   const [steps, setSteps] = useState<Map<string, StepUpdate>>(new Map())
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([])
@@ -214,14 +215,22 @@ export function ResearchPage() {
         // Wait for connection then send
         setTimeout(() => {
           if (wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ type: 'query', text: queryText }))
+            wsRef.current.send(JSON.stringify({
+              type: 'query',
+              text: queryText,
+              use_plan_execute: usePlanExecute
+            }))
           } else {
             setError('WebSocket 連線失敗，請重試')
             setIsQuerying(false)
           }
         }, 1000)
       } else {
-        wsRef.current.send(JSON.stringify({ type: 'query', text: queryText }))
+        wsRef.current.send(JSON.stringify({
+          type: 'query',
+          text: queryText,
+          use_plan_execute: usePlanExecute
+        }))
       }
     },
     [queryText, isQuerying, connectWebSocket]
@@ -346,23 +355,37 @@ export function ResearchPage() {
               disabled={isQuerying}
             />
           </div>
+
+          <div className="flex items-center space-x-2 mb-2">
+            <input
+              type="checkbox"
+              id="usePlanExecute"
+              checked={usePlanExecute}
+              onChange={(e) => setUsePlanExecute(e.target.checked)}
+              disabled={isQuerying}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="usePlanExecute" className="text-sm text-gray-700">
+              使用新版 Plan-and-Execute 代理 (實驗性)
+            </label>
+          </div>
+
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <div
-                className={`w-2 h-2 rounded-full ${
-                  connectionStatus === 'connected'
-                    ? 'bg-green-500'
-                    : connectionStatus === 'connecting'
+                className={`w-2 h-2 rounded-full ${connectionStatus === 'connected'
+                  ? 'bg-green-500'
+                  : connectionStatus === 'connecting'
                     ? 'bg-yellow-500'
                     : 'bg-red-500'
-                }`}
+                  }`}
               />
               <span className="text-xs text-gray-600">
                 {connectionStatus === 'connected'
                   ? '已連線'
                   : connectionStatus === 'connecting'
-                  ? '連線中...'
-                  : '未連線'}
+                    ? '連線中...'
+                    : '未連線'}
               </span>
             </div>
             <button

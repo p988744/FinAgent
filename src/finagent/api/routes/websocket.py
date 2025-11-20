@@ -590,6 +590,8 @@ async def websocket_query_endpoint(websocket: WebSocket):
 
             if data.get("type") == "query":
                 query_text = data.get("text", "")
+                use_plan_execute = data.get("use_plan_execute", False)
+                
                 if not query_text:
                     await websocket.send_json({
                         "type": "error",
@@ -624,22 +626,35 @@ async def websocket_query_endpoint(websocket: WebSocket):
                     start_time = datetime.now()
                     answer = None
                     final_plan = None
+                    
+                    # For Plan-and-Execute flow
+                    final_response_text = None
 
                     # Map LangGraph node names to UI step names
                     node_to_step = {
+                        # Standard Flow
                         "query_analysis": "planning",
                         "planning": "planning",
                         "action": "action",
                         "validation": "validation",
                         "reference_guard": "validation",
                         "answer": "answer",
+                        
+                        # Plan-and-Execute Flow
+                        "planner": "planning",
+                        "executor": "action",
+                        "replanner": "validation", 
                     }
 
                     last_node = None
 
                     # Stream workflow execution directly (async)
                     try:
-                        async for node_name, state_update in orchestrator.stream_query(query, enable_demo_delay=ENABLE_DEMO_DELAY):
+                        async for node_name, state_update in orchestrator.stream_query(
+                            query, 
+                            enable_demo_delay=ENABLE_DEMO_DELAY,
+                            use_plan_execute=use_plan_execute
+                        ):
                             step_name = node_to_step.get(node_name, None)
                             current_time = datetime.now()
 
@@ -659,9 +674,9 @@ async def websocket_query_endpoint(websocket: WebSocket):
                                 callback.current_step = step_name
 
                                 step_descriptions = {
-                                    "planning": "分析查詢意圖與關鍵字",
-                                    "action": "執行 RAG 檢索",
-                                    "validation": "驗證引用完整性",
+                                    "planning": "分析查詢意圖與規劃",
+                                    "action": "執行檢索任務",
+                                    "validation": "驗證與重新規劃",
                                     "answer": "生成最終答案",
                                 }
 
@@ -682,11 +697,11 @@ async def websocket_query_endpoint(websocket: WebSocket):
                                 # Small delay to ensure messages are sent one at a time
                                 await asyncio.sleep(0.01)
 
+                            # --- Standard Flow Handling ---
                             # Extract plan data when planning completes
                             if node_name == "planning" and "plan" in state_update:
                                 final_plan = state_update.get("plan")
                                 if final_plan:
-                                    # Send real plan data
                                     await callback._send("plan_created", final_plan)
                                     await callback._send("activity_log", {
                                         "level": "success",
@@ -696,6 +711,57 @@ async def websocket_query_endpoint(websocket: WebSocket):
                             # Extract answer when complete
                             if "answer" in state_update and state_update["answer"]:
                                 answer = state_update["answer"]
+                                
+                            # --- Plan-and-Execute Flow Handling ---
+                            if use_plan_execute:
+                                if node_name == "planner" and "plan" in state_update:
+                                    # Convert Plan object to UI format
+                                    plan_obj = state_update["plan"]
+                                    tasks = []
+                                    if hasattr(plan_obj, "tasks"):
+                                        for task in plan_obj.tasks:
+                                            tasks.append({
+                                                "id": task.id,
+                                                "description": task.description,
+                                                "tool": task.tool,
+                                                "status": "pending"
+                                            })
+                                        
+                                        # Send plan update
+                                        await callback._send("plan_created", {
+                                            "tasks": tasks,
+                                            "summary": "Plan-and-Execute Strategy"
+                                        })
+                                        
+                                if node_name == "executor" and "past_steps" in state_update:
+                                    # Log tool executions
+                                    past_steps = state_update["past_steps"]
+                                    if past_steps:
+                                        last_step = past_steps[-1]
+                                        # last_step is (task_dict, result)
+                                        task_info = last_step[0]
+                                        result_info = last_step[1]
+                                        
+                                        await callback._send("activity_log", {
+                                            "level": "info",
+                                            "message": f"執行任務: {task_info.get('description')} -> 完成",
+                                        })
+                                        
+                                if node_name == "replanner":
+                                    if "response" in state_update and state_update["response"]:
+                                        final_response_text = state_update["response"]
+                                        # Transition to answer step
+                                        await callback._send("step_update", {
+                                            "step": "answer",
+                                            "status": "active",
+                                            "description": "生成最終答案",
+                                            "elapsed_ms": 0,
+                                        })
+                                    elif "plan" in state_update:
+                                        await callback._send("activity_log", {
+                                            "level": "info",
+                                            "message": "重新規劃: 添加新任務",
+                                        })
 
                         total_time = int((datetime.now() - start_time).total_seconds() * 1000)
 
@@ -709,33 +775,48 @@ async def websocket_query_endpoint(websocket: WebSocket):
                                 "elapsed_ms": elapsed,
                             })
 
-                        if not answer:
-                            raise Exception("工作流程未生成答案")
+                        # Construct final result
+                        result = None
+                        
+                        if use_plan_execute:
+                            if final_response_text:
+                                result = {
+                                    "summary": "Plan-and-Execute Result",
+                                    "key_findings": ["See detailed analysis"],
+                                    "detailed_analysis": final_response_text,
+                                    "confidence": "HIGH",
+                                    "processing_time_ms": total_time,
+                                    "citations": [] # Citations not yet implemented in P&E flow
+                                }
+                            else:
+                                raise Exception("Plan-and-Execute flow did not produce a response")
+                        else:
+                            if not answer:
+                                raise Exception("工作流程未生成答案")
+                                
+                            result = {
+                                "summary": answer.executive_summary,
+                                "key_findings": answer.key_findings,
+                                "detailed_analysis": answer.detailed_analysis,
+                                "confidence": answer.confidence_score.value if hasattr(answer.confidence_score, 'value') else str(answer.confidence_score),
+                                "processing_time_ms": answer.processing_time_ms or 0,
+                                "citations": [
+                                    {
+                                        "id": c.id,
+                                        "source": c.formatted_citation or c.title,
+                                        "authority": c.authority.value if hasattr(c.authority, 'value') else str(c.authority),
+                                        "citation_type": c.type.value if hasattr(c.type, 'value') else str(c.type),
+                                        "date": c.date,
+                                        "relevance": 1.0,
+                                    }
+                                    for c in answer.citations
+                                ],
+                            }
 
                         await callback._send("activity_log", {
                             "level": "success",
                             "message": f"查詢完成，共耗時 {total_time/1000:.1f} 秒",
                         })
-
-                        # Send complete result
-                        result = {
-                            "summary": answer.executive_summary,
-                            "key_findings": answer.key_findings,
-                            "detailed_analysis": answer.detailed_analysis,
-                            "confidence": answer.confidence_score.value if hasattr(answer.confidence_score, 'value') else str(answer.confidence_score),
-                            "processing_time_ms": answer.processing_time_ms or 0,
-                            "citations": [
-                                {
-                                    "id": c.id,
-                                    "source": c.formatted_citation or c.title,
-                                    "authority": c.authority.value if hasattr(c.authority, 'value') else str(c.authority),
-                                    "citation_type": c.type.value if hasattr(c.type, 'value') else str(c.type),
-                                    "date": c.date,
-                                    "relevance": 1.0,  # Default relevance since it's not in the model
-                                }
-                                for c in answer.citations
-                            ],
-                        }
 
                         await websocket.send_json({
                             "type": "query_complete",

@@ -3,11 +3,13 @@
 import logging
 from datetime import datetime
 
+from finagent.agents.plan_execute.graph import PlanExecuteWorkflow
 from finagent.agents.query_memo import QueryMemoLogger
 from finagent.agents.state import AgentState
 from finagent.agents.workflow import LegalResearchWorkflow
 from finagent.config import settings
 from finagent.document_processing import DocumentRetriever
+from finagent.document_processing.hard_searcher import HardSearcher
 from finagent.models.answers import ConfidenceLevel, LegalAnswer
 from finagent.models.citations import CitationAuthority, CitationType, LegalCitation
 from finagent.models.queries import Query
@@ -60,10 +62,20 @@ class AgentOrchestrator:
                     clarification_handler=clarification_handler,
                     ui_callback=ui_callback,
                 )
-                self.logger.info("LangGraph workflow initialized successfully")
+                
+                # Initialize Plan-and-Execute workflow
+                # Note: HardSearcher requires a DB path, assuming default for now
+                self.hard_searcher = HardSearcher(db_path="data/finagent.db")
+                self.plan_execute_workflow = PlanExecuteWorkflow(
+                    retriever=self.retriever,
+                    hard_searcher=self.hard_searcher
+                )
+                
+                self.logger.info("LangGraph workflows initialized successfully")
             else:
                 self.logger.warning("Vector database is empty, using fallback mode")
                 self.workflow = None
+                self.plan_execute_workflow = None
         except Exception as e:
             self.logger.warning(f"Failed to initialize RAG retriever: {e}, using fallback mode")
             self.retriever = None
@@ -193,13 +205,14 @@ class AgentOrchestrator:
                 )
             raise
 
-    async def stream_query(self, query: Query, enable_demo_delay: bool = False):
+    async def stream_query(self, query: Query, enable_demo_delay: bool = False, use_plan_execute: bool = False):
         """
         Stream query processing, yielding events for each workflow step.
 
         Args:
             query: User query
             enable_demo_delay: If True, add delays for demo/testing purposes (default: False)
+            use_plan_execute: If True, use the new Plan-and-Execute workflow (default: False)
 
         Yields:
             Tuples of (node_name, state_update) for each step
@@ -207,25 +220,46 @@ class AgentOrchestrator:
         if not self.use_rag or not self.workflow:
             return
 
-        self.logger.info(f"Streaming query with LangGraph workflow (demo_delay={enable_demo_delay})")
+        self.logger.info(f"Streaming query with {'Plan-and-Execute' if use_plan_execute else 'Standard'} workflow (demo_delay={enable_demo_delay})")
 
-        # Initialize state
-        initial_state: AgentState = {
-            "query": query,
-            "plan": None,
-            "plan_analysis": None,
-            "research_tasks": None,
-            "retrieved_chunks": None,
-            "citations": None,
-            "validation_passed": False,
-            "validation_issues": None,
-            "answer": None,
-            "search_iteration": 0,
-            "max_search_iterations": 2,
-            "search_strategy": "strict",
-            "processing_steps": [],
-            "errors": [],
-        }
+        if use_plan_execute and self.plan_execute_workflow:
+            # Plan-and-Execute Workflow
+            initial_state = {
+                "input": query.text,
+                "plan": None,
+                "past_steps": [],
+                "response": None
+            }
+            
+            try:
+                # Stream workflow execution
+                async for event in self.plan_execute_workflow.graph.astream(initial_state):
+                    for node_name, state_update in event.items():
+                        yield node_name, state_update
+                        
+            except Exception as e:
+                self.logger.error(f"Streaming Plan-and-Execute query failed: {e}", exc_info=True)
+                raise
+
+        else:
+            # Standard Workflow
+            # Initialize state
+            initial_state: AgentState = {
+                "query": query,
+                "plan": None,
+                "plan_analysis": None,
+                "research_tasks": None,
+                "retrieved_chunks": None,
+                "citations": None,
+                "validation_passed": False,
+                "validation_issues": None,
+                "answer": None,
+                "search_iteration": 0,
+                "max_search_iterations": 2,
+                "search_strategy": "strict",
+                "processing_steps": [],
+                "errors": [],
+            }
 
         # Start query logging
         if self.query_logger:
