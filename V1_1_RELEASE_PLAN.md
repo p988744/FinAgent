@@ -122,8 +122,20 @@ frontend/src/pages/ResearchPage.tsx
 - [ ] Parallelize independent task execution in `ExecutorAgent`
 - [ ] Cache intermediate results to reduce latency
 
+**3.3 UI Stability Fixes**
+- [ ] Fix Plan panel disappearing during workflow execution
+- [ ] Prevent WebSocket reconnection from clearing UI state
+- [ ] Ensure consistent state management across frontend components
+
 **Known Issues:**
-- ⚠️ `ReplannerAgent` occasionally fails to parse JSON output from the LLM. A manual parsing fallback has been implemented, but further prompt engineering or model tuning may be required for 100% reliability.
+- ⚠️ **JSON Parsing Reliability**: `ReplannerAgent` occasionally fails to parse JSON output from the LLM. A manual parsing fallback with retry logic has been implemented, but further prompt engineering or model tuning may be required for 100% reliability.
+- ⚠️ **Plan Panel Disappearance**: The Research Plan panel (研究計畫) appears correctly when `plan_created` event is received but disappears after 5-20 seconds during workflow execution. Root cause under investigation:
+  - Potential WebSocket reconnection triggering duplicate `query_started` events
+  - Frontend state management clearing `plan` state unexpectedly  
+  - Event ordering issues between backend and frontend
+  - **Workaround**: The underlying workflow executes correctly and produces results despite UI display issues
+  - **Screenshots**: See [workflow_5sec](/Users/weifanliao/.gemini/antigravity/brain/d01f7df5-853a-477f-b41e-b2f1e2d6a517/workflow_5sec_1763627462010.png) vs [workflow_20sec](/Users/weifanliao/.gemini/antigravity/brain/d01f7df5-853a-477f-b41e-b2f1e2d6a517/workflow_20sec_1763627483159.png)
+  - **Priority**: Medium (functionality works, UI refinement needed)
 
 ## Success Criteria
 - [x] Plan-and-Execute flow successfully processes complex queries (e.g., "Find X and then do Y")
