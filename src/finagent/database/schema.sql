@@ -54,6 +54,46 @@ CREATE INDEX IF NOT EXISTS idx_history_session ON history(session_id);
 CREATE INDEX IF NOT EXISTS idx_history_created ON history(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_history_model ON history(model_used);
 
+-- Research sessions table: Store research workflow sessions with Celery integration
+CREATE TABLE IF NOT EXISTS research_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL UNIQUE,  -- Unique session identifier (matches Celery task_id)
+    query_text TEXT NOT NULL,  -- User's research query
+    status TEXT NOT NULL DEFAULT 'pending',  -- pending, in_progress, completed, failed
+    celery_task_id TEXT,  -- Celery task ID for background processing
+    result TEXT,  -- JSON string of final research result
+    error_message TEXT,  -- Error message if failed
+    -- Agent workflow tracking
+    current_agent TEXT,  -- Current agent (planning, action, validation, answer)
+    agent_steps TEXT,  -- JSON array of agent step updates
+    todos TEXT,  -- JSON array of todo items
+    activity_log TEXT,  -- JSON array of activity log entries
+    research_plan TEXT,  -- JSON object of research plan
+    dynamic_plan TEXT,  -- JSON object of dynamic plan analysis
+    tool_executions TEXT,  -- JSON object of tool execution statuses
+    -- Performance metrics
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    processing_time_seconds REAL,
+    model_used TEXT,
+    tokens_used INTEGER,
+    cost_usd REAL,
+    -- User interaction
+    user_id TEXT,  -- Future: user identifier for multi-user support
+    is_bookmarked BOOLEAN DEFAULT 0,  -- User can bookmark important sessions
+    notes TEXT,  -- User notes on the session
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for research_sessions
+CREATE INDEX IF NOT EXISTS idx_research_sessions_session_id ON research_sessions(session_id);
+CREATE INDEX IF NOT EXISTS idx_research_sessions_status ON research_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_research_sessions_task_id ON research_sessions(celery_task_id);
+CREATE INDEX IF NOT EXISTS idx_research_sessions_created ON research_sessions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_research_sessions_user ON research_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_research_sessions_bookmarked ON research_sessions(is_bookmarked);
+
 -- Trigger to update updated_at on settings update
 CREATE TRIGGER IF NOT EXISTS update_settings_timestamp
 AFTER UPDATE ON settings
@@ -139,6 +179,14 @@ AFTER UPDATE ON documents
 FOR EACH ROW
 BEGIN
     UPDATE documents SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+END;
+
+-- Trigger to update updated_at on research_sessions update
+CREATE TRIGGER IF NOT EXISTS update_research_sessions_timestamp
+AFTER UPDATE ON research_sessions
+FOR EACH ROW
+BEGIN
+    UPDATE research_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
 END;
 
 -- Concepts table: Store extracted topics/concepts for faster retrieval

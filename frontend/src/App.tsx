@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MainLayout } from './layouts/MainLayout'
-import { QueryPage } from './pages/QueryPage'
+import { ResearchPage } from './pages/ResearchPage'
 import { ConfigPage } from './pages/ConfigPage'
 import { ModelsPage } from './pages/ModelsPage'
 import { DocumentsPage } from './pages/DocumentsPage'
@@ -23,8 +23,8 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<Navigate to="/query" replace />} />
-            <Route path="query" element={<QueryPage />} />
+            <Route index element={<Navigate to="/research" replace />} />
+            <Route path="research" element={<ResearchPage />} />
             <Route path="wiki" element={<WikiPage />} />
             <Route path="wiki/document/:docId" element={<DocumentDetailPage />} />
             <Route path="config" element={<ConfigPage />} />

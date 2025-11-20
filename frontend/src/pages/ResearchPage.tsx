@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Send, Loader2 } from 'lucide-react'
-import { AgentStepper } from '../components/query/AgentStepper'
-import { TodoPanel } from '../components/query/TodoPanel'
-import { ActivityLog } from '../components/query/ActivityLog'
-import { ResultsPanel } from '../components/query/ResultsPanel'
-import { PlanPanel } from '../components/query/PlanPanel'
-import { DynamicPlanPanel } from '../components/query/DynamicPlanPanel'
+import { AgentStepper } from '../components/research/AgentStepper'
+import { TodoPanel } from '../components/research/TodoPanel'
+import { ActivityLog } from '../components/research/ActivityLog'
+import { ResultsPanel } from '../components/research/ResultsPanel'
+import { PlanPanel } from '../components/research/PlanPanel'
+import { DynamicPlanPanel } from '../components/research/DynamicPlanPanel'
+import { ResearchHistory } from '../components/research/ResearchHistory'
 import type {
   StepUpdate,
   TodoItem,
@@ -15,9 +16,9 @@ import type {
   ResearchPlan,
   DynamicPlanAnalysis,
   ToolExecutionStatus,
-} from '../types/query'
+} from '../types/research'
 
-export function QueryPage() {
+export function ResearchPage() {
   const [queryText, setQueryText] = useState('')
   const [isQuerying, setIsQuerying] = useState(false)
   const [steps, setSteps] = useState<Map<string, StepUpdate>>(new Map())
@@ -248,6 +249,65 @@ export function QueryPage() {
     URL.revokeObjectURL(url)
   }, [result, queryText, activityLog])
 
+  // Load session from history
+  const handleSelectSession = useCallback(async (sessionId: string) => {
+    try {
+      // Fetch session status
+      const response = await fetch(`/api/v1/research/status/${sessionId}`)
+      if (!response.ok) {
+        throw new Error('無法載入研究記錄')
+      }
+
+      const sessionData = await response.json()
+
+      // Restore session state
+      setQueryText(sessionData.query_text)
+      setIsQuerying(sessionData.status === 'in_progress')
+
+      if (sessionData.agent_steps) {
+        const stepsMap = new Map()
+        sessionData.agent_steps.forEach((step: any) => {
+          stepsMap.set(step.step, step)
+        })
+        setSteps(stepsMap)
+      }
+
+      if (sessionData.todos) {
+        setTodos(sessionData.todos)
+      }
+
+      if (sessionData.activity_log) {
+        setActivityLog(sessionData.activity_log)
+      }
+
+      if (sessionData.research_plan) {
+        setPlan(sessionData.research_plan)
+      }
+
+      if (sessionData.dynamic_plan) {
+        setDynamicPlan(sessionData.dynamic_plan)
+      }
+
+      if (sessionData.tool_executions) {
+        const toolMap = new Map()
+        Object.entries(sessionData.tool_executions).forEach(([key, value]) => {
+          toolMap.set(key, value as any)
+        })
+        setToolExecutions(toolMap)
+      }
+
+      if (sessionData.result) {
+        setResult(sessionData.result)
+      }
+
+      if (sessionData.error_message) {
+        setError(sessionData.error_message)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '載入研究記錄失敗')
+    }
+  }, [])
+
   // Connect WebSocket on mount
   useEffect(() => {
     connectWebSocket()
@@ -349,6 +409,9 @@ export function QueryPage() {
 
       {/* Results - Only show after query completes */}
       {result && <ResultsPanel result={result} onExport={handleExport} />}
+
+      {/* Research History */}
+      <ResearchHistory onSelectSession={handleSelectSession} />
     </div>
   )
 }
