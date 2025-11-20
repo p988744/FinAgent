@@ -201,3 +201,24 @@ FOR EACH ROW
 BEGIN
     UPDATE concepts SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
 END;
+
+-- Tool executions table: Track all tool executions for verification and monitoring
+CREATE TABLE IF NOT EXISTS tool_executions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    query_id TEXT NOT NULL,  -- Associated query/research session ID
+    tool_name TEXT NOT NULL,  -- Name of the tool (e.g., "vector_search", "metadata_search")
+    parameters TEXT NOT NULL,  -- JSON string of input parameters
+    execution_time_ms INTEGER NOT NULL,  -- Execution time in milliseconds
+    results_count INTEGER NOT NULL,  -- Number of results returned
+    sample_results TEXT,  -- JSON string with sample results (top 3) for verification
+    metadata TEXT,  -- JSON string with tool-specific metadata (relevance scores, filters, etc.)
+    success BOOLEAN DEFAULT 1,  -- Whether execution succeeded
+    error_message TEXT,  -- Error message if failed
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for tool_executions
+CREATE INDEX IF NOT EXISTS idx_tool_executions_query_id ON tool_executions(query_id);
+CREATE INDEX IF NOT EXISTS idx_tool_executions_tool_name ON tool_executions(tool_name);
+CREATE INDEX IF NOT EXISTS idx_tool_executions_created ON tool_executions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tool_executions_success ON tool_executions(success);
