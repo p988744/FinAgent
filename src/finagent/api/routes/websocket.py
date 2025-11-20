@@ -730,7 +730,20 @@ async def websocket_query_endpoint(websocket: WebSocket):
                                         # Send plan update
                                         await callback._send("plan_created", {
                                             "tasks": tasks,
-                                            "summary": "Plan-and-Execute Strategy"
+                                            "summary": "Plan-and-Execute Strategy",
+                                            # Add required fields for frontend ResearchPlan interface
+                                            "analysis": {
+                                                "keywords": ["Plan-and-Execute"],
+                                                "must_have_keywords": [],
+                                                "entity_type": "general",
+                                                "jurisdiction": "TW",
+                                                "time_period": None,
+                                                "query_type": "complex",
+                                                "complexity": "complex"
+                                            },
+                                            "max_results": 10,
+                                            "use_hard_search": False,
+                                            "estimated_total_time": 60
                                         })
                                         
                                 if node_name == "executor" and "past_steps" in state_update:
