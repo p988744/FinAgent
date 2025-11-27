@@ -40,6 +40,8 @@ class ReplannerAgent:
                 api_key=settings.effective_llm_api_key,
                 base_url=base_url,
                 temperature=0,
+                timeout=60,  # 60 second timeout for LLM API calls
+                max_retries=2,  # Retry failed requests
                 model_kwargs={"response_format": {"type": "json_object"}},
             )
         else:
@@ -47,6 +49,8 @@ class ReplannerAgent:
                 model=settings.llm_model,
                 api_key=settings.effective_llm_api_key,
                 temperature=0,
+                timeout=60,  # 60 second timeout for LLM API calls
+                max_retries=2,  # Retry failed requests
                 model_kwargs={"response_format": {"type": "json_object"}},
             )
 

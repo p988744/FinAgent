@@ -96,15 +96,14 @@ git commit -m "feat: add new feature"
 
 ### Documentation Structure
 
-Before implementing features, consult these guides in order:
+Before implementing features, consult these guides:
 
 1. **[V1_1_RELEASE_PLAN.md](V1_1_RELEASE_PLAN.md)** - Current release status, gaps, implementation roadmap
-2. **[LANGGRAPH_V1_IMPLEMENTATION_GUIDE.md](LANGGRAPH_V1_IMPLEMENTATION_GUIDE.md)** - LangChain v1.0 & LangGraph patterns
-3. **[SHARED_TOOLS_IMPLEMENTATION_GUIDE.md](SHARED_TOOLS_IMPLEMENTATION_GUIDE.md)** - Tool sharing and multi-workflow patterns
-4. **[IMPLEMENTATION_REVIEW_SUMMARY.md](IMPLEMENTATION_REVIEW_SUMMARY.md)** - Code review summary (Grade: A+)
-5. **[PLAN_EXECUTE_PATTERN_REVIEW.md](PLAN_EXECUTE_PATTERN_REVIEW.md)** - Pattern validation (98/100)
-6. **[TOOL_IMPLEMENTATION_REVIEW.md](TOOL_IMPLEMENTATION_REVIEW.md)** - Tool compliance (98.5/100)
-7. **[CODE_REVIEW_SUMMARY.md](CODE_REVIEW_SUMMARY.md)** - Overall quality (4.3/5)
+2. **[PROJECT_SPEC.md](PROJECT_SPEC.md)** - Technical specifications
+3. **[PROJECT_VISION.md](PROJECT_VISION.md)** - Product vision and roadmap
+
+**Archived documentation** (in `.archive/session-docs-2025-11-25/`):
+- Implementation guides, code reviews, test results from v1.1 development
 
 ### Multi-Agent LangGraph Workflows
 
@@ -137,9 +136,10 @@ User Query → Planner → Executor → Replanner → [loop or END]
 - **ExecutorAgent** ([executor.py](src/finagent/agents/plan_execute/executor.py)) - Executes tasks using tools
 - **ReplannerAgent** ([replanner.py](src/finagent/agents/plan_execute/replanner.py)) - Reviews progress, replans or responds
 
-**Tools:**
-- **RetrieverTool** ([tools.py](src/finagent/agents/plan_execute/tools.py)) - Semantic search
-- **HardSearchTool** ([tools.py](src/finagent/agents/plan_execute/tools.py)) - Keyword search
+**Tools** (in [src/finagent/tools/](src/finagent/tools/)):
+- **RetrieverTool** ([retriever.py](src/finagent/tools/retriever.py)) - Semantic vector search
+- **HardSearchTool** ([search.py](src/finagent/tools/search.py)) - Exact keyword matching
+- **HybridRetrieverTool** ([hybrid_retriever.py](src/finagent/tools/hybrid_retriever.py)) - BM25 + Vector (60%/40%)
 
 **Features:**
 - LangChain v1.0 compliant (StateGraph, LCEL, @retry decorator)
@@ -318,7 +318,7 @@ Located in [src/finagent/models/](src/finagent/models/):
 3. **Always use BaseTool** - With Pydantic args_schema
 4. **Always use .ainvoke()** - NOT .arun() or .acall() (deprecated)
 5. **Always use @retry decorator** - For LLM calls with exponential backoff
-6. **Reference guides first** - See [LANGGRAPH_V1_IMPLEMENTATION_GUIDE.md](LANGGRAPH_V1_IMPLEMENTATION_GUIDE.md)
+6. **Reference existing code** - See [src/finagent/agents/plan_execute/](src/finagent/agents/plan_execute/) for examples
 
 ### Domain-Specific Rules
 7. **Citation Integrity**: Every factual statement MUST have a citation to a verifiable source
@@ -334,7 +334,7 @@ Located in [src/finagent/models/](src/finagent/models/):
 15. **Database Triggers**: SQLite triggers enforce single active config per type - don't bypass
 16. **Configuration Presets**: Use ConfigManager API, not direct database access
 17. **Test Scripts Location**: scripts/ or .archive/, NEVER project root (see .gitignore)
-18. **Tool Sharing**: Extract to src/finagent/tools/ for reuse (see SHARED_TOOLS_IMPLEMENTATION_GUIDE.md)
+18. **Tool Sharing**: Extract to src/finagent/tools/ for reuse across workflows
 
 ## Key Terminology (繁體中文)
 
@@ -374,7 +374,7 @@ Located in [src/finagent/models/](src/finagent/models/):
 
 ### Project Organization
 6. **Don't put test scripts in project root** - Use scripts/ or .archive/
-7. **Don't duplicate tools** - Extract to shared module (see SHARED_TOOLS_IMPLEMENTATION_GUIDE.md)
+7. **Don't duplicate tools** - Extract to src/finagent/tools/ for sharing
 8. **Don't commit .env or finagent.db** - Excluded in .gitignore
 9. **Don't bypass ConfigManager** - Use high-level API, not direct database access
 10. **Don't modify triggers manually** - Schema enforcement is critical
@@ -428,22 +428,15 @@ Located in [src/finagent/models/](src/finagent/models/):
 Historical files preserved in `.archive/`:
 ```
 .archive/
-├── test-scripts/           # E2E test scripts from v0.1-alpha releases
-│   ├── test_duplicate_confirmation_e2e.sh
-│   ├── test_duplicate_e2e.sh
-│   ├── test_logs_e2e.sh
-│   ├── test_wiki_e2e.sh
-│   └── ws_output.txt
-├── validation-scripts/     # Legacy alpha validation scripts (v0.1.0-alpha.1 to alpha.5)
-│   ├── validate_alpha1.sh
-│   ├── validate_alpha2.sh
-│   ├── validate_alpha3.sh
-│   ├── validate_alpha4.sh
-│   ├── validate_alpha5.sh
-│   └── validate_v0.1.0-alpha.1.sh
-├── implementation-docs/    # v1.0 implementation documentation
-├── legacy_docs_2025-11-19/ # Old documentation snapshots
-└── old_docs_2025-11-18/    # Old documentation snapshots
+├── session-docs-2025-11-25/  # v1.1 development docs (implementation guides, reviews, test results)
+├── legacy-v1.0-agents/       # Deprecated v1.0 agent files (tool_selector, query_flow_graph, etc.)
+├── legacy-tools/             # Deprecated tool implementations (replaced by src/finagent/tools/)
+├── frontend_v1.1_backup/     # Frontend backup from v1.1 refactoring
+├── test-scripts/             # E2E test scripts from v0.1-alpha releases
+├── validation-scripts/       # Legacy alpha validation scripts
+├── implementation-docs/      # v1.0 implementation documentation
+├── V1_0_RELEASE_PLAN.md      # v1.0 release plan (superseded by V1_1_RELEASE_PLAN.md)
+└── legacy_docs_*/            # Old documentation snapshots
 ```
 
 **Note**: Never add new test scripts to project root. Use `scripts/` for active scripts or `.archive/` for historical reference.

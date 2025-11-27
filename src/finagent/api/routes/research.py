@@ -1,6 +1,9 @@
 """Research query endpoints with Celery background processing."""
 
+import logging
+import sqlite3
 import uuid
+from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -15,6 +18,40 @@ from finagent.tasks.research_workflow import (
     list_research_history,
 )
 
+logger = logging.getLogger(__name__)
+
+# Database path
+# research.py is at: src/finagent/api/routes/research.py
+# parents[4] = project root = /Users/.../finagent/
+DB_PATH = Path(__file__).parents[4] / "data" / "finagent.db"
+
+
+def _create_pending_session(session_id: str, query_text: str) -> None:
+    """
+    Pre-create a research session with 'pending' status in the database.
+    This ensures the session exists before Celery task starts processing.
+    """
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO research_sessions (
+                session_id, query_text, status,
+                created_at, updated_at
+            )
+            VALUES (?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            (session_id, query_text)
+        )
+        conn.commit()
+        logger.info(f"Pre-created pending session {session_id}")
+    except Exception as e:
+        logger.error(f"Failed to pre-create session: {e}")
+        raise
+    finally:
+        conn.close()
+
 router = APIRouter(prefix="/api/v1/research", tags=["Research"])
 
 # In-memory storage for MVP (will be replaced with database)
@@ -25,6 +62,7 @@ query_results: dict[str, LegalAnswer] = {}
 class ResearchRequest(BaseModel):
     """Research query request."""
     query_text: str
+    use_deep_agent: bool = False  # If True, use Deep Agent workflow
 
 
 class ResearchResponse(BaseModel):
@@ -78,6 +116,10 @@ async def submit_research_async(request: ResearchRequest):
     session_id = str(uuid.uuid4())
 
     try:
+        # Pre-create session in database with 'pending' status
+        # This ensures the session exists before polling starts
+        _create_pending_session(session_id, request.query_text)
+
         # Submit to Celery for background processing
         task = execute_research_workflow.delay(request.query_text, session_id)
 
@@ -202,6 +244,40 @@ async def submit_query_sync(query: Query):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+
+
+@router.post("/deep-agent/query", response_model=LegalAnswer)
+async def submit_deep_agent_query(request: ResearchRequest):
+    """
+    Submit a query using the Deep Agent workflow (synchronous).
+
+    Deep Agent provides Claude Code-like capabilities:
+    - Task planning with write_todos
+    - Sub-agent delegation for specialized tasks (RAG researcher, legal analyzer, penalty comparator)
+    - Context management
+
+    Args:
+        request: Research request with query_text
+
+    Returns:
+        LegalAnswer with research results
+    """
+    try:
+        orchestrator = AgentOrchestrator()
+
+        # Create Query object
+        from finagent.models.queries import Query
+        query = Query(text=request.query_text)
+
+        # Process with Deep Agent
+        answer = await orchestrator.process_with_deep_agent(query)
+        return answer
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing Deep Agent query: {str(e)}"
+        )
 
 
 @router.get("/history", response_model=ResearchHistoryResponse)

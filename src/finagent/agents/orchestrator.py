@@ -4,9 +4,10 @@ import logging
 from datetime import datetime
 
 from finagent.agents.plan_execute.graph import PlanExecuteWorkflow
+from finagent.agents.wiki_builder.graph import WikiBuilderWorkflow
+from finagent.agents.wiki_search.graph import WikiSearchWorkflow
+from finagent.agents.deep_agent import create_finagent_deep_agent, FinAgentDeepAgent
 from finagent.agents.query_memo import QueryMemoLogger
-from finagent.agents.state import AgentState
-from finagent.agents.workflow import LegalResearchWorkflow
 from finagent.config import settings
 from finagent.document_processing import DocumentRetriever
 from finagent.document_processing.hard_searcher import HardSearcher
@@ -20,6 +21,21 @@ logger = logging.getLogger(__name__)
 class AgentOrchestrator:
     """
     Orchestrates the multi-agent research workflow.
+
+    Supports three primary workflow modes:
+    1. Plan-Execute (v1.1): Planner → Executor → Replanner → Reporter workflow
+    2. Wiki Search: Specialized document browsing
+    3. Deep Agent (v2.0): Claude Code-like capabilities with task planning, sub-agents, and context management
+
+    Available Tools (Research Workflow):
+    - retriever: Semantic vector search (best for conceptual queries)
+    - hard_search: Exact keyword matching (best for specific terms)
+    - hybrid_search: BM25 + Vector hybrid (recommended default - combines both)
+
+    Deep Agent Capabilities:
+    - write_todos: Built-in task planning
+    - task: Sub-agent delegation (rag_researcher, legal_analyzer, penalty_comparator)
+    - semantic_search, keyword_search, hybrid_search: RAG tools
 
     Coordinates Planning → Action → Validation → Answer agents.
     """
@@ -56,35 +72,50 @@ class AgentOrchestrator:
             self.use_rag = self.retriever.collection_exists()
             if self.use_rag:
                 self.logger.info("RAG retriever initialized successfully")
-                # Initialize LangGraph workflow with clarification handler and UI callback
-                self.workflow = LegalResearchWorkflow(
-                    retriever=self.retriever,
-                    clarification_handler=clarification_handler,
-                    ui_callback=ui_callback,
-                )
-                
-                # Initialize Plan-and-Execute workflow
-                # Note: HardSearcher requires a DB path, assuming default for now
+
+                # Initialize Plan-and-Execute workflow (v1.1 - primary workflow)
                 self.hard_searcher = HardSearcher(db_path="data/finagent.db")
                 self.plan_execute_workflow = PlanExecuteWorkflow(
                     retriever=self.retriever,
                     hard_searcher=self.hard_searcher
                 )
-                
-                self.logger.info("LangGraph workflows initialized successfully")
+
+                # Initialize Wiki Search workflow (specialized browsing)
+                self.wiki_search_workflow = WikiSearchWorkflow(retriever=self.retriever)
+
+                # Initialize Wiki Builder workflow (document processing)
+                self.wiki_builder_workflow = WikiBuilderWorkflow()
+
+                # Initialize Deep Agent (v2.0 - advanced workflow)
+                try:
+                    self.deep_agent = create_finagent_deep_agent(
+                        enable_subagents=True,
+                        enable_filesystem=False,  # Disabled for security
+                    )
+                    self.logger.info("Deep Agent initialized successfully")
+                except Exception as e:
+                    self.logger.warning(f"Failed to initialize Deep Agent: {e}")
+                    self.deep_agent = None
+
+                self.logger.info("v1.2 LangGraph workflows initialized successfully (Plan-Execute, WikiSearch, WikiBuilder, DeepAgent)")
             else:
                 self.logger.warning("Vector database is empty, using fallback mode")
-                self.workflow = None
                 self.plan_execute_workflow = None
+                self.wiki_search_workflow = None
+                self.wiki_builder_workflow = WikiBuilderWorkflow()  # Builder works without RAG
+                self.deep_agent = None
         except Exception as e:
             self.logger.warning(f"Failed to initialize RAG retriever: {e}, using fallback mode")
             self.retriever = None
-            self.workflow = None
+            self.plan_execute_workflow = None
+            self.wiki_search_workflow = None
+            self.wiki_builder_workflow = WikiBuilderWorkflow()  # Builder works without RAG
+            self.deep_agent = None
             self.use_rag = False
 
     async def process_query(self, query: Query) -> LegalAnswer:
         """
-        Process a legal research query through the multi-agent pipeline.
+        Process a legal research query using the v1.1 Plan-and-Execute workflow.
 
         Args:
             query: User query
@@ -92,16 +123,16 @@ class AgentOrchestrator:
         Returns:
             Legal answer with citations
 
-        Workflow (LangGraph):
-            START → Planning → Action → Validation → Answer → END
+        Workflow (LangGraph v1.1):
+            START → QueryAnalyzer → Planner → Executor → Replanner → Reporter → END
         """
         start_time = datetime.now()
-        self.logger.info(f"Processing query: {query.text[:100]}...")
+        self.logger.info(f"Processing query with v1.1 Plan-and-Execute workflow: {query.text[:100]}...")
 
         try:
-            # Use LangGraph workflow if available, otherwise use fallback
-            if self.use_rag and self.workflow:
-                answer = await self._process_with_langgraph(query)
+            # Use v1.1 Plan-and-Execute workflow if available, otherwise use fallback
+            if self.use_rag and self.plan_execute_workflow:
+                answer = await self._process_with_plan_execute(query)
             else:
                 answer = await self._generate_mock_answer(query)
 
@@ -205,89 +236,96 @@ class AgentOrchestrator:
                 )
             raise
 
-    async def stream_query(self, query: Query, enable_demo_delay: bool = False, use_plan_execute: bool = False):
+    async def _process_with_plan_execute(self, query: Query) -> LegalAnswer:
         """
-        Stream query processing, yielding events for each workflow step.
+        Process query using v1.1 Plan-and-Execute LangGraph workflow.
 
         Args:
             query: User query
-            enable_demo_delay: If True, add delays for demo/testing purposes (default: False)
-            use_plan_execute: If True, use the new Plan-and-Execute workflow (default: False)
 
-        Yields:
-            Tuples of (node_name, state_update) for each step
+        Returns:
+            LegalAnswer generated by v1.1 workflow
         """
-        if not self.use_rag or not self.workflow:
-            return
-
-        self.logger.info(f"Streaming query with {'Plan-and-Execute' if use_plan_execute else 'Standard'} workflow (demo_delay={enable_demo_delay})")
-
-        if use_plan_execute and self.plan_execute_workflow:
-            # Plan-and-Execute Workflow
-            initial_state = {
-                "input": query.text,
-                "plan": None,
-                "past_steps": [],
-                "response": None
-            }
-            
-            try:
-                # Stream workflow execution
-                async for event in self.plan_execute_workflow.graph.astream(initial_state):
-                    for node_name, state_update in event.items():
-                        yield node_name, state_update
-                        
-            except Exception as e:
-                self.logger.error(f"Streaming Plan-and-Execute query failed: {e}", exc_info=True)
-                raise
-
-        else:
-            # Standard Workflow
-            # Initialize state
-            initial_state: AgentState = {
-                "query": query,
-                "plan": None,
-                "plan_analysis": None,
-                "research_tasks": None,
-                "retrieved_chunks": None,
-                "citations": None,
-                "validation_passed": False,
-                "validation_issues": None,
-                "answer": None,
-                "search_iteration": 0,
-                "max_search_iterations": 2,
-                "search_strategy": "strict",
-                "processing_steps": [],
-                "errors": [],
-            }
+        self.logger.info("Processing query with v1.1 Plan-and-Execute workflow")
 
         # Start query logging
         if self.query_logger:
             self.query_logger.start_query()
 
+        # Initialize state for v1.1 workflow
+        initial_state = {
+            "input": query.text,
+            "query_insight": None,
+            "plan": None,
+            "past_steps": [],
+            "response": None,
+            "scratchpad": []
+        }
+
         try:
-            # Stream workflow execution with optional demo delay
-            final_state = initial_state.copy()
-            # async for loop for async generator
-            async for node_name, state_update in self.workflow.stream(initial_state, enable_demo_delay=enable_demo_delay):
-                # Merge state updates
-                final_state.update(state_update)
-                yield node_name, state_update
+            # Run v1.1 workflow
+            final_state = None
+            async for event in self.plan_execute_workflow.graph.astream(initial_state):
+                for node_name, state_update in event.items():
+                    self.logger.debug(f"Node: {node_name}, Update: {state_update.keys()}")
+                    if final_state is None:
+                        final_state = state_update.copy()
+                    else:
+                        final_state.update(state_update)
+
+                    # Send progress updates via ui_callback
+                    if self.ui_callback:
+                        await self._send_progress_update(node_name, state_update, final_state)
+
+            if final_state is None:
+                final_state = initial_state
+
+            # Extract response from final state
+            response_text = final_state.get("response")
+
+            if not response_text:
+                # Workflow failed to generate response
+                if self.query_logger:
+                    self.query_logger.log_query(
+                        query=query,
+                        answer=None,
+                        state=final_state,
+                        model_used=settings.llm_model,
+                        success=False,
+                        error_message="v1.1 workflow failed to generate response",
+                    )
+                return await self._generate_fallback_answer(query, "v1.1 workflow failed")
+
+            # Convert v1.1 response to LegalAnswer format
+            answer = self._convert_plan_execute_response(query, response_text, final_state)
 
             # Log successful query
-            answer = final_state.get("answer")
-            if answer and self.query_logger:
+            if self.query_logger:
+                # Convert Pydantic models to dict for JSON serialization
+                serializable_state = {}
+                for key, value in final_state.items():
+                    if hasattr(value, 'dict'):
+                        # Pydantic model
+                        serializable_state[key] = value.dict()
+                    elif hasattr(value, '__dict__'):
+                        # Other objects with __dict__
+                        serializable_state[key] = vars(value)
+                    else:
+                        serializable_state[key] = value
+
                 history_id = self.query_logger.log_query(
                     query=query,
                     answer=answer,
-                    state=final_state,
+                    state=serializable_state,
                     model_used=settings.llm_model,
                     success=True,
                 )
                 self.logger.info(f"Query logged to database with ID {history_id}")
 
+            return answer
+
         except Exception as e:
-            self.logger.error(f"Streaming query failed: {e}", exc_info=True)
+            # Log failed query
             if self.query_logger:
                 self.query_logger.log_query(
                     query=query,
@@ -298,6 +336,218 @@ class AgentOrchestrator:
                     error_message=str(e),
                 )
             raise
+
+    def _convert_plan_execute_response(
+        self, query: Query, response_text: str, state: dict
+    ) -> LegalAnswer:
+        """
+        Convert v1.1 Plan-and-Execute response to LegalAnswer format.
+
+        Args:
+            query: Original query
+            response_text: Generated response text
+            state: Final workflow state
+
+        Returns:
+            LegalAnswer object
+        """
+        # Extract past steps
+        past_steps = state.get("past_steps", [])
+
+        # Parse response to extract sections
+        lines = response_text.split("\n")
+        executive_summary = ""
+        key_findings = []
+        detailed_analysis = response_text
+
+        # Try to parse structured response
+        current_section = None
+        summary_lines = []
+        findings_lines = []
+
+        for line in lines:
+            line_lower = line.lower().strip()
+            if "executive summary" in line_lower or "執行摘要" in line_lower:
+                current_section = "summary"
+            elif "key finding" in line_lower or "關鍵發現" in line_lower:
+                current_section = "findings"
+            elif "analysis" in line_lower or "分析" in line_lower:
+                current_section = "analysis"
+            elif current_section == "summary" and line.strip():
+                summary_lines.append(line.strip())
+            elif current_section == "findings" and line.strip() and (line.strip().startswith("-") or line.strip().startswith("•") or line.strip().startswith("*")):
+                findings_lines.append(line.strip().lstrip("-•* "))
+
+        # Use parsed sections if available
+        if summary_lines:
+            executive_summary = " ".join(summary_lines)
+        else:
+            # Use first paragraph as summary
+            paragraphs = [p.strip() for p in response_text.split("\n\n") if p.strip()]
+            executive_summary = paragraphs[0] if paragraphs else response_text[:200]
+
+        if findings_lines:
+            key_findings = findings_lines[:5]  # Limit to 5
+        else:
+            # Extract from past steps
+            key_findings = [f"任務 {i}: {task.get('description', 'Unknown')}"
+                          for i, (task, result) in enumerate(past_steps[:3], 1)]
+
+        # Extract citations from past steps
+        citations = self._extract_citations_from_steps(past_steps)
+
+        # Determine confidence based on results
+        if len(past_steps) >= 2 and len(citations) > 0:
+            confidence_score = ConfidenceLevel.HIGH
+            confidence_explanation = f"執行了 {len(past_steps)} 個研究任務，找到 {len(citations)} 個引用來源"
+        elif len(past_steps) >= 1:
+            confidence_score = ConfidenceLevel.MEDIUM
+            confidence_explanation = f"執行了 {len(past_steps)} 個研究任務，資料來源有限"
+        else:
+            confidence_score = ConfidenceLevel.LOW
+            confidence_explanation = "研究任務執行不足，結果可能不完整"
+
+        return LegalAnswer(
+            executive_summary=executive_summary[:1000],  # Limit length
+            key_findings=key_findings if key_findings else ["查詢已完成"],
+            detailed_analysis=detailed_analysis,
+            citations=citations,
+            confidence_score=confidence_score,
+            confidence_explanation=confidence_explanation,
+            limitations=["此為 v1.1 Plan-and-Execute workflow 自動生成結果"],
+            processing_steps=[f"Step {i}: {task.get('description', 'Unknown')}"
+                            for i, (task, _) in enumerate(past_steps, 1)],
+        )
+
+    def _extract_citations_from_steps(self, past_steps: list) -> list[LegalCitation]:
+        """
+        Extract citations from v1.1 workflow execution steps.
+
+        Args:
+            past_steps: List of (task, result) tuples
+
+        Returns:
+            List of LegalCitation objects
+        """
+        citations = []
+        seen_sources = set()
+
+        for idx, (task, result) in enumerate(past_steps, 1):
+            # Parse result to find source documents
+            if not result or not isinstance(result, str):
+                continue
+
+            # Look for [N] Source: pattern
+            import re
+            source_pattern = r'\[(\d+)\]\s*Source:\s*([^\n]+)'
+            matches = re.findall(source_pattern, result)
+
+            for match_num, source_name in matches:
+                if source_name not in seen_sources:
+                    seen_sources.add(source_name)
+                    citation = LegalCitation(
+                        id=len(citations) + 1,
+                        type=CitationType.ENFORCEMENT_DOCUMENT,
+                        authority=CitationAuthority.PRIMARY,
+                        title=source_name.strip(),
+                        formatted_citation=f"[{len(citations) + 1}] {source_name.strip()}",
+                        issuing_authority="金管會",
+                    )
+                    citations.append(citation)
+
+        return citations
+
+    async def stream_query(self, query: Query, enable_demo_delay: bool = False, use_plan_execute: bool = False, use_wiki_search: bool = False, use_deep_agent: bool = False):
+        """
+        Stream query processing, yielding events for each workflow step.
+
+        Args:
+            query: User query
+            enable_demo_delay: If True, add delays for demo/testing purposes (default: False)
+            use_plan_execute: If True, use the new Plan-and-Execute workflow (default: False)
+            use_wiki_search: If True, use the Wiki Search workflow (default: False)
+            use_deep_agent: If True, use the Deep Agent workflow (default: False)
+
+        Yields:
+            Tuples of (node_name, state_update) for each step
+        """
+        if not self.use_rag or not self.plan_execute_workflow:
+            return
+
+        mode_name = "Plan-and-Execute (v1.1)"
+        if use_deep_agent:
+            mode_name = "Deep Agent (v2.0)"
+        elif use_wiki_search:
+            mode_name = "Wiki Search"
+
+        self.logger.info(f"Streaming query with {mode_name} workflow (demo_delay={enable_demo_delay})")
+
+        # Deep Agent workflow
+        if use_deep_agent and self.deep_agent:
+            try:
+                async for chunk in self.stream_deep_agent(query):
+                    # Convert Deep Agent chunks to the expected format
+                    yield "deep_agent", chunk
+            except Exception as e:
+                self.logger.error(f"Streaming Deep Agent query failed: {e}", exc_info=True)
+                raise
+            return
+
+        if use_wiki_search and self.wiki_search_workflow:
+            # Wiki Search Workflow
+            initial_state = {
+                "input": query.text,
+                "documents": [],
+                "response": ""
+            }
+
+            try:
+                async for event in self.wiki_search_workflow.graph.astream(initial_state):
+                    for node_name, state_update in event.items():
+                        yield node_name, state_update
+            except Exception as e:
+                self.logger.error(f"Streaming Wiki Search query failed: {e}", exc_info=True)
+                raise
+
+        else:
+            # Default to Plan-and-Execute Workflow (v1.1)
+            initial_state = {
+                "input": query.text,
+                "query_insight": None,
+                "plan": None,
+                "past_steps": [],
+                "response": None,
+                "scratchpad": []
+            }
+
+            # Start query logging
+            if self.query_logger:
+                self.query_logger.start_query()
+
+            try:
+                # Stream v1.1 workflow execution
+                async for event in self.plan_execute_workflow.graph.astream(initial_state):
+                    for node_name, state_update in event.items():
+                        yield node_name, state_update
+
+                # Log successful query (if logger is enabled)
+                if self.query_logger:
+                    # Note: We don't have the final answer here in streaming mode
+                    # Logging would need to be done by the caller
+                    pass
+
+            except Exception as e:
+                self.logger.error(f"Streaming Plan-and-Execute query failed: {e}", exc_info=True)
+                if self.query_logger:
+                    self.query_logger.log_query(
+                        query=query,
+                        answer=None,
+                        state=initial_state,
+                        model_used=settings.llm_model,
+                        success=False,
+                        error_message=str(e),
+                    )
+                raise
 
     async def _process_with_rag(self, query: Query) -> LegalAnswer:
         """
@@ -467,6 +717,80 @@ class AgentOrchestrator:
             limitations=["未找到相關文件", "建議擴充資料庫或調整查詢"],
         )
 
+    async def process_document(
+        self,
+        file_path: str,
+        filename: str,
+        content: str | None = None,
+    ) -> dict:
+        """
+        Process a document through the WikiBuilder workflow.
+
+        Args:
+            file_path: Path to the document file
+            filename: Original filename
+            content: Optional pre-loaded content
+
+        Returns:
+            WikiBuilder workflow result containing:
+            - doc_id: Document ID
+            - metadata: Extracted metadata
+            - concepts: Extracted concepts
+            - chunk_count: Number of chunks indexed
+            - categories_updated: Updated categories
+        """
+        self.logger.info(f"Processing document with WikiBuilder workflow: {filename}")
+
+        if not hasattr(self, 'wiki_builder_workflow') or not self.wiki_builder_workflow:
+            raise RuntimeError("WikiBuilder workflow not initialized")
+
+        try:
+            result = await self.wiki_builder_workflow.process(
+                file_path=file_path,
+                filename=filename,
+                content=content,
+            )
+            self.logger.info(f"Document processed successfully: {result.get('doc_id')}")
+            return result
+
+        except Exception as e:
+            self.logger.error(f"Document processing failed: {e}", exc_info=True)
+            raise
+
+    async def stream_document_processing(
+        self,
+        file_path: str,
+        filename: str,
+        content: str | None = None,
+    ):
+        """
+        Stream document processing with progress updates.
+
+        Args:
+            file_path: Path to the document file
+            filename: Original filename
+            content: Optional pre-loaded content
+
+        Yields:
+            Tuples of (node_name, state_update) for each processing step
+        """
+        self.logger.info(f"Streaming document processing: {filename}")
+
+        if not hasattr(self, 'wiki_builder_workflow') or not self.wiki_builder_workflow:
+            raise RuntimeError("WikiBuilder workflow not initialized")
+
+        try:
+            async for node_name, state_update in self.wiki_builder_workflow.stream_process(
+                file_path=file_path,
+                filename=filename,
+                content=content,
+            ):
+                yield node_name, state_update
+
+        except Exception as e:
+            self.logger.error(f"Document streaming failed: {e}", exc_info=True)
+            raise
+
     async def _generate_mock_answer(self, query: Query) -> LegalAnswer:
         """
         Generate a mock answer for MVP testing.
@@ -502,3 +826,297 @@ class AgentOrchestrator:
             confidence_explanation="這是測試回應，非實際研究結果",
             limitations=["此為MVP測試版本", "尚未整合實際資料源", "完整功能開發中"],
         )
+
+    async def process_with_deep_agent(self, query: Query, thread_id: str | None = None) -> LegalAnswer:
+        """
+        Process a legal research query using the Deep Agent workflow.
+
+        Deep Agent provides Claude Code-like capabilities:
+        - Task planning with write_todos
+        - Sub-agent delegation for specialized tasks
+        - Context management
+
+        Args:
+            query: User query
+            thread_id: Optional thread ID for conversation continuity
+
+        Returns:
+            LegalAnswer generated by Deep Agent
+        """
+        if not self.deep_agent:
+            self.logger.warning("Deep Agent not available, falling back to Plan-Execute workflow")
+            return await self._process_with_plan_execute(query)
+
+        self.logger.info(f"Processing query with Deep Agent: {query.text[:100]}...")
+
+        try:
+            # Invoke Deep Agent asynchronously
+            result = await self.deep_agent.ainvoke(
+                query=query.text,
+                thread_id=thread_id,
+            )
+
+            response_text = result.get("response", "")
+
+            if not response_text:
+                return await self._generate_fallback_answer(query, "Deep Agent failed to generate response")
+
+            # Convert Deep Agent response to LegalAnswer format
+            answer = self._convert_deep_agent_response(query, response_text, result)
+
+            return answer
+
+        except Exception as e:
+            self.logger.error(f"Deep Agent processing failed: {e}", exc_info=True)
+            # Fallback to Plan-Execute workflow
+            self.logger.info("Falling back to Plan-Execute workflow")
+            return await self._process_with_plan_execute(query)
+
+    def _convert_deep_agent_response(
+        self, query: Query, response_text: str, result: dict
+    ) -> LegalAnswer:
+        """
+        Convert Deep Agent response to LegalAnswer format.
+
+        Args:
+            query: Original query
+            response_text: Generated response text
+            result: Full result from Deep Agent
+
+        Returns:
+            LegalAnswer object
+        """
+        import re
+
+        # Parse response to extract sections
+        lines = response_text.split("\n")
+        executive_summary = ""
+        key_findings = []
+        detailed_analysis = response_text
+
+        # Try to parse structured response
+        current_section = None
+        summary_lines = []
+        findings_lines = []
+
+        for line in lines:
+            line_lower = line.lower().strip()
+            if "執行摘要" in line_lower or "executive summary" in line_lower:
+                current_section = "summary"
+            elif "關鍵發現" in line_lower or "key finding" in line_lower:
+                current_section = "findings"
+            elif "詳細分析" in line_lower or "analysis" in line_lower:
+                current_section = "analysis"
+            elif "信心評分" in line_lower or "confidence" in line_lower:
+                current_section = "confidence"
+            elif current_section == "summary" and line.strip():
+                summary_lines.append(line.strip())
+            elif current_section == "findings" and line.strip():
+                if line.strip().startswith(("-", "•", "*", "1", "2", "3", "4", "5")):
+                    findings_lines.append(line.strip().lstrip("-•* 0123456789."))
+
+        # Use parsed sections if available
+        if summary_lines:
+            executive_summary = " ".join(summary_lines)
+        else:
+            # Use first paragraph as summary
+            paragraphs = [p.strip() for p in response_text.split("\n\n") if p.strip()]
+            executive_summary = paragraphs[0] if paragraphs else response_text[:300]
+
+        if findings_lines:
+            key_findings = findings_lines[:5]  # Limit to 5
+        else:
+            key_findings = ["查詢已完成，請參閱詳細分析"]
+
+        # Extract citations from response
+        citations = []
+        citation_pattern = r'\[(\d+)\]\s*([^\n]+)'
+        matches = re.findall(citation_pattern, response_text)
+
+        for idx, (num, source_text) in enumerate(matches[:10], 1):  # Limit to 10
+            citation = LegalCitation(
+                id=idx,
+                type=CitationType.ENFORCEMENT_DOCUMENT,
+                authority=CitationAuthority.PRIMARY,
+                title=source_text.strip()[:100],
+                formatted_citation=f"[{idx}] {source_text.strip()[:100]}",
+                issuing_authority="金管會",
+            )
+            citations.append(citation)
+
+        # Determine confidence based on response quality
+        if len(citations) >= 3 and len(response_text) > 500:
+            confidence_score = ConfidenceLevel.HIGH
+            confidence_explanation = f"Deep Agent 找到 {len(citations)} 個引用來源，分析完整"
+        elif len(citations) >= 1:
+            confidence_score = ConfidenceLevel.MEDIUM
+            confidence_explanation = f"Deep Agent 找到 {len(citations)} 個引用來源"
+        else:
+            confidence_score = ConfidenceLevel.LOW
+            confidence_explanation = "Deep Agent 未找到引用來源"
+
+        return LegalAnswer(
+            executive_summary=executive_summary[:1000],
+            key_findings=key_findings,
+            detailed_analysis=detailed_analysis,
+            citations=citations,
+            confidence_score=confidence_score,
+            confidence_explanation=confidence_explanation,
+            limitations=["此為 Deep Agent (v2.0) 自動生成結果"],
+            processing_steps=["Deep Agent workflow"],
+        )
+
+    async def stream_deep_agent(self, query: Query, thread_id: str | None = None):
+        """
+        Stream query processing with Deep Agent.
+
+        Args:
+            query: User query
+            thread_id: Optional thread ID for conversation continuity
+
+        Yields:
+            Streaming chunks from Deep Agent
+        """
+        if not self.deep_agent:
+            self.logger.warning("Deep Agent not available")
+            return
+
+        self.logger.info(f"Streaming query with Deep Agent: {query.text[:100]}...")
+
+        try:
+            async for chunk in self.deep_agent.astream(
+                query=query.text,
+                thread_id=thread_id,
+            ):
+                yield chunk
+
+        except Exception as e:
+            self.logger.error(f"Deep Agent streaming failed: {e}", exc_info=True)
+            raise
+
+    async def _send_progress_update(self, node_name: str, state_update: dict, full_state: dict):
+        """
+        Send progress update to UI callback.
+
+        Maps LangGraph node names to UI-friendly step updates and triggers
+        appropriate callback methods.
+
+        Args:
+            node_name: Name of the LangGraph node that just executed
+            state_update: The state update from this node
+            full_state: The complete current state
+        """
+        if not self.ui_callback:
+            return
+
+        # Map node names to UI-friendly descriptions
+        node_descriptions = {
+            "query_analyzer": "分析查詢意圖",
+            "planner": "制定研究計畫",
+            "execute_task": "執行研究任務",
+            "replanner": "檢視並調整計畫",
+            "reporter": "生成研究報告",
+        }
+
+        step_description = node_descriptions.get(node_name, node_name)
+
+        try:
+            # Update current step
+            await self.ui_callback.on_step_update(
+                step=node_name,
+                status="completed",
+                data={"description": step_description}
+            )
+
+            # Log activity
+            await self.ui_callback.on_activity_log(
+                level="info",
+                message=f"完成步驟: {step_description}"
+            )
+
+            # If planner node, send research plan
+            if node_name == "planner" and "plan" in state_update:
+                plan = state_update.get("plan")
+                if plan:
+                    # Convert plan to dict format for UI
+                    plan_dict = {
+                        "goal": getattr(plan, 'goal', '') if hasattr(plan, 'goal') else '',
+                        "tasks": []
+                    }
+
+                    tasks = getattr(plan, 'tasks', []) if hasattr(plan, 'tasks') else []
+                    for i, task in enumerate(tasks):
+                        task_dict = {
+                            "task_number": i + 1,
+                            "description": getattr(task, 'description', str(task)) if hasattr(task, 'description') else str(task),
+                            "status": getattr(task, 'status', 'pending') if hasattr(task, 'status') else 'pending',
+                        }
+                        plan_dict["tasks"].append(task_dict)
+
+                    await self.ui_callback.on_plan_created(plan_dict)
+
+            # If execute_task or replanner node, update research plan with task statuses
+            if node_name in ("execute_task", "replanner"):
+                past_steps = full_state.get("past_steps", [])
+                plan = full_state.get("plan")
+
+                if plan:
+                    tasks = getattr(plan, 'tasks', []) if hasattr(plan, 'tasks') else []
+                    total_tasks = len(tasks)
+                    completed_tasks = len(past_steps)
+
+                    # Build updated plan with task statuses
+                    plan_dict = {
+                        "goal": getattr(plan, 'goal', '') if hasattr(plan, 'goal') else '',
+                        "tasks": []
+                    }
+
+                    # Get IDs of completed tasks from past_steps
+                    completed_task_ids = set()
+                    for step in past_steps:
+                        if isinstance(step, tuple) and len(step) >= 1:
+                            task_info = step[0]
+                            if isinstance(task_info, dict) and 'id' in task_info:
+                                completed_task_ids.add(task_info['id'])
+
+                    for i, task in enumerate(tasks):
+                        task_id = getattr(task, 'id', f'task-{i}') if hasattr(task, 'id') else f'task-{i}'
+                        task_status = getattr(task, 'status', 'pending') if hasattr(task, 'status') else 'pending'
+
+                        # Check if task is completed based on past_steps
+                        if task_id in completed_task_ids or i < completed_tasks:
+                            task_status = 'complete'
+                        elif i == completed_tasks:
+                            task_status = 'in_progress'
+
+                        # Get result from past_steps if available
+                        task_result = None
+                        for step in past_steps:
+                            if isinstance(step, tuple) and len(step) >= 2:
+                                task_info, result = step[0], step[1]
+                                if isinstance(task_info, dict):
+                                    step_task_id = task_info.get('id', '')
+                                    if step_task_id == task_id or (isinstance(step_task_id, str) and task_id in step_task_id):
+                                        task_result = result[:200] if isinstance(result, str) and len(result) > 200 else result
+                                        break
+
+                        task_dict = {
+                            "task_number": i + 1,
+                            "description": getattr(task, 'description', str(task)) if hasattr(task, 'description') else str(task),
+                            "status": task_status,
+                            "result": task_result,
+                        }
+                        plan_dict["tasks"].append(task_dict)
+
+                    # Send updated plan
+                    await self.ui_callback.on_plan_created(plan_dict)
+
+                    # Also update dynamic plan progress
+                    await self.ui_callback.on_dynamic_plan({
+                        "current_task": completed_tasks,
+                        "total_tasks": total_tasks,
+                        "completed_tasks": completed_tasks,
+                    })
+
+        except Exception as e:
+            self.logger.warning(f"Failed to send progress update: {e}")

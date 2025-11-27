@@ -591,6 +591,7 @@ async def websocket_query_endpoint(websocket: WebSocket):
             if data.get("type") == "query":
                 query_text = data.get("text", "")
                 use_plan_execute = data.get("use_plan_execute", False)
+                use_wiki_search = data.get("use_wiki_search", False)
                 
                 if not query_text:
                     await websocket.send_json({
@@ -644,6 +645,11 @@ async def websocket_query_endpoint(websocket: WebSocket):
                         "planner": "planning",
                         "executor": "action",
                         "replanner": "validation", 
+                        "reporter": "answer", 
+                        
+                        # Wiki Search Flow
+                        "search": "action",
+                        "synthesize": "answer",
                     }
 
                     last_node = None
@@ -653,7 +659,8 @@ async def websocket_query_endpoint(websocket: WebSocket):
                         async for node_name, state_update in orchestrator.stream_query(
                             query, 
                             enable_demo_delay=ENABLE_DEMO_DELAY,
-                            use_plan_execute=use_plan_execute
+                            use_plan_execute=use_plan_execute,
+                            use_wiki_search=use_wiki_search
                         ):
                             step_name = node_to_step.get(node_name, None)
                             current_time = datetime.now()
@@ -775,6 +782,36 @@ async def websocket_query_endpoint(websocket: WebSocket):
                                             "level": "info",
                                             "message": "重新規劃: 添加新任務",
                                         })
+                                        
+                                if node_name == "reporter" and "response" in state_update:
+                                    final_response_text = state_update["response"]
+                                    await callback._send("activity_log", {
+                                        "level": "success",
+                                        "message": "報告生成完成",
+                                    })
+                                        
+                            # --- Wiki Search Flow Handling ---
+                            if use_wiki_search:
+                                if node_name == "search" and "documents" in state_update:
+                                    docs = state_update["documents"]
+                                    await callback._send("activity_log", {
+                                        "level": "success",
+                                        "message": f"Wiki Search: Found {len(docs)} documents",
+                                    })
+                                    
+                                if node_name == "synthesize" and "response" in state_update:
+                                    final_response_text = state_update["response"]
+                                    # Wiki search result is the final answer
+                                    result = {
+                                        "summary": "Wiki Search Result",
+                                        "key_findings": ["See detailed report"],
+                                        "detailed_analysis": final_response_text,
+                                        "confidence": "HIGH",
+                                        "citations": [] 
+                                    }
+                                    
+                                    await callback._send("query_complete", {"result": result})
+                                    return
 
                         total_time = int((datetime.now() - start_time).total_seconds() * 1000)
 

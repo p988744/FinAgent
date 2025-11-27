@@ -26,7 +26,10 @@ def get_db_connection():
 
 def create_research_session(session_id: str, query_text: str, celery_task_id: str) -> int:
     """
-    Create a new research session in the database.
+    Create or update a research session in the database.
+
+    If session already exists (pre-created by API with 'pending' status),
+    update it to 'in_progress'. Otherwise, create a new session.
 
     Args:
         session_id: Unique session identifier
@@ -40,19 +43,45 @@ def create_research_session(session_id: str, query_text: str, celery_task_id: st
     cursor = conn.cursor()
 
     try:
+        # Check if session already exists (pre-created by API)
         cursor.execute(
-            """
-            INSERT INTO research_sessions (
-                session_id, query_text, status, celery_task_id,
-                started_at, created_at, updated_at
-            )
-            VALUES (?, ?, 'in_progress', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """,
-            (session_id, query_text, celery_task_id)
+            "SELECT id FROM research_sessions WHERE session_id = ?",
+            (session_id,)
         )
-        conn.commit()
-        row_id = cursor.lastrowid
-        logger.info(f"Created research session {session_id} (row_id={row_id})")
+        existing = cursor.fetchone()
+
+        if existing:
+            # Update existing session to 'in_progress'
+            cursor.execute(
+                """
+                UPDATE research_sessions
+                SET status = 'in_progress',
+                    celery_task_id = ?,
+                    started_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE session_id = ?
+                """,
+                (celery_task_id, session_id)
+            )
+            conn.commit()
+            row_id = existing[0]
+            logger.info(f"Updated research session {session_id} to in_progress (row_id={row_id})")
+        else:
+            # Create new session (fallback for direct Celery calls)
+            cursor.execute(
+                """
+                INSERT INTO research_sessions (
+                    session_id, query_text, status, celery_task_id,
+                    started_at, created_at, updated_at
+                )
+                VALUES (?, ?, 'in_progress', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                (session_id, query_text, celery_task_id)
+            )
+            conn.commit()
+            row_id = cursor.lastrowid
+            logger.info(f"Created research session {session_id} (row_id={row_id})")
+
         return row_id
     finally:
         conn.close()
@@ -104,26 +133,43 @@ class SessionProgressCallback:
 
     def __init__(self, session_id: str):
         self.session_id = session_id
-        self.steps = {}
+        self.steps = {}  # Current step status by name (for dedup)
+        self.step_history = []  # Full history of all step transitions
         self.todos = []
         self.activity_log = []
         self.plan = None
         self.dynamic_plan = None
         self.tool_executions = {}
+        self.step_counter = 0
 
     async def on_step_update(self, step: str, status: str, data: Dict[str, Any] = None):
         """Handle agent step updates."""
-        self.steps[step] = {
+        timestamp = datetime.now().isoformat()
+
+        # Create step entry
+        step_entry = {
             "step": step,
             "status": status,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": timestamp,
             "data": data or {}
         }
 
-        # Update database
+        # Update current step status
+        self.steps[step] = step_entry
+
+        # Add to history with sequence number
+        self.step_counter += 1
+        history_entry = {
+            **step_entry,
+            "sequence": self.step_counter
+        }
+        self.step_history.append(history_entry)
+
+        # Update database with both current steps and history
         update_research_session(self.session_id, {
             "current_agent": step,
-            "agent_steps": list(self.steps.values())
+            "agent_steps": list(self.steps.values()),
+            "step_history": self.step_history
         })
 
     async def on_todo_update(self, todos: list):
@@ -210,16 +256,16 @@ def execute_research_workflow(self, query_text: str, session_id: str = None):
             "key_findings": result.key_findings,
             "detailed_analysis": result.detailed_analysis,
             "confidence": {
-                "level": result.confidence_level.value if result.confidence_level else "MEDIUM",
-                "justification": result.confidence_justification
+                "level": result.confidence_score.value if result.confidence_score else "MEDIUM",
+                "justification": result.confidence_explanation
             },
             "citations": [
                 {
-                    "source": cite.source_document,
-                    "page": cite.page_number,
-                    "excerpt": cite.excerpt,
-                    "authority_level": cite.authority_level.value if cite.authority_level else "SECONDARY",
-                    "citation_type": cite.citation_type.value if cite.citation_type else "SUPPORT"
+                    "source": cite.title if hasattr(cite, 'title') else cite.source_document if hasattr(cite, 'source_document') else "Unknown",
+                    "page": cite.page_number if hasattr(cite, 'page_number') else None,
+                    "excerpt": cite.excerpt if hasattr(cite, 'excerpt') else None,
+                    "authority_level": cite.authority.value if hasattr(cite, 'authority') and cite.authority else "SECONDARY",
+                    "citation_type": cite.type.value if hasattr(cite, 'type') and cite.type else "SUPPORT"
                 }
                 for cite in (result.citations or [])
             ],
@@ -286,7 +332,8 @@ def get_research_status(session_id: str):
                 research_plan, dynamic_plan, tool_executions,
                 result, error_message,
                 started_at, completed_at, processing_time_seconds,
-                tokens_used, cost_usd, created_at, updated_at
+                tokens_used, cost_usd, created_at, updated_at,
+                step_history
             FROM research_sessions
             WHERE session_id = ?
             """,
@@ -326,7 +373,8 @@ def get_research_status(session_id: str):
             "tokens_used": row[16],
             "cost_usd": row[17],
             "created_at": row[18],
-            "updated_at": row[19]
+            "updated_at": row[19],
+            "step_history": safe_json_parse(row[20])
         }
     finally:
         conn.close()

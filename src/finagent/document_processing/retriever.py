@@ -3,7 +3,9 @@ Document retriever for RAG (Retrieval-Augmented Generation).
 """
 
 from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass
+from functools import lru_cache
+from typing import Any, Tuple
 
 import chromadb
 from chromadb.config import Settings
@@ -59,6 +61,15 @@ class DocumentRetriever:
         # Initialize embedding generator
         self.embedding_generator = embedding_generator or EmbeddingGenerator()
 
+    @lru_cache(maxsize=1000)
+    def _get_query_embedding(self, query: str) -> Tuple[float, ...]:
+        """
+        Generate and cache query embedding.
+        Returns tuple (hashable) for lru_cache.
+        """
+        embedding = self.embedding_generator.generate_embedding(query)
+        return tuple(embedding)
+
     def retrieve(
         self,
         query: str,
@@ -86,8 +97,9 @@ class DocumentRetriever:
         if self.collection.count() == 0:
             raise ValueError(f"Collection '{self.collection_name}' is empty")
 
-        # Generate query embedding
-        query_embedding = self.embedding_generator.generate_embedding(query)
+        # Generate query embedding (cached)
+        query_embedding_tuple = self._get_query_embedding(query)
+        query_embedding = list(query_embedding_tuple)
 
         # Query Chroma
         results = self.collection.query(

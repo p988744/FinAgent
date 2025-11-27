@@ -19,6 +19,13 @@ from pydantic import BaseModel
 from finagent.document_processing.metadata_store import DocumentMetadataStore
 from finagent.document_processing.indexer import DocumentIndexer
 from finagent.document_processing.loader import DocumentLoader
+from finagent.models.document_types import (
+    DocumentCategory,
+    DocumentType,
+    get_allowed_document_types,
+    validate_document_type,
+    is_document_type_allowed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -801,7 +808,8 @@ async def _process_upload_with_progress(
     content: bytes,
     auto_index: bool,
     extract_metadata: bool,
-    duplicate_action: str = "version"
+    duplicate_action: str = "version",
+    document_type: str = "penalty",
 ):
     """
     Process file upload and enqueue Celery task for async processing.
@@ -913,7 +921,7 @@ async def _process_upload_with_progress(
             doc_id=doc_id,
             filename=filename,
             description=f"Uploaded file: {filename}",
-            document_type="uploaded",
+            document_type=document_type,  # Use the user-specified document type
             keywords=[],
             date=None,
             issuing_authority=None,
@@ -1025,6 +1033,7 @@ async def upload_file_with_progress(
     auto_index: bool = Form(True),
     extract_metadata: bool = Form(True),
     duplicate_action: str = Form("ask"),  # "ask", "version", "replace", "skip"
+    document_type: str = Form("penalty"),  # Document type classification
 ):
     """
     Upload a single file and return a job ID for progress tracking.
@@ -1041,12 +1050,26 @@ async def upload_file_with_progress(
             - "version": Automatically create new version
             - "replace": Replace existing file
             - "skip": Skip upload if file exists
+        document_type: Document type classification (required)
+            - "penalty": 裁罰書 - Regulatory penalty documents
+            - "legal_provision": 法條 - Legal provisions
+            - "court_judgment": 判決書 - Court judgments
+            - "regulatory_notice": 監管公告 - Regulatory announcements
+            - "knowledge_base": 知識文件 - Knowledge base documents
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
 
     if not file.filename.endswith(".txt"):
         raise HTTPException(status_code=400, detail="Only .txt files are supported")
+
+    # Validate document type
+    if not is_document_type_allowed(document_type):
+        allowed_types = ", ".join([dt.name_zh for dt in get_allowed_document_types()])
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件類型 '{document_type}' 不允許上傳。允許的類型：{allowed_types}"
+        )
 
     # Read file content
     content = await file.read()
@@ -1079,7 +1102,7 @@ async def upload_file_with_progress(
     job_id = str(uuid.uuid4())
 
     # Start background processing
-    print(f"[ENDPOINT] Adding background task for job {job_id}, file: {file.filename}", flush=True)
+    print(f"[ENDPOINT] Adding background task for job {job_id}, file: {file.filename}, type: {document_type}", flush=True)
     background_tasks.add_task(
         _process_upload_with_progress,
         job_id=job_id,
@@ -1087,7 +1110,8 @@ async def upload_file_with_progress(
         content=content,
         auto_index=auto_index,
         extract_metadata=extract_metadata,
-        duplicate_action=duplicate_action
+        duplicate_action=duplicate_action,
+        document_type=document_type,
     )
     print(f"[ENDPOINT] Background task added successfully", flush=True)
 
@@ -1752,4 +1776,108 @@ async def get_pipeline_stats() -> PipelineStatsResponse:
         by_stage=stage_counts,
         avg_duration_seconds=avg_duration,
         failed_documents=failed_docs
+    )
+
+
+# ===== Document Type Classification Endpoints =====
+
+class DocumentTypeResponse(BaseModel):
+    """Document type information for frontend."""
+    category: str
+    name_zh: str
+    name_en: str
+    description: str
+    allowed: bool
+    requires_authority: bool
+    requires_date: bool
+    example_filename_pattern: str | None = None
+
+
+class AllowedDocumentTypesResponse(BaseModel):
+    """List of allowed document types for upload."""
+    allowed_types: list[DocumentTypeResponse]
+    total_count: int
+
+
+@router.get("/types/allowed")
+async def get_allowed_types() -> AllowedDocumentTypesResponse:
+    """
+    Get list of document types allowed for upload.
+
+    This endpoint returns all document categories that users can upload.
+    Use this to populate document type selector in the upload form.
+
+    Allowed types:
+    - 裁罰書 (penalty) - Regulatory penalty documents
+    - 法條 (legal_provision) - Legal provisions/articles
+    - 判決書 (court_judgment) - Court judgments
+    - 監管公告 (regulatory_notice) - Regulatory announcements
+    - 知識文件 (knowledge_base) - Knowledge base documents
+
+    Not allowed:
+    - 新聞報導 (news) - Secondary source
+    - 分析報告 (analysis) - Secondary source
+    - 銀行聲明 (bank_statement) - Biased source
+    - 其他 (other) - Requires review
+    """
+    allowed_types = get_allowed_document_types()
+
+    return AllowedDocumentTypesResponse(
+        allowed_types=[
+            DocumentTypeResponse(
+                category=dt.category.value,
+                name_zh=dt.name_zh,
+                name_en=dt.name_en,
+                description=dt.description,
+                allowed=dt.allowed,
+                requires_authority=dt.requires_authority,
+                requires_date=dt.requires_date,
+                example_filename_pattern=dt.example_filename_pattern,
+            )
+            for dt in allowed_types
+        ],
+        total_count=len(allowed_types),
+    )
+
+
+class DocumentTypeValidationRequest(BaseModel):
+    """Request to validate a document type before upload."""
+    category: str
+    issuing_authority: str | None = None
+    document_date: str | None = None
+
+
+class DocumentTypeValidationResponse(BaseModel):
+    """Response from document type validation."""
+    valid: bool
+    category: str | None = None
+    name_zh: str | None = None
+    error_message: str | None = None
+    warnings: list[str] = []
+
+
+@router.post("/types/validate")
+async def validate_type(request: DocumentTypeValidationRequest) -> DocumentTypeValidationResponse:
+    """
+    Validate a document type before upload.
+
+    This endpoint checks:
+    1. Whether the category is valid
+    2. Whether the category is allowed for upload
+    3. Whether required fields are provided (warnings if missing)
+
+    Use this endpoint before uploading to ensure the document type is accepted.
+    """
+    result = validate_document_type(
+        category=request.category,
+        issuing_authority=request.issuing_authority,
+        document_date=request.document_date,
+    )
+
+    return DocumentTypeValidationResponse(
+        valid=result.valid,
+        category=result.category.value if result.category else None,
+        name_zh=result.document_type.name_zh if result.document_type else None,
+        error_message=result.error_message,
+        warnings=result.warnings,
     )

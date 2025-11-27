@@ -1,440 +1,71 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { Send, Loader2 } from 'lucide-react'
-import { AgentStepper } from '../components/research/AgentStepper'
-import { TodoPanel } from '../components/research/TodoPanel'
-import { ActivityLog } from '../components/research/ActivityLog'
-import { ResultsPanel } from '../components/research/ResultsPanel'
-import { PlanPanel } from '../components/research/PlanPanel'
-import { DynamicPlanPanel } from '../components/research/DynamicPlanPanel'
-import { ResearchHistory } from '../components/research/ResearchHistory'
-import type {
-  StepUpdate,
-  TodoItem,
-  ActivityLogEntry,
-  QueryResult,
-  WSMessage,
-  ResearchPlan,
-  DynamicPlanAnalysis,
-  ToolExecutionStatus,
-} from '../types/research'
+/**
+ * ResearchPage - Main research interface (v2.0 Chat-based)
+ */
+
+import { ChatInterface } from '../components/chat';
+import { useResearch } from '../hooks/useResearch';
 
 export function ResearchPage() {
-  const [queryText, setQueryText] = useState('')
-  const [isQuerying, setIsQuerying] = useState(false)
-  const [usePlanExecute, setUsePlanExecute] = useState(false)
-  const [steps, setSteps] = useState<Map<string, StepUpdate>>(new Map())
-  const [todos, setTodos] = useState<TodoItem[]>([])
-  const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([])
-  const [result, setResult] = useState<QueryResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [plan, setPlan] = useState<ResearchPlan | null>(null)
-  const [dynamicPlan, setDynamicPlan] = useState<DynamicPlanAnalysis | null>(null)
-  const [toolExecutions, setToolExecutions] = useState<Map<string, ToolExecutionStatus>>(new Map())
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
-
-  const wsRef = useRef<WebSocket | null>(null)
-  const logIdCounter = useRef(0)
-
-  // Connect to WebSocket
-  const connectWebSocket = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      return
-    }
-
-    setConnectionStatus('connecting')
-    const ws = new WebSocket(`ws://${window.location.host}/ws/query`)
-
-    ws.onopen = () => {
-      console.log('WebSocket connected')
-      setConnectionStatus('connected')
-    }
-
-    ws.onmessage = (event) => {
-      try {
-        const message: WSMessage = JSON.parse(event.data)
-        handleWSMessage(message)
-      } catch (err) {
-        console.error('Failed to parse WebSocket message:', err)
-      }
-    }
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected')
-      setConnectionStatus('disconnected')
-      wsRef.current = null
-    }
-
-    ws.onerror = (err) => {
-      console.error('WebSocket error:', err)
-      setConnectionStatus('disconnected')
-    }
-
-    wsRef.current = ws
-  }, [])
-
-  // Handle incoming WebSocket messages
-  const handleWSMessage = useCallback((message: WSMessage) => {
-    const { type, timestamp, payload } = message
-
-    switch (type) {
-      case 'query_started':
-        setIsQuerying(true)
-        setError(null)
-        setResult(null)
-        setSteps(new Map())
-        setTodos([])
-        setPlan(null)
-        setDynamicPlan(null)
-        setToolExecutions(new Map())
-        break
-
-      case 'plan_created':
-        const planData = payload as ResearchPlan
-        setPlan(planData)
-        break
-
-      case 'task_tool_usage':
-        const taskToolUsage = payload as { task_id: number; tool_usage: any }
-        setPlan((prevPlan) => {
-          if (!prevPlan) return prevPlan
-          return {
-            ...prevPlan,
-            tasks: prevPlan.tasks.map((task) =>
-              task.id === taskToolUsage.task_id
-                ? { ...task, tool_usage: taskToolUsage.tool_usage }
-                : task
-            ),
-          }
-        })
-        break
-
-      case 'dynamic_plan_analysis':
-        const dynamicPlanData = payload as DynamicPlanAnalysis
-        setDynamicPlan(dynamicPlanData)
-        // Initialize tool execution statuses
-        setToolExecutions(new Map())
-        break
-
-      case 'tool_execution_update':
-        const toolUpdate = payload as ToolExecutionStatus
-        setToolExecutions((prev) => {
-          const newExecutions = new Map(prev)
-          newExecutions.set(toolUpdate.tool_name, toolUpdate)
-          return newExecutions
-        })
-        break
-
-      case 'step_update':
-        const stepUpdate = payload as StepUpdate
-        setSteps((prev) => {
-          const newSteps = new Map(prev)
-          newSteps.set(stepUpdate.step, stepUpdate)
-          return newSteps
-        })
-        break
-
-      case 'todo_update':
-        const todoUpdate = payload as { todos: TodoItem[] }
-        setTodos(todoUpdate.todos)
-        break
-
-      case 'todo_item_update':
-        const todoItemUpdate = payload as TodoItem
-        setTodos((prev) =>
-          prev.map((todo) =>
-            todo.id === todoItemUpdate.id
-              ? { ...todo, ...todoItemUpdate }
-              : todo
-          )
-        )
-        break
-
-      case 'activity_log':
-        const logEntry = payload as { level: ActivityLogEntry['level']; message: string }
-        setActivityLog((prev) => [
-          ...prev,
-          {
-            id: `log-${logIdCounter.current++}`,
-            timestamp,
-            level: logEntry.level,
-            message: logEntry.message,
-          },
-        ])
-        break
-
-      case 'query_complete':
-        setResult(payload as QueryResult)
-        setIsQuerying(false)
-        break
-
-      case 'query_failed':
-        const errorPayload = payload as { error: string }
-        setError(errorPayload.error)
-        setIsQuerying(false)
-        break
-
-      case 'error':
-        const errMsg = payload as { message: string }
-        setError(errMsg.message)
-        break
-
-      default:
-        console.log('Unknown message type:', type)
-    }
-  }, [])
-
-  // Submit query
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault()
-      if (!queryText.trim() || isQuerying) return
-
-      // Show monitoring panels immediately
-      setIsQuerying(true)
-      setActivityLog([])
-      setSteps(new Map())
-      setTodos([])
-      setResult(null)
-      setError(null)
-      setPlan(null)
-      setDynamicPlan(null)
-      setToolExecutions(new Map())
-
-      // Add initial activity log entry
-      setActivityLog([
-        {
-          id: `log-${logIdCounter.current++}`,
-          timestamp: new Date().toISOString(),
-          level: 'info',
-          message: `開始處理查詢: ${queryText.substring(0, 50)}${queryText.length > 50 ? '...' : ''}`,
-        },
-      ])
-
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        connectWebSocket()
-        // Wait for connection then send
-        setTimeout(() => {
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-              type: 'query',
-              text: queryText,
-              use_plan_execute: usePlanExecute
-            }))
-          } else {
-            setError('WebSocket 連線失敗，請重試')
-            setIsQuerying(false)
-          }
-        }, 1000)
-      } else {
-        wsRef.current.send(JSON.stringify({
-          type: 'query',
-          text: queryText,
-          use_plan_execute: usePlanExecute
-        }))
-      }
-    },
-    [queryText, isQuerying, connectWebSocket]
-  )
-
-  // Export results to JSON
-  const handleExport = useCallback(() => {
-    if (!result) return
-
-    const exportData = {
-      query: queryText,
-      timestamp: new Date().toISOString(),
-      result,
-      activity_log: activityLog,
-    }
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: 'application/json',
-    })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `finagent-query-${Date.now()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [result, queryText, activityLog])
-
-  // Load session from history
-  const handleSelectSession = useCallback(async (sessionId: string) => {
-    try {
-      // Fetch session status
-      const response = await fetch(`/api/v1/research/status/${sessionId}`)
-      if (!response.ok) {
-        throw new Error('無法載入研究記錄')
-      }
-
-      const sessionData = await response.json()
-
-      // Restore session state
-      setQueryText(sessionData.query_text)
-      setIsQuerying(sessionData.status === 'in_progress')
-
-      if (sessionData.agent_steps) {
-        const stepsMap = new Map()
-        sessionData.agent_steps.forEach((step: any) => {
-          stepsMap.set(step.step, step)
-        })
-        setSteps(stepsMap)
-      }
-
-      if (sessionData.todos) {
-        setTodos(sessionData.todos)
-      }
-
-      if (sessionData.activity_log) {
-        setActivityLog(sessionData.activity_log)
-      }
-
-      if (sessionData.research_plan) {
-        setPlan(sessionData.research_plan)
-      }
-
-      if (sessionData.dynamic_plan) {
-        setDynamicPlan(sessionData.dynamic_plan)
-      }
-
-      if (sessionData.tool_executions) {
-        const toolMap = new Map()
-        Object.entries(sessionData.tool_executions).forEach(([key, value]) => {
-          toolMap.set(key, value as any)
-        })
-        setToolExecutions(toolMap)
-      }
-
-      if (sessionData.result) {
-        setResult(sessionData.result)
-      }
-
-      if (sessionData.error_message) {
-        setError(sessionData.error_message)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '載入研究記錄失敗')
-    }
-  }, [])
-
-  // Connect WebSocket on mount
-  useEffect(() => {
-    connectWebSocket()
-    return () => {
-      wsRef.current?.close()
-    }
-  }, [connectWebSocket])
+  const { messages, isLoading, sendMessage, clearMessages } = useResearch();
 
   return (
-    <div className="space-y-4">
+    <div className="page-container bg-noir-950">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-4">
-        <h1 className="text-xl font-bold text-gray-900">金融法律研究系統</h1>
-        <p className="mt-1 text-xs text-gray-600">
-          專業的法律研究工具，提供準確的裁罰案例與判決書分析
-        </p>
-      </div>
-
-      {/* Query Input */}
-      <div className="bg-white shadow rounded-lg p-4 border border-gray-200">
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label
-              htmlFor="query"
-              className="block text-sm font-semibold text-gray-900 mb-1.5"
-            >
-              查詢內容
-            </label>
-            <textarea
-              id="query"
-              rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-navy-500 focus:border-navy-500 bg-white text-gray-900 placeholder-gray-500"
-              placeholder="例如：玉山銀行洗錢防制裁罰案件"
-              value={queryText}
-              onChange={(e) => setQueryText(e.target.value)}
-              disabled={isQuerying}
-            />
-          </div>
-
-          <div className="flex items-center space-x-2 mb-2">
-            <input
-              type="checkbox"
-              id="usePlanExecute"
-              checked={usePlanExecute}
-              onChange={(e) => setUsePlanExecute(e.target.checked)}
-              disabled={isQuerying}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="usePlanExecute" className="text-sm text-gray-700">
-              使用新版 Plan-and-Execute 代理 (實驗性)
-            </label>
-          </div>
-
+      <header className="sticky top-0 z-50 glass-dark border-b border-noir-800/50">
+        <div className="content-container py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div
-                className={`w-2 h-2 rounded-full ${connectionStatus === 'connected'
-                  ? 'bg-green-500'
-                  : connectionStatus === 'connecting'
-                    ? 'bg-yellow-500'
-                    : 'bg-red-500'
-                  }`}
-              />
-              <span className="text-xs text-gray-600">
-                {connectionStatus === 'connected'
-                  ? '已連線'
-                  : connectionStatus === 'connecting'
-                    ? '連線中...'
-                    : '未連線'}
-              </span>
+            {/* Logo */}
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brass-500 to-brass-700 flex items-center justify-center">
+                <svg className="w-4 h-4 text-noir-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 15.5m14.8-.2l.2.2v1.561c0 1.115-.763 2.083-1.849 2.353l-.294.074A24.282 24.282 0 0112 20.25a24.282 24.282 0 01-5.857-.513l-.294-.074A2.25 2.25 0 014 17.561V15.5M19.8 15.3v-2.95" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-sm font-display font-semibold text-noir-100">
+                  FinAgent
+                </h1>
+                <p className="text-2xs text-noir-500">金融法律研究助手</p>
+              </div>
             </div>
-            <button
-              type="submit"
-              disabled={!queryText.trim() || isQuerying}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isQuerying ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  處理中...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 mr-2" />
-                  送出查詢
-                </>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              {messages.length > 0 && (
+                <button
+                  onClick={clearMessages}
+                  className="btn btn-ghost btn-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  新對話
+                </button>
               )}
-            </button>
+              <button className="btn btn-ghost btn-icon btn-sm">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </button>
+              <button className="btn btn-ghost btn-icon btn-sm">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+            </div>
           </div>
-        </form>
-      </div>
-
-      {/* Error display */}
-      {error && (
-        <div className="bg-red-50 border border-red-300 rounded-md p-3">
-          <p className="text-sm text-red-800">{error}</p>
         </div>
-      )}
+      </header>
 
-      {/* Monitoring Panels */}
-      {(isQuerying || result) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <AgentStepper steps={steps} />
-          <ActivityLog entries={activityLog} />
-        </div>
-      )}
-
-      {/* Research Plan Panel */}
-      {(isQuerying || plan) && <PlanPanel plan={plan} />}
-
-      {/* Dynamic Plan Analysis Panel */}
-      {(isQuerying || dynamicPlan) && <DynamicPlanPanel analysis={dynamicPlan} toolExecutions={toolExecutions} />}
-
-      {/* Results - Only show after query completes */}
-      {result && <ResultsPanel result={result} onExport={handleExport} />}
-
-      {/* Research History */}
-      <ResearchHistory onSelectSession={handleSelectSession} />
+      {/* Main Content */}
+      <main className="flex-1 overflow-hidden">
+        <ChatInterface
+          messages={messages}
+          onSendMessage={sendMessage}
+          isLoading={isLoading}
+        />
+      </main>
     </div>
-  )
+  );
 }
