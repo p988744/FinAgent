@@ -47,6 +47,7 @@ backend/patch_*.py
 # Data
 backend/data/vector_db/
 backend/data/*.db
+data/**/*.txt
 
 # Environment
 .env

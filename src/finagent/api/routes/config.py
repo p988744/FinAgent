@@ -122,6 +122,13 @@ async def get_settings_by_category(category: str) -> list[SettingResponse]:
     return result
 
 
+class SettingCreate(BaseModel):
+    """Request to create or update a setting."""
+    value: str
+    category: str = "custom"
+    description: str | None = None
+
+
 @router.put("/settings/{key}")
 async def update_setting(key: str, update: SettingUpdate) -> SettingResponse:
     """Update a single setting."""
@@ -148,6 +155,42 @@ async def update_setting(key: str, update: SettingUpdate) -> SettingResponse:
         value=display_value,
         category=existing.category,
         description=update.description or existing.description,
+    )
+
+
+@router.post("/settings/{key}")
+async def create_or_update_setting(key: str, setting: SettingCreate) -> SettingResponse:
+    """Create a new setting or update if exists (upsert)."""
+    config_manager = get_config_manager()
+
+    # Check if setting exists
+    existing = config_manager.db.get_setting(key)
+
+    if existing:
+        # Update existing
+        category = existing.category
+        description = setting.description or existing.description
+    else:
+        # Create new
+        category = setting.category
+        description = setting.description or f"Custom setting: {key}"
+
+    # Save setting
+    config_manager.set_setting(
+        key=key,
+        value=setting.value,
+        category=category,
+        description=description,
+    )
+
+    # Return setting (with masked API key if applicable)
+    display_value = mask_api_key(setting.value) if "api_key" in key else setting.value
+
+    return SettingResponse(
+        key=key,
+        value=display_value,
+        category=category,
+        description=description,
     )
 
 

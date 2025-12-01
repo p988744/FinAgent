@@ -7,9 +7,11 @@ ambiguous queries that need clarification.
 from typing import Optional
 
 from langchain_core.messages import SystemMessage
+from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from finagent.agents.state import AgentState
+from finagent.config import settings
 
 
 class ClarificationRequest(BaseModel):
@@ -46,9 +48,6 @@ class QueryAnalysisAgent:
         Args:
             ui_callback: Optional UICallback for progress updates
         """
-        from finagent.config import settings
-        from langchain_openai import ChatOpenAI
-
         self.ui_callback = ui_callback
 
         # Initialize LLM using settings (same pattern as other agents)
