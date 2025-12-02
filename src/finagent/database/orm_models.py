@@ -1,6 +1,7 @@
 """SQLAlchemy ORM models for Alembic migrations."""
 
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -12,11 +13,13 @@ from sqlalchemy import (
     Integer,
     Text,
     UniqueConstraint,
+    func,
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.sql import func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
 
 
 class Document(Base):
@@ -24,53 +27,62 @@ class Document(Base):
 
     __tablename__ = "documents"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    doc_id = Column(Text, nullable=False, unique=True, index=True)
-    filename = Column(Text, nullable=False, index=True)
-    file_path = Column(Text, nullable=False)
-    description = Column(Text)
-    document_type = Column(Text, index=True)
-    keywords = Column(Text)  # JSON array
-    document_date = Column(Text)
-    issuing_authority = Column(Text, index=True)
-    related_institutions = Column(Text)  # JSON array
-    penalty_amount = Column(Text)
-    violation_types = Column(Text)  # JSON array
-    custom_fields = Column(Text)  # JSON object
-    indexed = Column(Boolean, default=False, index=True)
-    chunk_count = Column(Integer, default=0)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    doc_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True, index=True)
+    filename: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    file_path: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    document_type: Mapped[Optional[str]] = mapped_column(Text, index=True)
+    keywords: Mapped[Optional[str]] = mapped_column(Text)  # JSON array
+    mime_type: Mapped[Optional[str]] = mapped_column(Text, default="text/plain")
+    file_size: Mapped[Optional[int]] = mapped_column(Integer)
+    document_date: Mapped[Optional[str]] = mapped_column(Text)
+    issuing_authority: Mapped[Optional[str]] = mapped_column(Text, index=True)
+    related_institutions: Mapped[Optional[str]] = mapped_column(Text)  # JSON array
+    penalty_amount: Mapped[Optional[str]] = mapped_column(Text)
+    violation_types: Mapped[Optional[str]] = mapped_column(Text)  # JSON array
+    custom_fields: Mapped[Optional[str]] = mapped_column(Text)  # JSON object
+    indexed: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, index=True)
+    chunk_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
 
     # Metadata extraction status fields
-    metadata_extracted = Column(Boolean, default=False)
-    metadata_extraction_status = Column(Text, default="pending")
-    metadata_extraction_error = Column(Text)
-    metadata_extraction_attempts = Column(Integer, default=0)
-    metadata_last_extracted_at = Column(DateTime)
-    metadata_edited_by_user = Column(Boolean, default=False)
-    extraction_confidence = Column(Float)
-
-    # Pipeline monitoring fields
-    pipeline_stage = Column(Text, default="uploaded")
-    pipeline_status = Column(Text, default="in_progress")
-    pipeline_data = Column(Text)  # JSON data
-    pipeline_started_at = Column(DateTime, default=func.now())
-    pipeline_completed_at = Column(DateTime)
+    metadata_extracted: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
+    metadata_extraction_status: Mapped[Optional[str]] = mapped_column(Text, default="pending")
+    metadata_extraction_error: Mapped[Optional[str]] = mapped_column(Text)
+    metadata_extraction_attempts: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    metadata_last_extracted_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    metadata_edited_by_user: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
+    extraction_confidence: Mapped[Optional[float]] = mapped_column(Float)
 
     # Wiki-related fields
-    title = Column(Text)
-    category_id = Column(Integer, ForeignKey("wiki_categories.id"))
-    content_preview = Column(Text)
-    full_content = Column(Text)  # Complete document content for wiki display
-    extraction_method = Column(Text, default="none")
-    case_number = Column(Text)
-    language = Column(Text, default="zh-TW")
-    document_status = Column(Text, default="active")
-    last_accessed = Column(DateTime)
-    access_count = Column(Integer, default=0)
+    title: Mapped[Optional[str]] = mapped_column(Text)
+    category_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("wiki_categories.id"))
+    content_preview: Mapped[Optional[str]] = mapped_column(Text)
+    full_content: Mapped[Optional[str]] = mapped_column(Text)  # Complete document content for wiki display
+    extraction_method: Mapped[Optional[str]] = mapped_column(Text, default="none")
+    case_number: Mapped[Optional[str]] = mapped_column(Text)
+    last_accessed: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    access_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
 
     # Timestamps
-    created_at = Column(DateTime, default=func.now(), index=True)
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), index=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+
+
+class DocumentPipeline(Base):
+    """Document pipeline status table."""
+
+    __tablename__ = "document_pipelines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column(Integer, ForeignKey("documents.id"), nullable=False, unique=True, index=True)
+    stage: Mapped[Optional[str]] = mapped_column(Text, default="uploaded")
+    status: Mapped[Optional[str]] = mapped_column(Text, default="in_progress", index=True)
+    data: Mapped[Optional[str]] = mapped_column(Text)  # JSON data
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now())
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
 
 class WikiCategory(Base):
@@ -78,20 +90,20 @@ class WikiCategory(Base):
 
     __tablename__ = "wiki_categories"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(Text, nullable=False)
-    category_type = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    category_type: Mapped[str] = mapped_column(
         Text,
         nullable=False,
         index=True,
     )
-    parent_id = Column(Integer, ForeignKey("wiki_categories.id"), index=True)
-    description = Column(Text)
-    icon = Column(Text)
-    document_count = Column(Integer, default=0, index=True)
-    display_order = Column(Integer, default=0)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    parent_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("wiki_categories.id"), index=True)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    icon: Mapped[Optional[str]] = mapped_column(Text)
+    document_count: Mapped[Optional[int]] = mapped_column(Integer, default=0, index=True)
+    display_order: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         UniqueConstraint("name", "category_type", name="uq_wiki_category_name_type"),
@@ -107,13 +119,13 @@ class DocumentRelationship(Base):
 
     __tablename__ = "document_relationships"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    doc_id_1 = Column(Text, nullable=False, index=True)
-    doc_id_2 = Column(Text, nullable=False, index=True)
-    relationship_type = Column(Text, nullable=False, index=True)
-    strength = Column(Float, default=0.5, index=True)
-    relationship_metadata = Column("metadata", Text)  # JSON - using column name 'metadata' but attribute 'relationship_metadata'
-    created_at = Column(DateTime, default=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    doc_id_1: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    doc_id_2: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    relationship_type: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    strength: Mapped[Optional[float]] = mapped_column(Float, default=0.5, index=True)
+    relationship_metadata: Mapped[Optional[str]] = mapped_column("metadata", Text)  # JSON - using column name 'metadata' but attribute 'relationship_metadata'
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now())
 
     __table_args__ = (
         UniqueConstraint("doc_id_1", "doc_id_2", "relationship_type", name="uq_doc_rel"),
@@ -130,12 +142,12 @@ class WikiStatistic(Base):
 
     __tablename__ = "wiki_statistics"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    stat_type = Column(Text, nullable=False, index=True)
-    stat_key = Column(Text, index=True)
-    stat_value = Column(Integer, nullable=False)
-    stat_metadata = Column("metadata", Text)  # JSON - using column name 'metadata' but attribute 'stat_metadata'
-    calculated_at = Column(DateTime, default=func.now(), index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stat_type: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    stat_key: Mapped[Optional[str]] = mapped_column(Text, index=True)
+    stat_value: Mapped[int] = mapped_column(Integer, nullable=False)
+    stat_metadata: Mapped[Optional[str]] = mapped_column("metadata", Text)  # JSON - using column name 'metadata' but attribute 'stat_metadata'
+    calculated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), index=True)
 
 
 class Setting(Base):
@@ -143,13 +155,13 @@ class Setting(Base):
 
     __tablename__ = "settings"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    key = Column(Text, nullable=False, unique=True, index=True)
-    value = Column(Text, nullable=False)
-    category = Column(Text, default="general", index=True)
-    description = Column(Text)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(Text, nullable=False, unique=True, index=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[Optional[str]] = mapped_column(Text, default="general", index=True)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
 
 class ModelConfigTable(Base):
@@ -157,16 +169,16 @@ class ModelConfigTable(Base):
 
     __tablename__ = "model_configs"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(Text, nullable=False)
-    config_type = Column(Text, nullable=False, index=True)
-    api_key = Column(Text, default="")
-    base_url = Column(Text, default="")
-    model = Column(Text, nullable=False)
-    temperature = Column(Float)
-    is_active = Column(Boolean, default=False, index=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    config_type: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    api_key: Mapped[Optional[str]] = mapped_column(Text, default="")
+    base_url: Mapped[Optional[str]] = mapped_column(Text, default="")
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    temperature: Mapped[Optional[float]] = mapped_column(Float)
+    is_active: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, index=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
 
 class History(Base):
@@ -174,17 +186,18 @@ class History(Base):
 
     __tablename__ = "history"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(Text, index=True)
-    query = Column(Text, nullable=False)
-    response = Column(Text)
-    model_used = Column(Text)
-    tokens_used = Column(Integer)
-    cost_usd = Column(Float)
-    processing_time_seconds = Column(Float)
-    success = Column(Boolean, default=True)
-    error_message = Column(Text)
-    created_at = Column(DateTime, default=func.now(), index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[Optional[str]] = mapped_column(Text, index=True)
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    response: Mapped[Optional[str]] = mapped_column(Text)
+    model_used: Mapped[Optional[str]] = mapped_column(Text)
+    tokens_used: Mapped[Optional[int]] = mapped_column(Integer)
+    cost_usd: Mapped[Optional[float]] = mapped_column(Float)
+    processing_time_seconds: Mapped[Optional[float]] = mapped_column(Float)
+    success: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    metadata: Mapped[Optional[str]] = mapped_column(Text)  # JSON string for additional data
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), index=True)
 
 
 class Concept(Base):
@@ -192,12 +205,15 @@ class Concept(Base):
 
     __tablename__ = "concepts"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(Text, nullable=False, unique=True, index=True)
-    concept_type = Column(Text, index=True)
-    description = Column(Text)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True, index=True)
+    concept_type: Mapped[Optional[str]] = mapped_column(Text, index=True)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    keywords: Mapped[Optional[str]] = mapped_column(Text)  # JSON array
+    document_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    metadata: Mapped[Optional[str]] = mapped_column(Text)  # JSON object
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
 
 class DocumentConcept(Base):
@@ -205,10 +221,69 @@ class DocumentConcept(Base):
 
     __tablename__ = "document_concepts"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    doc_id = Column(Text, nullable=False, index=True)
-    concept_id = Column(Integer, ForeignKey("concepts.id"), nullable=False, index=True)
-    confidence = Column(Float)
-    created_at = Column(DateTime, default=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column(Integer, ForeignKey("documents.id"), nullable=False, index=True)
+    concept_id: Mapped[int] = mapped_column(Integer, ForeignKey("concepts.id"), nullable=False, index=True)
+    relevance_score: Mapped[Optional[float]] = mapped_column(Float, default=1.0)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now())
 
-    __table_args__ = (UniqueConstraint("doc_id", "concept_id", name="uq_doc_concept"),)
+    __table_args__ = (UniqueConstraint("document_id", "concept_id", name="uq_doc_concept"),)
+
+
+class ResearchSession(Base):
+    """Research workflow sessions table."""
+
+    __tablename__ = "research_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True, index=True)
+    query_text: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="pending", index=True)
+    celery_task_id: Mapped[Optional[str]] = mapped_column(Text, index=True)
+    result: Mapped[Optional[str]] = mapped_column(Text)  # JSON string
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Agent workflow tracking
+    current_agent: Mapped[Optional[str]] = mapped_column(Text)
+    agent_steps: Mapped[Optional[str]] = mapped_column(Text)  # JSON array
+    todos: Mapped[Optional[str]] = mapped_column(Text)  # JSON array
+    activity_log: Mapped[Optional[str]] = mapped_column(Text)  # JSON array
+    research_plan: Mapped[Optional[str]] = mapped_column(Text)  # JSON object
+    dynamic_plan: Mapped[Optional[str]] = mapped_column(Text)  # JSON object
+    tool_executions: Mapped[Optional[str]] = mapped_column(Text)  # JSON object
+    step_history: Mapped[Optional[str]] = mapped_column(Text)  # JSON array
+
+    # Performance metrics
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now())
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    processing_time_seconds: Mapped[Optional[float]] = mapped_column(Float)
+    model_used: Mapped[Optional[str]] = mapped_column(Text)
+    tokens_used: Mapped[Optional[int]] = mapped_column(Integer)
+    cost_usd: Mapped[Optional[float]] = mapped_column(Float)
+
+    # User interaction
+    user_id: Mapped[Optional[str]] = mapped_column(Text, index=True)
+    is_bookmarked: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, index=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Timestamps
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), index=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+
+
+class ToolExecution(Base):
+    """Tool executions tracking table."""
+
+    __tablename__ = "tool_executions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    query_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    tool_name: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    parameters: Mapped[str] = mapped_column(Text, nullable=False)  # JSON string
+    execution_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    results_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    sample_results: Mapped[Optional[str]] = mapped_column(Text)  # JSON string
+    metadata: Mapped[Optional[str]] = mapped_column(Text)  # JSON string
+    success: Mapped[Optional[bool]] = mapped_column(Boolean, default=True, index=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=func.now(), index=True)
