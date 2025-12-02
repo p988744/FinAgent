@@ -6,7 +6,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Beta-yellow.svg)](https://github.com/p988744/FinAgent)
+[![Version](https://img.shields.io/badge/Version-v2.0--beta1-orange.svg)](https://github.com/p988744/FinAgent)
 
 *Specialized AI system for analyzing bank penalties, regulatory enforcement actions, and legal precedents in Taiwan's financial sector*
 
@@ -16,16 +16,26 @@
 
 ---
 
+## 🆕 What's New in v2.0-beta1
+
+- **Chat-based UI**: Modern React frontend with real-time research progress
+- **Deep Research Agent**: Advanced multi-step reasoning with dynamic replanning
+- **Async Processing**: Celery-based background task processing with Redis
+- **Alembic Migrations**: Professional database schema management
+- **Enhanced RAG**: Hybrid search combining vector similarity and BM25
+- **Real-time Updates**: WebSocket-based progress streaming
+
+---
+
 ## 📑 Table of Contents
 
 - [Features](#-features)
 - [Quick Start](#-quick-start)
 - [Installation](#-installation)
 - [Usage](#-usage)
+  - [Web Interface](#web-interface)
   - [CLI Interface](#cli-interface)
   - [API Server](#api-server)
-  - [Celery Worker](#celery-worker)
-  - [Document Processing](#document-processing)
 - [Architecture](#-architecture)
 - [Research Tools](#-research-tools)
 - [Database Schema](#-database-schema)
@@ -39,11 +49,13 @@
 ## ✨ Features
 
 🤖 **Multi-Agent Architecture**
-- LangGraph-based workflow with Planning, Action, Validation, and Answer agents
-- Real-time todo tracking and task status monitoring
+- LangGraph-based Deep Research Agent with dynamic planning
+- Real-time task tracking and progress monitoring
+- Automatic query decomposition and synthesis
 
 📚 **Advanced RAG Pipeline**
-- Semantic search with OpenAI embeddings and Chroma vector database
+- Semantic search with OpenAI embeddings (text-embedding-3-small)
+- Hybrid retrieval: Vector similarity + BM25 keyword matching
 - Paragraph-aware chunking (512 tokens, 128 overlap)
 - LLM-generated metadata extraction
 
@@ -52,14 +64,15 @@
 - 6 specialized research tools (vector search, metadata search, hybrid search, etc.)
 - Taiwan legal citation formatting ([引用1]、[引用2])
 
-🌐 **Flexible Deployment**
-- Interactive CLI with rich formatting
-- FastAPI backend with async support
-- Celery worker for background document processing
+🌐 **Modern Web Interface**
+- React-based chat UI with real-time progress
+- Document management with upload/indexing
+- Research history and bookmarking
+- Settings management for LLM configuration
 
 🔧 **LLM Compatibility**
-- OpenAI API support
-- Ollama integration
+- OpenAI API support (GPT-4o, GPT-4o-mini)
+- Ollama integration for local models
 - Custom endpoint configuration
 
 🇹🇼 **Traditional Chinese**
@@ -71,35 +84,51 @@
 
 ## 🚀 Quick Start
 
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+ (for frontend)
+- Redis (for async processing)
+
+### Installation
+
 ```bash
-# Clone and install
+# Clone repository
 git clone https://github.com/p988744/FinAgent.git
 cd FinAgent
+
+# Backend setup
 uv sync
 
-# Configure
+# Frontend setup
+cd frontend && npm install && cd ..
+
+# Configure environment
 cp .env.example .env
 # Edit .env with your OpenAI API key
-
-# Process documents
-uv run python src/finagent/cli/main.py process -r data/documents
 ```
 
-**Example Usage:**
+### Start Services
+
 ```bash
-# Process documents from a directory
-uv run python src/finagent/cli/main.py process -r data/documents/範例資料
+# Terminal 1: Backend API
+uv run uvicorn finagent.main:app --reload --port 8000
+
+# Terminal 2: Celery Worker (for async processing)
+uv run celery -A finagent.celery_app worker --loglevel=info
+
+# Terminal 3: Frontend
+cd frontend && npm run dev
 ```
+
+### Access
+
+- **Web UI**: http://localhost:5173
+- **API Docs**: http://localhost:8000/docs
 
 ---
 
 ## 📦 Installation
-
-### Prerequisites
-
-- Python 3.11+
-- Redis (for async processing)
-- 2GB+ RAM (for vector database)
 
 ### Using uv (Recommended)
 
@@ -109,12 +138,16 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install dependencies
 uv sync
+
+# Initialize database
+uv run alembic upgrade head
 ```
 
 ### Using pip
 
 ```bash
 pip install -e .
+alembic upgrade head
 ```
 
 ### Environment Configuration
@@ -128,34 +161,51 @@ LLM_BASE_URL=                    # Empty = use OpenAI
 LLM_MODEL=gpt-4o-mini
 EMBEDDING_MODEL=text-embedding-3-small
 
+# Redis (for async processing)
+REDIS_URL=redis://localhost:6379/0
+
 # Ollama (alternative)
-LLM_API_KEY=ollama
-LLM_BASE_URL=http://localhost:11434/v1
-LLM_MODEL=qwen2.5:7b
-EMBEDDING_MODEL=bge-m3
+# LLM_API_KEY=ollama
+# LLM_BASE_URL=http://localhost:11434/v1
+# LLM_MODEL=qwen2.5:7b
 ```
 
 ---
 
 ## 💻 Usage
 
+### Web Interface
+
+The React-based web interface provides:
+
+- **Chat Interface**: Submit research queries and view real-time progress
+- **Document Management**: Upload, index, and manage documents
+- **Research History**: View past queries with bookmarking
+- **Settings**: Configure LLM models and API keys
+
+```bash
+cd frontend
+npm run dev
+# Open http://localhost:5173
+```
+
 ### CLI Interface
 
 ```bash
 # Process documents from a directory
-uv run python src/finagent/cli/main.py process -r data/documents/範例資料
+uv run finagent process -r data/documents
 
-# Load documents only
-uv run python src/finagent/cli/main.py load -r data/documents
+# Load documents only (no indexing)
+uv run finagent load -r data/documents
 
 # Extract metadata only
-uv run python src/finagent/cli/main.py metadata -r data/documents
+uv run finagent metadata -r data/documents
 
 # Index documents only
-uv run python src/finagent/cli/main.py index -r data/documents
+uv run finagent index -r data/documents
 
 # Show help
-uv run python src/finagent/cli/main.py --help
+uv run finagent --help
 ```
 
 ### API Server
@@ -167,8 +217,8 @@ uv run uvicorn finagent.main:app --reload --port 8000
 # Health check
 curl http://localhost:8000/health
 
-# Submit query
-curl -X POST http://localhost:8000/api/v1/research/query/sync \
+# Submit async query
+curl -X POST http://localhost:8000/api/v1/research/query \
   -H "Content-Type: application/json" \
   -d '{"text": "玉山銀行洗錢防制裁罰"}'
 
@@ -176,88 +226,54 @@ curl -X POST http://localhost:8000/api/v1/research/query/sync \
 open http://localhost:8000/docs
 ```
 
-### Celery Worker
-
-Required for async document processing:
-
-```bash
-# Start Redis
-brew services start redis  # macOS
-sudo systemctl start redis # Linux
-
-# Start Celery worker
-./scripts/start_celery_worker.sh
-
-# Or manually
-uv run celery -A finagent.celery_app worker --loglevel=info
-
-# Check worker status
-celery -A finagent.celery_app inspect active
-```
-
-**Worker Configuration:**
-- Concurrency: 2 processes
-- Max tasks per child: 50
-- Task time limit: 10 minutes
-- Logs: `logs/celery_worker.log`
-
-### Document Processing
-
-```bash
-# Add documents
-mkdir -p data/documents
-cp your_documents/*.txt data/documents/
-
-# Process documents from a directory
-uv run python src/finagent/cli/main.py process -r data/documents
-
-# Process specific subdirectory
-uv run python src/finagent/cli/main.py process -r data/documents/範例資料
-```
-
-### Frontend (React UI)
-
-```bash
-# Navigate to frontend directory
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Frontend will be available at http://localhost:5173
-```
-
-**Prerequisites:**
-- Node.js 18+ and npm
-- Backend API server running on port 8000
-- Celery worker running for async queries
-
-**Production Build:**
-```bash
-cd frontend
-npm run build
-npm run preview  # Preview production build
-```
-
 ---
 
 ## 🏗 Architecture
 
-### Multi-Agent Workflow
+### System Overview
 
 ```
-User Query → Planning Agent → Action Agent → Validation Agent → Answer Agent → Response
-                   ↓              ↓              ↓                    ↓
-                 Tasks       RAG Retrieval   Citations           Synthesis
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   React UI      │────▶│   FastAPI       │────▶│   Celery        │
+│   (Port 5173)   │     │   (Port 8000)   │     │   Worker        │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                               │                        │
+                               ▼                        ▼
+                        ┌─────────────────┐     ┌─────────────────┐
+                        │   SQLite DB     │     │   Redis Queue   │
+                        │   (finagent.db) │     │   (Port 6379)   │
+                        └─────────────────┘     └─────────────────┘
+                               │
+                               ▼
+                        ┌─────────────────┐
+                        │   Chroma        │
+                        │   Vector DB     │
+                        └─────────────────┘
 ```
 
-1. **Planning Agent** - Analyzes query, creates research plan, generates todo items
-2. **Action Agent** - Retrieves relevant documents via RAG, updates task status
-3. **Validation Agent** - Verifies citation integrity, checks source coverage
-4. **Answer Agent** - Synthesizes LLM-powered response with confidence scoring
+### Deep Research Agent Workflow
+
+```
+User Query
+    │
+    ▼
+┌─────────────┐
+│   Planner   │ ──▶ Creates research plan with tasks
+└─────────────┘
+    │
+    ▼
+┌─────────────┐
+│  Executor   │ ──▶ Executes tasks using RAG tools
+└─────────────┘
+    │
+    ▼
+┌─────────────┐
+│  Replanner  │ ──▶ Reviews progress, replans or responds
+└─────────────┘
+    │
+    ▼
+Final Response with Citations
+```
 
 ### RAG Pipeline
 
@@ -265,14 +281,14 @@ User Query → Planning Agent → Action Agent → Validation Agent → Answer A
 - Paragraph-aware chunking (512 tokens, 128 overlap)
 - OpenAI embedding generation (text-embedding-3-small)
 - Chroma vector database indexing
-- Semantic search with 0.8 relevance threshold
+- Hybrid search: Vector similarity (60%) + BM25 (40%)
 - Taiwan legal citation formatting
 
 ---
 
 ## 🔧 Research Tools
 
-FinAgent includes 6 specialized research tools optimized for different query types:
+FinAgent includes 6 specialized research tools:
 
 | Tool | Best For | Speed | Key Features |
 |------|----------|-------|--------------|
@@ -283,42 +299,30 @@ FinAgent includes 6 specialized research tools optimized for different query typ
 | **List Documents** | Comprehensive inventories | Very Fast | Exhaustive results |
 | **Read File** | Direct file access | Very Fast | Exact filename match |
 
-### Example Usage
-
-**Vector Search:**
-```python
-{"query": "玉山銀行洗錢防制", "top_k": 10}
-```
-
-**Metadata Search:**
-```python
-{"entity": "玉山銀行", "date_from": "2020-01-01", "date_to": "2020-12-31"}
-```
-
-**Hybrid Search:**
-```python
-{"query": "洗錢防制缺失", "entity": "玉山銀行", "date_from": "2020-01-01"}
-```
-
-See [full tool documentation](README.md#research-tools) for detailed parameters and use cases.
-
 ---
 
 ## 🗄 Database Schema
 
-SQLite with normalized schema optimized for document management:
+SQLite with Alembic migrations for schema management:
 
 **Core Tables:**
-- `documents` - Document metadata (filename, description, LLM-extracted fields)
-- `document_pipelines` - Processing status tracking (1:1 with documents)
-- `document_concepts` - Document-concept relationships (many-to-many)
-- `concepts` - Extracted topics/concepts
+- `documents` - Document metadata and LLM-extracted fields
+- `document_pipelines` - Processing status tracking
+- `research_sessions` - Query sessions and results
+- `tool_executions` - Research tool execution logs
+- `concepts` - Extracted topics and concepts
 
-**Key Features:**
-- Integer foreign keys for performance
-- Normalized design with separated pipeline data
-- Automatic triggers for counts and timestamps
-- JSON fields for flexible metadata
+**Database Commands:**
+```bash
+# Apply migrations
+uv run alembic upgrade head
+
+# Create new migration
+uv run alembic revision --autogenerate -m "description"
+
+# View migration history
+uv run alembic history
+```
 
 ---
 
@@ -357,13 +361,19 @@ uv run mypy src/
 
 ```
 FinAgent/
-├── src/finagent/              # Source code
-│   ├── cli/                   # CLI interface
+├── src/finagent/              # Backend source code
 │   ├── api/                   # FastAPI routes
 │   ├── agents/                # Multi-agent system
+│   │   └── plan_execute/      # Deep Research Agent
+│   ├── cli/                   # CLI commands
+│   ├── database/              # SQLite + Alembic
 │   ├── document_processing/   # RAG pipeline
-│   ├── database/              # SQLite persistence
-│   └── tools/                 # Research tools
+│   ├── tools/                 # Research tools
+│   └── wiki/                  # Wiki/knowledge base
+├── frontend/                  # React UI
+│   ├── src/components/        # React components
+│   ├── src/hooks/             # Custom hooks
+│   └── src/pages/             # Page components
 ├── tests/                     # Test suite
 ├── data/                      # Data directory
 │   ├── documents/             # Source documents
@@ -376,20 +386,18 @@ FinAgent/
 
 ## 📊 Performance
 
-- **Query time**: ~40 seconds
-- **Cost per query**: ~$0.0015 USD (~NT$0.05)
-- **True positive rate**: 95%
-- **False positive rate**: 0%
+- **Query time**: 30-60 seconds (depending on complexity)
+- **Cost per query**: ~$0.002-0.005 USD
+- **Documents supported**: 500+ TXT files
+- **Vector dimensions**: 1536 (text-embedding-3-small)
 - **Confidence scoring**: 高信心/中信心/低信心
 
 ---
 
 ## 📚 Documentation
 
-- [CLAUDE.md](CLAUDE.md) - Development instructions
+- [CLAUDE.md](CLAUDE.md) - Development instructions for AI assistants
 - [CHANGELOG.md](CHANGELOG.md) - Version history
-- [PROJECT_SPEC.md](PROJECT_SPEC.md) - Project specifications
-- [UNIMPLEMENTED_FEATURES.md](UNIMPLEMENTED_FEATURES.md) - Feature backlog
 
 ---
 
@@ -413,10 +421,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- LangChain for the agent framework
+- LangChain & LangGraph for the agent framework
 - OpenAI for embeddings and LLM
 - Chroma for vector database
 - FastAPI for the API framework
+- React & Vite for the frontend
 
 ---
 
@@ -426,6 +435,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Made with ❤️ for Taiwan's financial sector
 
-**Status**: Beta (v0.0.1-beta) | **Last Updated**: 2025-12-02
+**Version**: v2.0-beta1 | **Last Updated**: 2025-12-02
 
 </div>

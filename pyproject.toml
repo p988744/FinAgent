@@ -1,6 +1,6 @@
 [project]
 name = "finagent"
-version = "0.0.2"
+version = "2.0.0-beta1"
 description = "Taiwan Legal Research Agent System - AI-powered legal research for banking penalties and regulatory enforcement"
 authors = [
     { name = "FinAgent Team", email = "team@finagent.example.com" }
