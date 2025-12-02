@@ -3,10 +3,11 @@
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from finagent.agents.plan_execute.models import Plan, PlanExecuteState
 from finagent.config import settings
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
 
 class PlannerAgent:
     """Agent responsible for creating the initial research plan."""
@@ -70,7 +71,7 @@ class PlannerAgent:
                 ("user", "{input}"),
             ]
         ).partial(format_instructions=self.parser.get_format_instructions())
-        
+
         self.chain = self.prompt | self.llm | self.parser
 
     @retry(

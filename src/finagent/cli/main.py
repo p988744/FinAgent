@@ -8,9 +8,9 @@ import click
 from rich.console import Console
 
 from finagent.cli import __version__
+from finagent.cli.commands.index import index
 from finagent.cli.commands.load import load
 from finagent.cli.commands.metadata import metadata
-from finagent.cli.commands.index import index
 from finagent.cli.commands.process import process
 
 console = Console()
@@ -22,7 +22,7 @@ console = Console()
 def cli(ctx):
     """
     FinAgent CLI - Document Processing Pipeline
-    
+
     Process legal documents: load, extract metadata, chunk, and index.
     """
     ctx.ensure_object(dict)

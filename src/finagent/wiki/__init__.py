@@ -12,9 +12,9 @@ Components:
 """
 
 from finagent.wiki.category_builder import CategoryBuilder
-from finagent.wiki.statistics import StatisticsEngine
-from finagent.wiki.relationship_mapper import RelationshipMapper
 from finagent.wiki.generator import WikiGenerator
+from finagent.wiki.relationship_mapper import RelationshipMapper
+from finagent.wiki.statistics import StatisticsEngine
 
 __all__ = [
     "CategoryBuilder",

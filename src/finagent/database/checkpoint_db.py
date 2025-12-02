@@ -13,18 +13,15 @@ Usage:
     db.update_query_result(query_id, response="Final answer")
 """
 
-import os
-import logging
-from contextlib import contextmanager
-from typing import Optional, Dict, Any, List
-from datetime import datetime
-import uuid
 import json
+import logging
+import os
+import uuid
+from contextlib import contextmanager
 
-from psycopg import connect
+from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
-from langgraph.checkpoint.postgres import PostgresSaver
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +29,7 @@ logger = logging.getLogger(__name__)
 class CheckpointDatabase:
     """Manage PostgreSQL connections for LangGraph checkpoints and query history."""
 
-    def __init__(self, db_uri: Optional[str] = None):
+    def __init__(self, db_uri: str | None = None):
         """
         Initialize database connection pool.
 
@@ -117,7 +114,7 @@ class CheckpointDatabase:
         if os.path.exists(schema_file):
             with self.pool.connection() as conn:
                 with conn.cursor() as cur:
-                    with open(schema_file, 'r') as f:
+                    with open(schema_file) as f:
                         schema_sql = f.read()
                         cur.execute(schema_sql)
             logger.info("✅ Query history table created/verified")
@@ -146,11 +143,11 @@ class CheckpointDatabase:
     def create_query_record(
         self,
         query_text: str,
-        thread_id: Optional[str] = None,
-        query_type: Optional[str] = None,
+        thread_id: str | None = None,
+        query_type: str | None = None,
         use_plan_execute: bool = True,
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None
+        user_id: str | None = None,
+        session_id: str | None = None
     ) -> str:
         """
         Create a new query history record.
@@ -195,7 +192,7 @@ class CheckpointDatabase:
         self,
         query_id: str,
         status: str,
-        error_message: Optional[str] = None
+        error_message: str | None = None
     ):
         """
         Update query status.
@@ -237,15 +234,15 @@ class CheckpointDatabase:
     def update_query_result(
         self,
         query_id: str,
-        query_insight: Optional[Dict] = None,
-        plan: Optional[Dict] = None,
-        past_steps: Optional[List] = None,
-        response: Optional[str] = None,
-        total_tokens: Optional[int] = None,
-        prompt_tokens: Optional[int] = None,
-        completion_tokens: Optional[int] = None,
-        llm_cost_usd: Optional[float] = None,
-        execution_time: Optional[float] = None
+        query_insight: dict | None = None,
+        plan: dict | None = None,
+        past_steps: list | None = None,
+        response: str | None = None,
+        total_tokens: int | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        llm_cost_usd: float | None = None,
+        execution_time: float | None = None
     ):
         """
         Update query with execution results.
@@ -306,7 +303,7 @@ class CheckpointDatabase:
 
         logger.info(f"Updated query result: {query_id}")
 
-    def get_query_by_id(self, query_id: str) -> Optional[Dict]:
+    def get_query_by_id(self, query_id: str) -> dict | None:
         """
         Get query record by ID.
 
@@ -331,11 +328,11 @@ class CheckpointDatabase:
 
     def get_query_history(
         self,
-        user_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        status: Optional[str] = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        status: str | None = None,
         limit: int = 10
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Get query history with optional filters.
 
@@ -395,7 +392,7 @@ class CheckpointDatabase:
 
 
 # Global instance
-_checkpoint_db: Optional[CheckpointDatabase] = None
+_checkpoint_db: CheckpointDatabase | None = None
 
 
 def get_checkpoint_db() -> CheckpointDatabase:

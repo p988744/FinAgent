@@ -5,7 +5,6 @@ multiple retrieval strategies.
 """
 
 import logging
-from typing import Optional
 
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate

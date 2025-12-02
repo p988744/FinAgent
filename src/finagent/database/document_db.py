@@ -3,7 +3,6 @@
 import json
 import logging
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -91,7 +90,7 @@ class DocumentDatabase:
                 "metadata_edited_by_user",
                 "metadata_edited_by_user",
             ]
-            
+
             # Pipeline fields to separate
             pipeline_fields_map = {
                 "pipeline_stage": "stage",
@@ -109,7 +108,7 @@ class DocumentDatabase:
                     if isinstance(value, (list, dict)):
                         value = json.dumps(value, ensure_ascii=False)
                     fields[field] = value
-            
+
             # Extract pipeline fields
             for key, new_key in pipeline_fields_map.items():
                 if key in kwargs:
@@ -146,15 +145,15 @@ class DocumentDatabase:
 
             conn.commit()
             conn.commit()
-            
+
             # Upsert pipeline data if present
             if pipeline_data:
                 pipeline_data["document_id"] = doc_pk  # Use integer PK
-                
+
                 # Check if pipeline record exists
                 cursor.execute("SELECT id FROM document_pipelines WHERE document_id = ?", (doc_pk,))
                 existing_pipeline = cursor.fetchone()
-                
+
                 if existing_pipeline:
                     set_clause = ", ".join([f"{k} = ?" for k in pipeline_data.keys()])
                     values = list(pipeline_data.values())
@@ -172,7 +171,7 @@ class DocumentDatabase:
                         values
                     )
                 conn.commit()
-                
+
             return doc_pk
 
         except Exception as e:
@@ -221,11 +220,11 @@ class DocumentDatabase:
         try:
             cursor.execute(
                 """
-                SELECT d.*, 
-                       p.stage as pipeline_stage, 
-                       p.status as pipeline_status, 
-                       p.data as pipeline_data, 
-                       p.started_at as pipeline_started_at, 
+                SELECT d.*,
+                       p.stage as pipeline_stage,
+                       p.status as pipeline_status,
+                       p.data as pipeline_data,
+                       p.started_at as pipeline_started_at,
                        p.completed_at as pipeline_completed_at
                 FROM documents d
                 LEFT JOIN document_pipelines p ON d.id = p.document_id
@@ -294,11 +293,11 @@ class DocumentDatabase:
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
 
             query = f"""
-                SELECT d.*, 
-                       p.stage as pipeline_stage, 
-                       p.status as pipeline_status, 
-                       p.data as pipeline_data, 
-                       p.started_at as pipeline_started_at, 
+                SELECT d.*,
+                       p.stage as pipeline_stage,
+                       p.status as pipeline_status,
+                       p.data as pipeline_data,
+                       p.started_at as pipeline_started_at,
                        p.completed_at as pipeline_completed_at
                 FROM documents d
                 LEFT JOIN document_pipelines p ON d.id = p.document_id

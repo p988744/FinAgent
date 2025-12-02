@@ -3,11 +3,10 @@ WebSocket API for real-time query progress streaming.
 """
 
 import asyncio
-import json
 import logging
 import os
-from datetime import datetime
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -16,8 +15,8 @@ from finagent.agents.ui_callback import UICallback
 from finagent.models.answers import LegalAnswer
 from finagent.models.citations import LegalCitation
 from finagent.models.queries import Query
-from finagent.models.todo_item import TodoItem
 from finagent.models.resolution_plan import ResolutionPlan
+from finagent.models.todo_item import TodoItem
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +131,7 @@ class WebSocketUICallback(UICallback):
             "tool_usage": tool_usage,
         })
 
-    async def on_clarification_request(self, questions: list[str]) -> Optional[str]:
+    async def on_clarification_request(self, questions: list[str]) -> str | None:
         """Handle clarification request (not implemented for WebSocket)."""
         await self._send("activity_log", {
             "level": "warning",
@@ -283,7 +282,7 @@ class WebSocketUICallback(UICallback):
             "elapsed_ms": 0,
         })
 
-    async def on_error(self, error: str, context: Optional[dict[str, Any]] = None):
+    async def on_error(self, error: str, context: dict[str, Any] | None = None):
         """An error occurred."""
         await self._send("error", {
             "message": error,
@@ -374,10 +373,13 @@ async def websocket_upload_endpoint(websocket: WebSocket):
                 import base64
                 import uuid
                 from pathlib import Path
-                from datetime import timezone
-                from finagent.document_processing.loader import DocumentLoader
+
                 from finagent.document_processing.indexer import DocumentIndexer
-                from finagent.document_processing.metadata_store import DocumentMetadata, get_metadata_store
+                from finagent.document_processing.loader import DocumentLoader
+                from finagent.document_processing.metadata_store import (
+                    DocumentMetadata,
+                    get_metadata_store,
+                )
 
                 filename = data.get("filename")
                 content_b64 = data.get("content")
@@ -446,7 +448,7 @@ async def websocket_upload_endpoint(websocket: WebSocket):
                     })
 
                     # Create metadata
-                    now = datetime.now(timezone.utc).isoformat()
+                    now = datetime.now(UTC).isoformat()
                     metadata = DocumentMetadata(
                         doc_id=doc_id,
                         filename=filename,
@@ -592,7 +594,7 @@ async def websocket_query_endpoint(websocket: WebSocket):
                 query_text = data.get("text", "")
                 use_plan_execute = data.get("use_plan_execute", False)
                 use_wiki_search = data.get("use_wiki_search", False)
-                
+
                 if not query_text:
                     await websocket.send_json({
                         "type": "error",
@@ -627,7 +629,7 @@ async def websocket_query_endpoint(websocket: WebSocket):
                     start_time = datetime.now()
                     answer = None
                     final_plan = None
-                    
+
                     # For Plan-and-Execute flow
                     final_response_text = None
 
@@ -640,13 +642,13 @@ async def websocket_query_endpoint(websocket: WebSocket):
                         "validation": "validation",
                         "reference_guard": "validation",
                         "answer": "answer",
-                        
+
                         # Plan-and-Execute Flow
                         "planner": "planning",
                         "executor": "action",
-                        "replanner": "validation", 
-                        "reporter": "answer", 
-                        
+                        "replanner": "validation",
+                        "reporter": "answer",
+
                         # Wiki Search Flow
                         "search": "action",
                         "synthesize": "answer",
@@ -657,7 +659,7 @@ async def websocket_query_endpoint(websocket: WebSocket):
                     # Stream workflow execution directly (async)
                     try:
                         async for node_name, state_update in orchestrator.stream_query(
-                            query, 
+                            query,
                             enable_demo_delay=ENABLE_DEMO_DELAY,
                             use_plan_execute=use_plan_execute,
                             use_wiki_search=use_wiki_search
@@ -718,7 +720,7 @@ async def websocket_query_endpoint(websocket: WebSocket):
                             # Extract answer when complete
                             if "answer" in state_update and state_update["answer"]:
                                 answer = state_update["answer"]
-                                
+
                             # --- Plan-and-Execute Flow Handling ---
                             if use_plan_execute:
                                 if node_name == "planner" and "plan" in state_update:
@@ -733,7 +735,7 @@ async def websocket_query_endpoint(websocket: WebSocket):
                                                 "tool": task.tool,
                                                 "status": "pending"
                                             })
-                                        
+
                                         # Send plan update
                                         await callback._send("plan_created", {
                                             "tasks": tasks,
@@ -752,7 +754,7 @@ async def websocket_query_endpoint(websocket: WebSocket):
                                             "use_hard_search": False,
                                             "estimated_total_time": 60
                                         })
-                                        
+
                                 if node_name == "executor" and "past_steps" in state_update:
                                     # Log tool executions
                                     past_steps = state_update["past_steps"]
@@ -760,13 +762,13 @@ async def websocket_query_endpoint(websocket: WebSocket):
                                         last_step = past_steps[-1]
                                         # last_step is (task_dict, result)
                                         task_info = last_step[0]
-                                        result_info = last_step[1]
-                                        
+                                        last_step[1]
+
                                         await callback._send("activity_log", {
                                             "level": "info",
                                             "message": f"執行任務: {task_info.get('description')} -> 完成",
                                         })
-                                        
+
                                 if node_name == "replanner":
                                     if "response" in state_update and state_update["response"]:
                                         final_response_text = state_update["response"]
@@ -782,14 +784,14 @@ async def websocket_query_endpoint(websocket: WebSocket):
                                             "level": "info",
                                             "message": "重新規劃: 添加新任務",
                                         })
-                                        
+
                                 if node_name == "reporter" and "response" in state_update:
                                     final_response_text = state_update["response"]
                                     await callback._send("activity_log", {
                                         "level": "success",
                                         "message": "報告生成完成",
                                     })
-                                        
+
                             # --- Wiki Search Flow Handling ---
                             if use_wiki_search:
                                 if node_name == "search" and "documents" in state_update:
@@ -798,7 +800,7 @@ async def websocket_query_endpoint(websocket: WebSocket):
                                         "level": "success",
                                         "message": f"Wiki Search: Found {len(docs)} documents",
                                     })
-                                    
+
                                 if node_name == "synthesize" and "response" in state_update:
                                     final_response_text = state_update["response"]
                                     # Wiki search result is the final answer
@@ -807,9 +809,9 @@ async def websocket_query_endpoint(websocket: WebSocket):
                                         "key_findings": ["See detailed report"],
                                         "detailed_analysis": final_response_text,
                                         "confidence": "HIGH",
-                                        "citations": [] 
+                                        "citations": []
                                     }
-                                    
+
                                     await callback._send("query_complete", {"result": result})
                                     return
 
@@ -827,7 +829,7 @@ async def websocket_query_endpoint(websocket: WebSocket):
 
                         # Construct final result
                         result = None
-                        
+
                         if use_plan_execute:
                             if final_response_text:
                                 result = {
@@ -843,7 +845,7 @@ async def websocket_query_endpoint(websocket: WebSocket):
                         else:
                             if not answer:
                                 raise Exception("工作流程未生成答案")
-                                
+
                             result = {
                                 "summary": answer.executive_summary,
                                 "key_findings": answer.key_findings,

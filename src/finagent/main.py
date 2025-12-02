@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from finagent.api.routes import health, research, config, models, documents, websocket, wiki
+from finagent.api.routes import config, documents, health, models, research, websocket, wiki
 from finagent.config import settings
 
 # Configure logging

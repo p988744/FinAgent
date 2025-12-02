@@ -1,7 +1,7 @@
 """Data models for the WikiBuilder workflow."""
 
 from enum import Enum
-from typing import Any, List, Optional, TypedDict
+from typing import TypedDict
 
 from pydantic import BaseModel, Field
 
@@ -25,7 +25,7 @@ class Concept(BaseModel):
     name: str = Field(description="Concept name (e.g., '洗錢防制', '玉山銀行')")
     concept_type: str = Field(description="Type: entity, topic, regulation, institution")
     confidence: float = Field(default=1.0, description="Extraction confidence 0-1")
-    source_text: Optional[str] = Field(default=None, description="Source text snippet")
+    source_text: str | None = Field(default=None, description="Source text snippet")
 
 
 class ExtractedMetadata(BaseModel):
@@ -34,13 +34,13 @@ class ExtractedMetadata(BaseModel):
     title: str = Field(description="Document title")
     description: str = Field(description="2-3 sentence summary")
     document_type: str = Field(description="裁罰書, 判決書, 法規, etc.")
-    issuing_authority: Optional[str] = Field(default=None, description="發文機關")
-    case_number: Optional[str] = Field(default=None, description="案號")
-    document_date: Optional[str] = Field(default=None, description="YYYY-MM-DD")
-    related_institutions: List[str] = Field(default_factory=list, description="金融機構")
-    violation_types: List[str] = Field(default_factory=list, description="違規類型")
-    penalty_amount: Optional[str] = Field(default=None, description="裁罰金額")
-    keywords: List[str] = Field(default_factory=list, description="關鍵詞")
+    issuing_authority: str | None = Field(default=None, description="發文機關")
+    case_number: str | None = Field(default=None, description="案號")
+    document_date: str | None = Field(default=None, description="YYYY-MM-DD")
+    related_institutions: list[str] = Field(default_factory=list, description="金融機構")
+    violation_types: list[str] = Field(default_factory=list, description="違規類型")
+    penalty_amount: str | None = Field(default=None, description="裁罰金額")
+    keywords: list[str] = Field(default_factory=list, description="關鍵詞")
     extraction_confidence: float = Field(default=0.0, description="Confidence 0-1")
 
 
@@ -71,19 +71,19 @@ class WikiBuilderState(TypedDict):
     content: str
 
     # Document processing
-    doc_id: Optional[str]
+    doc_id: str | None
     document_loaded: bool
 
     # Metadata extraction
-    metadata: Optional[dict]  # ExtractedMetadata as dict
+    metadata: dict | None  # ExtractedMetadata as dict
     metadata_extracted: bool
 
     # Concept extraction
-    concepts: Optional[List[dict]]  # List[Concept] as dict
+    concepts: list[dict] | None  # List[Concept] as dict
     concepts_extracted: bool
 
     # Chunking
-    chunks: Optional[List[dict]]  # List[TextChunk] as dict
+    chunks: list[dict] | None  # List[TextChunk] as dict
     chunk_count: int
 
     # Indexing
@@ -91,16 +91,16 @@ class WikiBuilderState(TypedDict):
     index_success: bool
 
     # Category building
-    categories_updated: Optional[List[dict]]  # List[CategoryUpdate] as dict
+    categories_updated: list[dict] | None  # List[CategoryUpdate] as dict
 
     # Progress tracking
     current_stage: str  # ProcessingStage value
     progress: int  # 0-100
-    error: Optional[str]
+    error: str | None
 
     # Timing
-    started_at: Optional[str]
-    completed_at: Optional[str]
+    started_at: str | None
+    completed_at: str | None
 
 
 class WikiBuilderProgress(BaseModel):
@@ -113,7 +113,7 @@ class WikiBuilderProgress(BaseModel):
     message: str
     chunk_count: int = 0
     categories_count: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class WikiBuilderResult(BaseModel):
@@ -122,9 +122,9 @@ class WikiBuilderResult(BaseModel):
     success: bool
     doc_id: str
     filename: str
-    metadata: Optional[ExtractedMetadata] = None
-    concepts: List[Concept] = Field(default_factory=list)
+    metadata: ExtractedMetadata | None = None
+    concepts: list[Concept] = Field(default_factory=list)
     chunk_count: int = 0
-    categories_updated: List[CategoryUpdate] = Field(default_factory=list)
+    categories_updated: list[CategoryUpdate] = Field(default_factory=list)
     processing_time_ms: int = 0
-    error: Optional[str] = None
+    error: str | None = None

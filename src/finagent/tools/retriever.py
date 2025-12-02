@@ -1,7 +1,6 @@
 """Retriever tool for semantic search."""
 
 import asyncio
-from typing import Type
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -21,7 +20,7 @@ class RetrieverTool(BaseTool):
 
     name: str = "retriever"
     description: str = "Useful for finding relevant documents based on semantic similarity."
-    args_schema: Type[BaseModel] = RetrieverInput
+    args_schema: type[BaseModel] = RetrieverInput
     retriever: DocumentRetriever = Field(exclude=True)
 
     class Config:
@@ -33,12 +32,12 @@ class RetrieverTool(BaseTool):
             chunks = self.retriever.retrieve(query=query, n_results=n_results)
             if not chunks:
                 return "No relevant documents found."
-            
+
             results = []
             for i, chunk in enumerate(chunks, 1):
                 filename = chunk.metadata.get("filename", "Unknown")
                 results.append(f"[{i}] Source: {filename}\nContent: {chunk.text}\n")
-            
+
             return "\n---\n".join(results)
         except Exception as e:
             return f"Error retrieving documents: {str(e)}"

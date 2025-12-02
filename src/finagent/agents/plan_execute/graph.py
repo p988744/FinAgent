@@ -11,7 +11,6 @@ Flow:
 """
 
 import logging
-from typing import Optional
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
@@ -204,7 +203,7 @@ class PlanExecuteWorkflow:
     async def run(
         self,
         query: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
     ) -> dict:
         """Run the workflow.
 
@@ -244,8 +243,8 @@ class PlanExecuteWorkflow:
         self,
         thread_id: str,
         approved: bool,
-        modifications: Optional[dict] = None,
-        feedback: Optional[str] = None,
+        modifications: dict | None = None,
+        feedback: str | None = None,
     ) -> dict:
         """Resume workflow after user confirmation.
 
@@ -294,7 +293,7 @@ class PlanExecuteWorkflow:
 
         return result
 
-    async def stream(self, query: str, thread_id: Optional[str] = None):
+    async def stream(self, query: str, thread_id: str | None = None):
         """Stream the workflow execution.
 
         Args:
@@ -338,7 +337,7 @@ class PlanExecuteWorkflow:
                         "is_interrupt": False,
                     }
 
-    def get_confirmation_request(self, state: dict) -> Optional[dict]:
+    def get_confirmation_request(self, state: dict) -> dict | None:
         """Get the confirmation request from state.
 
         Args:

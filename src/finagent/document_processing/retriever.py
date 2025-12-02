@@ -3,9 +3,8 @@ Document retriever for RAG (Retrieval-Augmented Generation).
 """
 
 from dataclasses import dataclass
-from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Tuple
+from typing import Any
 
 import chromadb
 from chromadb.config import Settings
@@ -62,7 +61,7 @@ class DocumentRetriever:
         self.embedding_generator = embedding_generator or EmbeddingGenerator()
 
     @lru_cache(maxsize=1000)
-    def _get_query_embedding(self, query: str) -> Tuple[float, ...]:
+    def _get_query_embedding(self, query: str) -> tuple[float, ...]:
         """
         Generate and cache query embedding.
         Returns tuple (hashable) for lru_cache.
@@ -227,8 +226,8 @@ class DocumentRetriever:
 
         # Get concepts matching the query
         from finagent.document_processing.semantic_mapper import (
-            get_query_concepts_for_filtering,
             get_documents_by_concepts,
+            get_query_concepts_for_filtering,
         )
 
         concept_keys = get_query_concepts_for_filtering(query)

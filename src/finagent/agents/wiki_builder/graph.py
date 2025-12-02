@@ -11,9 +11,9 @@ This workflow processes uploaded documents through:
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -22,17 +22,14 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
 from finagent.agents.wiki_builder.models import (
-    CategoryUpdate,
     Concept,
     ExtractedMetadata,
     ProcessingStage,
-    TextChunk,
     WikiBuilderState,
 )
 from finagent.config import settings
 from finagent.database.document_db import DocumentDatabase
 from finagent.document_processing.chunker import ChineseTextChunker
-from finagent.document_processing.embeddings import EmbeddingGenerator
 from finagent.document_processing.indexer import DocumentIndexer
 from finagent.document_processing.loader import Document, DocumentLoader
 from finagent.wiki.category_builder import CategoryBuilder
@@ -47,12 +44,12 @@ class MetadataOutput(BaseModel):
     title: str = Field(description="文件標題")
     description: str = Field(description="2-3句文件摘要")
     document_type: str = Field(description="文件類型：裁罰書、判決書、法規、新聞、其他")
-    issuing_authority: Optional[str] = Field(default=None, description="發文機關")
-    case_number: Optional[str] = Field(default=None, description="案號")
-    document_date: Optional[str] = Field(default=None, description="文件日期 YYYY-MM-DD")
+    issuing_authority: str | None = Field(default=None, description="發文機關")
+    case_number: str | None = Field(default=None, description="案號")
+    document_date: str | None = Field(default=None, description="文件日期 YYYY-MM-DD")
     related_institutions: list[str] = Field(default_factory=list, description="涉及機構")
     violation_types: list[str] = Field(default_factory=list, description="違規類型")
-    penalty_amount: Optional[str] = Field(default=None, description="裁罰金額")
+    penalty_amount: str | None = Field(default=None, description="裁罰金額")
     keywords: list[str] = Field(default_factory=list, description="關鍵詞")
     extraction_confidence: float = Field(default=0.8, description="信心分數 0-1")
 
@@ -130,9 +127,9 @@ class WikiBuilderWorkflow:
 
     def __init__(
         self,
-        document_db: Optional[DocumentDatabase] = None,
-        indexer: Optional[DocumentIndexer] = None,
-        category_builder: Optional[CategoryBuilder] = None,
+        document_db: DocumentDatabase | None = None,
+        indexer: DocumentIndexer | None = None,
+        category_builder: CategoryBuilder | None = None,
     ):
         """Initialize the WikiBuilder workflow.
 
@@ -201,7 +198,7 @@ class WikiBuilderWorkflow:
                 # Try to load from file
                 file_path = Path(state["file_path"])
                 if file_path.exists():
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(file_path, encoding="utf-8") as f:
                         content = f.read()
                 else:
                     raise FileNotFoundError(f"File not found: {file_path}")
@@ -212,7 +209,7 @@ class WikiBuilderWorkflow:
                 "document_loaded": True,
                 "current_stage": ProcessingStage.LOADING.value,
                 "progress": 10,
-                "started_at": datetime.now(timezone.utc).isoformat(),
+                "started_at": datetime.now(UTC).isoformat(),
             }
 
         except Exception as e:
@@ -418,7 +415,7 @@ class WikiBuilderWorkflow:
                 "categories_updated": category_updates,
                 "current_stage": ProcessingStage.COMPLETE.value,
                 "progress": 100,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "completed_at": datetime.now(UTC).isoformat(),
             }
 
         except Exception as e:
@@ -428,14 +425,14 @@ class WikiBuilderWorkflow:
                 "categories_updated": [],
                 "current_stage": ProcessingStage.COMPLETE.value,
                 "progress": 100,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "completed_at": datetime.now(UTC).isoformat(),
             }
 
     async def process(
         self,
         file_path: str,
         filename: str,
-        content: Optional[str] = None,
+        content: str | None = None,
     ) -> dict[str, Any]:
         """Process a document through the workflow.
 
@@ -479,7 +476,7 @@ class WikiBuilderWorkflow:
         self,
         file_path: str,
         filename: str,
-        content: Optional[str] = None,
+        content: str | None = None,
     ):
         """Stream document processing with progress updates.
 

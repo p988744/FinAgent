@@ -1,32 +1,27 @@
 """Replanner agent for the Plan-and-Execute agent flow."""
 
-from typing import List, Optional
+import json
 
-from pydantic import BaseModel, Field
+from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from finagent.agents.plan_execute.models import Plan, PlanExecuteState, PlanTask
+from finagent.agents.plan_execute.models import Plan, PlanExecuteState
 from finagent.config import settings
 
 
 class ReplannerOutput(BaseModel):
     """Output for the replanner agent."""
 
-    response: Optional[str] = Field(
+    response: str | None = Field(
         description="The final answer to the user's question, if enough information has been gathered. If not, leave empty."
     )
-    new_plan: Optional[Plan] = Field(
+    new_plan: Plan | None = Field(
         description="The updated plan if more information is needed. If response is provided, this is ignored."
     )
 
-
-from langchain_core.output_parsers import PydanticOutputParser
-
-from langchain_core.output_parsers import StrOutputParser
-import json
-import re
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 class ReplannerAgent:
     """Agent responsible for updating the plan based on execution results."""
@@ -78,7 +73,7 @@ class ReplannerAgent:
                 ),
             ]
         ).partial(format_instructions=self.parser.get_format_instructions())
-        
+
         # Use StrOutputParser to get raw string, then parse manually
         self.chain = self.prompt | self.llm | StrOutputParser()
 
@@ -96,7 +91,7 @@ class ReplannerAgent:
             # Truncate result to avoid context overflow
             truncated_result = str(result)[:500] + "..." if len(str(result)) > 500 else str(result)
             past_steps_str += f"Task: {task_dict['description']}\nResult: {truncated_result}\n---\n"
-            
+
         raw_output = await self.chain.ainvoke(
             {
                 "input": state["input"],
@@ -104,7 +99,7 @@ class ReplannerAgent:
                 "past_steps": past_steps_str,
             }
         )
-        
+
         # Clean up the output (remove markdown code blocks if present)
         cleaned_output = raw_output.strip()
         if cleaned_output.startswith("```json"):
@@ -113,21 +108,21 @@ class ReplannerAgent:
             cleaned_output = cleaned_output[3:]
         if cleaned_output.endswith("```"):
             cleaned_output = cleaned_output[:-3]
-        
+
         cleaned_output = cleaned_output.strip()
-        
+
         try:
             parsed_json = json.loads(cleaned_output)
             output = ReplannerOutput(**parsed_json)
-            
+
             if output.response:
                 return {"response": output.response}
             else:
                 return {"plan": output.new_plan}
-                
+
         except Exception as e:
             # Fallback: If parsing fails, return a default response or error
-            # For now, let's try to return a generic response if we have past steps, 
+            # For now, let's try to return a generic response if we have past steps,
             # assuming the model tried to answer but failed JSON formatting.
             if state["past_steps"]:
                  return {"response": "I have gathered some information but encountered an error generating the final structured response. Please check the activity log for details."}

@@ -9,11 +9,9 @@ This module implements the industry-standard hybrid search approach using:
 Reference: https://python.langchain.com/docs/how_to/ensemble_retriever/
 """
 
-from typing import Type, List, Optional
 from langchain_community.retrievers import BM25Retriever
-from langchain_classic.retrievers.ensemble import EnsembleRetriever
-from langchain_core.tools import BaseTool
 from langchain_core.documents import Document
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from finagent.document_processing.retriever import DocumentRetriever
@@ -51,7 +49,7 @@ class HybridRetrieverTool(BaseTool):
     Search knowledge base using both semantic understanding and exact keyword matching.
     Best for queries requiring both precise terms and conceptual understanding."""
 
-    args_schema: Type[BaseModel] = HybridSearchInput
+    args_schema: type[BaseModel] = HybridSearchInput
     retriever: DocumentRetriever = Field(exclude=True)
 
     # Ensemble weights (60% semantic, 40% keyword by default)

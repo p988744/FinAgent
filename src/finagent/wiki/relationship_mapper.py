@@ -273,7 +273,7 @@ class RelationshipMapper:
 
         try:
             inst_list = json.loads(related_inst) if isinstance(related_inst, str) else related_inst
-            return set(inst for inst in inst_list if inst)
+            return {inst for inst in inst_list if inst}
         except (json.JSONDecodeError, TypeError):
             return set()
 
@@ -293,7 +293,7 @@ class RelationshipMapper:
 
         try:
             viol_list = json.loads(violations) if isinstance(violations, str) else violations
-            return set(viol for viol in viol_list if viol)
+            return {viol for viol in viol_list if viol}
         except (json.JSONDecodeError, TypeError):
             return set()
 

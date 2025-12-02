@@ -3,11 +3,11 @@
 import logging
 from datetime import datetime
 
+from finagent.agents.deep_agent import create_finagent_deep_agent
 from finagent.agents.plan_execute.graph import PlanExecuteWorkflow
+from finagent.agents.query_memo import QueryMemoLogger
 from finagent.agents.wiki_builder.graph import WikiBuilderWorkflow
 from finagent.agents.wiki_search.graph import WikiSearchWorkflow
-from finagent.agents.deep_agent import create_finagent_deep_agent, FinAgentDeepAgent
-from finagent.agents.query_memo import QueryMemoLogger
 from finagent.config import settings
 from finagent.document_processing import DocumentRetriever
 from finagent.document_processing.hard_searcher import HardSearcher
@@ -164,7 +164,7 @@ class AgentOrchestrator:
             self.query_logger.start_query()
 
         # Initialize state
-        initial_state: AgentState = {
+        initial_state: dict = {
             "query": query,
             "plan": None,
             "plan_analysis": None,  # Query analysis results

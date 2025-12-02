@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from finagent.database.models import Concept
 from finagent.document_processing.metadata_store import DocumentMetadata
 
 

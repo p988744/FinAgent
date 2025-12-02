@@ -8,7 +8,6 @@ from finagent.utils.keyword_extraction import (
     extract_must_have_keywords,
     identify_entity_type,
     validate_keyword_presence,
-    validate_entity_type_match,
 )
 
 logger = logging.getLogger(__name__)

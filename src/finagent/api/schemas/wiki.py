@@ -4,11 +4,9 @@ Wiki API Response Schemas
 Pydantic models for wiki API endpoints.
 """
 
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
-
 
 # ============================================================================
 # Category Schemas

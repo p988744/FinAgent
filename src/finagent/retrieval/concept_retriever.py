@@ -1,6 +1,5 @@
 """Concept-based retrieval for faster and more accurate document search."""
 
-from typing import List, Tuple
 
 from finagent.database.db import Database
 from finagent.database.models import Document
@@ -24,7 +23,7 @@ class ConceptRetriever:
         """Initialize concept retriever."""
         self.db = db or Database()
 
-    def extract_query_concepts(self, query: str) -> List[str]:
+    def extract_query_concepts(self, query: str) -> list[str]:
         """
         Extract potential concepts from query text.
 
@@ -107,7 +106,7 @@ class ConceptRetriever:
 
     def get_candidate_documents(
         self, query: str, max_candidates: int = 100, min_relevance: float = 0.5
-    ) -> Tuple[List[Document], List[str]]:
+    ) -> tuple[list[Document], list[str]]:
         """
         Get candidate documents based on concept matching.
 
@@ -162,9 +161,9 @@ class ConceptRetriever:
     def filter_by_concept(
         self,
         query: str,
-        vector_results: List[Tuple[str, float]],
+        vector_results: list[tuple[str, float]],
         boost_factor: float = 1.5,
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """
         Re-rank vector search results based on concept matches.
 

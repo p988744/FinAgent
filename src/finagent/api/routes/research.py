@@ -4,7 +4,6 @@ import logging
 import sqlite3
 import uuid
 from pathlib import Path
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -78,23 +77,23 @@ class ResearchStatusResponse(BaseModel):
     session_id: str
     query_text: str
     status: str
-    current_agent: Optional[str] = None
-    agent_steps: Optional[List[dict]] = None
-    todos: Optional[List[dict]] = None
-    activity_log: Optional[List[dict]] = None
-    research_plan: Optional[dict] = None
-    dynamic_plan: Optional[dict] = None
-    tool_executions: Optional[dict] = None
-    result: Optional[dict] = None
-    error_message: Optional[str] = None
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
-    processing_time_seconds: Optional[float] = None
+    current_agent: str | None = None
+    agent_steps: list[dict] | None = None
+    todos: list[dict] | None = None
+    activity_log: list[dict] | None = None
+    research_plan: dict | None = None
+    dynamic_plan: dict | None = None
+    tool_executions: dict | None = None
+    result: dict | None = None
+    error_message: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    processing_time_seconds: float | None = None
 
 
 class ResearchHistoryResponse(BaseModel):
     """List of research sessions."""
-    sessions: List[dict]
+    sessions: list[dict]
     total: int
 
 
@@ -284,7 +283,7 @@ async def submit_deep_agent_query(request: ResearchRequest):
 async def get_research_history(
     limit: int = 50,
     offset: int = 0,
-    status: Optional[str] = None
+    status: str | None = None
 ):
     """
     Get research session history.

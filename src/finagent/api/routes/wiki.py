@@ -10,7 +10,6 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
 
 from finagent.api.schemas.wiki import (
     CategoryDetail,
@@ -20,7 +19,6 @@ from finagent.api.schemas.wiki import (
     DocumentList,
     DocumentStats,
     DocumentSummary,
-    ErrorResponse,
     RelatedDocument,
     SearchFilters,
     SearchResponse,
@@ -576,10 +574,8 @@ async def search_documents(
         SearchResponse with matching documents
     """
     try:
-        from finagent.document_processing.retriever import DocumentRetriever
-        from finagent.document_processing.hard_searcher import HardSearcher
 
-        db = _get_db()
+        _get_db()
 
         # Build filter object
         filters = SearchFilters(
@@ -608,7 +604,7 @@ async def search_documents(
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid search_type. Must be one of: vector, category, entity, file, grep, hybrid"
+                detail="Invalid search_type. Must be one of: vector, category, entity, file, grep, hybrid"
             )
 
         # Sort by relevance
@@ -983,7 +979,7 @@ async def get_timeline_stats(
         )
 
     try:
-        generator = _get_wiki_generator()
+        _get_wiki_generator()
         stats_engine = StatisticsEngine(_get_db())
 
         # Get timeline data

@@ -2,14 +2,12 @@
 
 import logging
 
-from typing import Dict, List
-
 from langgraph.constants import Send
 
 from finagent.agents.plan_execute.models import PlanExecuteState, PlanTask
 from finagent.document_processing.hard_searcher import HardSearcher
 from finagent.document_processing.retriever import DocumentRetriever
-from finagent.tools import HardSearchTool, RetrieverTool, HybridRetrieverTool
+from finagent.tools import HardSearchTool, HybridRetrieverTool, RetrieverTool
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +30,10 @@ class ExecutorAgent:
             "hybrid_search": self.hybrid_retriever_tool,  # New hybrid tool
         }
 
-    def detect_dependencies(self, tasks: List[PlanTask]) -> Dict[int, List[int]]:
+    def detect_dependencies(self, tasks: list[PlanTask]) -> dict[int, list[int]]:
         """
         Detect dependencies between tasks.
-        
+
         Simple heuristic: A task depends on another if its description mentions "task X" or "step X".
         """
         dependencies = {}
@@ -46,19 +44,19 @@ class ExecutorAgent:
             for other_task in tasks:
                 if other_task.id == task.id:
                     continue
-                
+
                 # Check if description references the other task ID
                 # e.g., "Use the results from task 1..."
                 ref_patterns = [
-                    f"task {other_task.id}", 
-                    f"step {other_task.id}", 
+                    f"task {other_task.id}",
+                    f"step {other_task.id}",
                     f"task #{other_task.id}",
                     f"step #{other_task.id}"
                 ]
-                
+
                 if any(pattern in task.description.lower() for pattern in ref_patterns):
                     depends_on.append(other_task.id)
-            
+
             dependencies[task.id] = depends_on
         return dependencies
 
@@ -69,27 +67,27 @@ class ExecutorAgent:
         plan = state["plan"]
         past_steps = state.get("past_steps", [])
         completed_task_ids = {step[0]["id"] for step in past_steps}
-        
+
         # Detect dependencies
         dependencies = self.detect_dependencies(plan.tasks)
-        
+
         # Find executable tasks (pending and dependencies met)
         tasks_to_execute = []
         for task in plan.tasks:
             if task.status != "pending":
                 continue
-                
+
             # Check if dependencies are met
             deps = dependencies.get(task.id, [])
             if all(dep_id in completed_task_ids for dep_id in deps):
                 tasks_to_execute.append(task)
-        
+
         if not tasks_to_execute:
             # No executable tasks found (or all done)
             # If there are still pending tasks but no executable ones, it might be a deadlock or waiting for something
             # But for now, we just return empty list which will likely trigger replanner or end
             return []
-            
+
         # Return Send objects for parallel execution
         return [Send("execute_task", {"task": task}) for task in tasks_to_execute]
 

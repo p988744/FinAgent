@@ -4,11 +4,9 @@ Merges, deduplicates, and ranks results from multiple search tasks.
 """
 
 import logging
-from typing import List, Optional
 
 from finagent.agents.wiki_search.models import (
     MergedResult,
-    SearchResult,
     WikiSearchState,
 )
 
@@ -104,7 +102,7 @@ class ResultMerger:
                 "error": str(e),
             }
 
-    def _deduplicate(self, documents: List[dict]) -> List[dict]:
+    def _deduplicate(self, documents: list[dict]) -> list[dict]:
         """Deduplicate documents by ID or content.
 
         Args:
@@ -141,7 +139,7 @@ class ResultMerger:
 
         return unique_docs
 
-    def _rank_by_relevance(self, documents: List[dict]) -> List[dict]:
+    def _rank_by_relevance(self, documents: list[dict]) -> list[dict]:
         """Rank documents by relevance score.
 
         Args:
@@ -160,7 +158,7 @@ class ResultMerger:
 
         return sorted(documents, key=get_score, reverse=True)
 
-    def _rank_by_date(self, documents: List[dict]) -> List[dict]:
+    def _rank_by_date(self, documents: list[dict]) -> list[dict]:
         """Rank documents by date (newest first).
 
         Args:
@@ -175,7 +173,7 @@ class ResultMerger:
 
         return sorted(documents, key=get_date, reverse=True)
 
-    def _calculate_relevance_scores(self, documents: List[dict]) -> List[float]:
+    def _calculate_relevance_scores(self, documents: list[dict]) -> list[float]:
         """Calculate relevance scores for ranked documents.
 
         Args:

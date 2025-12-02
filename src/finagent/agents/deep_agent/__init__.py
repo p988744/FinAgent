@@ -8,13 +8,13 @@ offering Claude Code-like capabilities including:
 """
 
 from finagent.agents.deep_agent.financial_agent import (
-    create_finagent_deep_agent,
     FinAgentDeepAgent,
+    create_finagent_deep_agent,
 )
 from finagent.agents.deep_agent.tools import (
-    semantic_search,
-    keyword_search,
     hybrid_search,
+    keyword_search,
+    semantic_search,
 )
 
 __all__ = [

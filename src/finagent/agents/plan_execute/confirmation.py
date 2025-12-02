@@ -6,7 +6,7 @@ allowing users to approve, reject, or modify plans.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -18,15 +18,15 @@ logger = logging.getLogger(__name__)
 class PlanModification(BaseModel):
     """User modification to a plan."""
 
-    add_tasks: List[dict] = Field(
+    add_tasks: list[dict] = Field(
         default_factory=list,
         description="Tasks to add to the plan",
     )
-    remove_task_ids: List[int] = Field(
+    remove_task_ids: list[int] = Field(
         default_factory=list,
         description="IDs of tasks to remove",
     )
-    modify_tasks: List[dict] = Field(
+    modify_tasks: list[dict] = Field(
         default_factory=list,
         description="Tasks to modify (with id and new fields)",
     )
@@ -37,7 +37,7 @@ class PlanConfirmationRequest(BaseModel):
 
     plan: Plan
     query: str
-    query_insight: Optional[dict] = None
+    query_insight: dict | None = None
     task_count: int
     estimated_time_seconds: int = Field(default=30)
     requested_at: str = Field(default_factory=lambda: datetime.now().isoformat())
@@ -47,8 +47,8 @@ class PlanConfirmationResponse(BaseModel):
     """User's response to plan confirmation request."""
 
     approved: bool
-    modifications: Optional[PlanModification] = None
-    user_feedback: Optional[str] = None
+    modifications: PlanModification | None = None
+    user_feedback: str | None = None
     responded_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -63,7 +63,7 @@ class ConfirmationHandler:
 
     def __init__(self):
         """Initialize the confirmation handler."""
-        self.pending_confirmations: Dict[str, PlanConfirmationRequest] = {}
+        self.pending_confirmations: dict[str, PlanConfirmationRequest] = {}
 
     def prepare_confirmation_request(
         self, state: PlanExecuteState

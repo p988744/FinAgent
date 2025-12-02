@@ -11,24 +11,23 @@ This workflow provides multi-tool retrieval with query analysis and planning:
 import asyncio
 import logging
 import time
-from typing import List, Optional
 
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 
-from finagent.config import settings
-from finagent.document_processing.retriever import DocumentRetriever
-from finagent.document_processing.hard_searcher import HardSearcher
+from finagent.agents.wiki_search.merger import ResultMerger
 from finagent.agents.wiki_search.models import (
-    WikiSearchState,
     SearchResult,
     SearchStrategy,
+    WikiSearchState,
 )
 from finagent.agents.wiki_search.planner import SearchPlanner
-from finagent.agents.wiki_search.merger import ResultMerger
 from finagent.agents.wiki_search.prompts import SYNTHESIZE_PROMPT
+from finagent.config import settings
+from finagent.document_processing.hard_searcher import HardSearcher
+from finagent.document_processing.retriever import DocumentRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +45,8 @@ class WikiSearchWorkflow:
 
     def __init__(
         self,
-        retriever: Optional[DocumentRetriever] = None,
-        hard_searcher: Optional[HardSearcher] = None,
+        retriever: DocumentRetriever | None = None,
+        hard_searcher: HardSearcher | None = None,
     ):
         """Initialize the workflow.
 
@@ -242,7 +241,7 @@ class WikiSearchWorkflow:
 
     async def _execute_semantic_search(
         self, query: str, n_results: int
-    ) -> List[Document]:
+    ) -> list[Document]:
         """Execute semantic search using the retriever.
 
         Args:
@@ -270,8 +269,8 @@ class WikiSearchWorkflow:
         ]
 
     async def _execute_keyword_search(
-        self, keywords: List[str], max_results: int
-    ) -> List[Document]:
+        self, keywords: list[str], max_results: int
+    ) -> list[Document]:
         """Execute keyword search using the hard searcher.
 
         Args:

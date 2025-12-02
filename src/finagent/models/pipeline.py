@@ -6,6 +6,7 @@ Tracks document processing pipeline stages for debugging and monitoring.
 
 from datetime import datetime
 from enum import Enum
+
 from pydantic import BaseModel, Field
 
 

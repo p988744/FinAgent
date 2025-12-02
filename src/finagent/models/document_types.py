@@ -6,7 +6,7 @@ This limits uploads to financial regulatory documents only.
 """
 
 from enum import Enum
-from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -39,7 +39,7 @@ class DocumentType(BaseModel):
     allowed: bool = True                   # Whether this type is allowed for upload
     requires_authority: bool = False       # Whether issuing authority is required
     requires_date: bool = False            # Whether document date is required
-    example_filename_pattern: Optional[str] = None  # Example filename pattern
+    example_filename_pattern: str | None = None  # Example filename pattern
 
 
 # Allowed document types for upload
@@ -161,7 +161,7 @@ def is_document_type_allowed(category: DocumentCategory | str) -> bool:
     return doc_type.allowed if doc_type else False
 
 
-def get_document_type_info(category: DocumentCategory | str) -> Optional[DocumentType]:
+def get_document_type_info(category: DocumentCategory | str) -> DocumentType | None:
     """Get document type information."""
     if isinstance(category, str):
         try:
@@ -185,9 +185,9 @@ class DocumentTypeValidationResult(BaseModel):
     """Result of document type validation."""
 
     valid: bool
-    category: Optional[DocumentCategory] = None
-    document_type: Optional[DocumentType] = None
-    error_message: Optional[str] = None
+    category: DocumentCategory | None = None
+    document_type: DocumentType | None = None
+    error_message: str | None = None
     warnings: list[str] = []
 
 
@@ -309,7 +309,7 @@ class LLMClassificationResult(BaseModel):
     category: DocumentCategory
     confidence: float  # 0.0 - 1.0
     reasoning: str
-    suggested_document_type: Optional[str] = None  # e.g., "裁罰書", "法條", "知識文件"
+    suggested_document_type: str | None = None  # e.g., "裁罰書", "法條", "知識文件"
 
 
 async def classify_document_with_llm(
@@ -331,11 +331,13 @@ async def classify_document_with_llm(
     Returns:
         LLMClassificationResult with category, confidence, and reasoning
     """
-    from langchain_openai import ChatOpenAI
-    from langchain_core.prompts import ChatPromptTemplate
-    from finagent.config import settings
     import json
     import logging
+
+    from langchain_core.prompts import ChatPromptTemplate
+    from langchain_openai import ChatOpenAI
+
+    from finagent.config import settings
 
     logger = logging.getLogger(__name__)
 
@@ -437,8 +439,8 @@ async def classify_document_with_llm(
 
 def validate_document_type(
     category: str | DocumentCategory,
-    issuing_authority: Optional[str] = None,
-    document_date: Optional[str] = None,
+    issuing_authority: str | None = None,
+    document_date: str | None = None,
 ) -> DocumentTypeValidationResult:
     """
     Validate document type for upload.

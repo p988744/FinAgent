@@ -1,7 +1,7 @@
 """Data models for the WikiSearch workflow."""
 
 from enum import Enum
-from typing import Any, List, Optional, TypedDict
+from typing import TypedDict
 
 from langchain_core.documents import Document
 from pydantic import BaseModel, Field
@@ -30,10 +30,10 @@ class QueryInsight(BaseModel):
     """Analysis of the user's query."""
 
     query_type: QueryType = Field(description="Type of query")
-    key_entities: List[str] = Field(default_factory=list, description="Key entities mentioned")
-    key_topics: List[str] = Field(default_factory=list, description="Key topics/concepts")
+    key_entities: list[str] = Field(default_factory=list, description="Key entities mentioned")
+    key_topics: list[str] = Field(default_factory=list, description="Key topics/concepts")
     search_strategy: SearchStrategy = Field(description="Recommended search strategy")
-    date_range: Optional[str] = Field(default=None, description="Date range if temporal")
+    date_range: str | None = Field(default=None, description="Date range if temporal")
     complexity: str = Field(default="medium", description="Query complexity: simple, medium, complex")
     reasoning: str = Field(description="Brief explanation of the analysis")
 
@@ -52,7 +52,7 @@ class SearchTask(BaseModel):
 class SearchPlan(BaseModel):
     """Plan for executing multiple searches."""
 
-    tasks: List[SearchTask] = Field(default_factory=list, description="Search tasks to execute")
+    tasks: list[SearchTask] = Field(default_factory=list, description="Search tasks to execute")
     strategy: SearchStrategy = Field(description="Overall search strategy")
     max_results_per_task: int = Field(default=5, description="Max results per task")
     merge_strategy: str = Field(default="relevance", description="How to merge results")
@@ -64,20 +64,20 @@ class SearchResult(BaseModel):
     task_id: int = Field(description="Task ID")
     tool_used: str = Field(description="Tool that was used")
     query: str = Field(description="Search query")
-    documents: List[dict] = Field(default_factory=list, description="Retrieved documents")
+    documents: list[dict] = Field(default_factory=list, description="Retrieved documents")
     result_count: int = Field(default=0, description="Number of results")
     execution_time_ms: int = Field(default=0, description="Execution time")
     success: bool = Field(default=True, description="Whether search succeeded")
-    error: Optional[str] = Field(default=None, description="Error message if failed")
+    error: str | None = Field(default=None, description="Error message if failed")
 
 
 class MergedResult(BaseModel):
     """Merged and deduplicated search results."""
 
-    documents: List[dict] = Field(default_factory=list, description="Merged documents")
+    documents: list[dict] = Field(default_factory=list, description="Merged documents")
     total_unique: int = Field(default=0, description="Total unique documents")
-    sources: List[str] = Field(default_factory=list, description="Source tasks")
-    relevance_scores: List[float] = Field(default_factory=list, description="Relevance scores")
+    sources: list[str] = Field(default_factory=list, description="Source tasks")
+    relevance_scores: list[float] = Field(default_factory=list, description="Relevance scores")
 
 
 class WikiCitation(BaseModel):
@@ -96,23 +96,23 @@ class WikiSearchState(TypedDict):
     input: str
 
     # Query analysis
-    query_insight: Optional[dict]  # QueryInsight as dict
+    query_insight: dict | None  # QueryInsight as dict
 
     # Search planning
-    search_plan: Optional[dict]  # SearchPlan as dict
+    search_plan: dict | None  # SearchPlan as dict
 
     # Search execution
-    search_results: Optional[List[dict]]  # List[SearchResult] as dict
+    search_results: list[dict] | None  # List[SearchResult] as dict
 
     # Result merging
-    merged_results: Optional[dict]  # MergedResult as dict
+    merged_results: dict | None  # MergedResult as dict
 
     # Final output
-    documents: List[Document]
+    documents: list[Document]
     response: str
-    citations: Optional[List[dict]]  # List[WikiCitation] as dict
+    citations: list[dict] | None  # List[WikiCitation] as dict
 
     # Progress tracking
     current_stage: str
     progress: int
-    error: Optional[str]
+    error: str | None

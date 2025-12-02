@@ -4,16 +4,14 @@ This module provides @tool-decorated functions for use with Deep Agents.
 These wrap the existing BaseTool implementations for compatibility.
 """
 
-from typing import List, Optional
 from langchain_core.tools import tool
 
-from finagent.document_processing.retriever import DocumentRetriever
 from finagent.document_processing.hard_searcher import HardSearcher
-
+from finagent.document_processing.retriever import DocumentRetriever
 
 # Global instances (initialized lazily)
-_retriever: Optional[DocumentRetriever] = None
-_hard_searcher: Optional[HardSearcher] = None
+_retriever: DocumentRetriever | None = None
+_hard_searcher: HardSearcher | None = None
 
 
 def _get_retriever() -> DocumentRetriever:

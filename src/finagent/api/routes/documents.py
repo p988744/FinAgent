@@ -4,27 +4,25 @@ Document Management API Routes
 Handles document upload, versioning, and indexing operations.
 """
 
-import logging
-import os
-import uuid
 import asyncio
-from datetime import datetime, timezone
+import logging
+import uuid
+from datetime import UTC, datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any
-from enum import Enum
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Form
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from finagent.document_processing.metadata_store import DocumentMetadataStore
 from finagent.document_processing.indexer import DocumentIndexer
 from finagent.document_processing.loader import DocumentLoader
+from finagent.document_processing.metadata_store import DocumentMetadataStore
 from finagent.models.document_types import (
     DocumentCategory,
-    DocumentType,
     get_allowed_document_types,
-    validate_document_type,
     is_document_type_allowed,
+    validate_document_type,
 )
 
 logger = logging.getLogger(__name__)
@@ -255,8 +253,8 @@ def _metadata_to_response(metadata: Any, file_path: str = "") -> DocumentRespons
         status=status,
         chunk_count=metadata.chunk_count,
         version=version,
-        created_at=metadata.created_at if hasattr(metadata, 'created_at') else datetime.now(timezone.utc).isoformat(),
-        updated_at=metadata.updated_at if hasattr(metadata, 'updated_at') else datetime.now(timezone.utc).isoformat(),
+        created_at=metadata.created_at if hasattr(metadata, 'created_at') else datetime.now(UTC).isoformat(),
+        updated_at=metadata.updated_at if hasattr(metadata, 'updated_at') else datetime.now(UTC).isoformat(),
         description=metadata.description,
         document_type=metadata.document_type,
         # Pipeline monitoring fields
@@ -316,7 +314,7 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentResponse:
     # Create metadata
     from finagent.document_processing.metadata_store import DocumentMetadata
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     metadata = DocumentMetadata(
         doc_id=doc_id,
         filename=file.filename,
@@ -345,7 +343,7 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentResponse:
             "version": 1,
             "file_path": str(file_path),
             "size_bytes": len(content),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
     ]
 
@@ -416,7 +414,7 @@ async def upload_documents_batch(
             # Create metadata
             from finagent.document_processing.metadata_store import DocumentMetadata
 
-            now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(UTC).isoformat()
             metadata = DocumentMetadata(
                 doc_id=doc_id,
                 filename=file.filename,
@@ -445,7 +443,7 @@ async def upload_documents_batch(
                     "version": 1,
                     "file_path": str(file_path),
                     "size_bytes": len(content),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             ]
 
@@ -541,7 +539,7 @@ async def get_index_status() -> IndexStatus:
         pending_documents=pending,
         error_documents=0,
         total_chunks=total_chunks,
-        last_indexed_at=datetime.now(timezone.utc).isoformat() if indexed > 0 else None,
+        last_indexed_at=datetime.now(UTC).isoformat() if indexed > 0 else None,
     )
 
 
@@ -693,13 +691,12 @@ async def scan_directory(
     Returns:
         Scan results including new files found, classifications, and directory structure
     """
-    from finagent.document_processing.loader import DocumentLoader
     from finagent.document_processing.indexer import DocumentIndexer
+    from finagent.document_processing.loader import DocumentLoader
     from finagent.models.document_types import (
+        ALLOWED_DOCUMENT_TYPES,
         classify_document_by_path,
         classify_document_with_llm,
-        ALLOWED_DOCUMENT_TYPES,
-        DocumentCategory,
     )
 
     if request is None:
@@ -882,7 +879,7 @@ async def scan_with_progress(
 
     # Generate job ID
     job_id = str(uuid.uuid4())
-    started_at = datetime.now(timezone.utc).isoformat()
+    started_at = datetime.now(UTC).isoformat()
 
     # Initialize progress tracking
     _batch_scan_jobs[job_id] = BatchScanProgress(
@@ -939,15 +936,15 @@ async def _process_batch_scan_with_progress(
     logger.info(f"[BatchScan] Starting background task for job {job_id}")
 
     try:
-        from finagent.document_processing.loader import DocumentLoader
         from finagent.document_processing.indexer import DocumentIndexer
+        from finagent.document_processing.loader import DocumentLoader
         from finagent.models.document_types import (
-            classify_document_by_path,
-            classify_document_with_llm,
             ALLOWED_DOCUMENT_TYPES,
             DocumentCategory,
+            classify_document_by_path,
+            classify_document_with_llm,
         )
-        logger.info(f"[BatchScan] Imports successful")
+        logger.info("[BatchScan] Imports successful")
     except Exception as import_error:
         logger.error(f"[BatchScan] Import error: {import_error}")
         if job_id in _batch_scan_jobs:
@@ -956,7 +953,7 @@ async def _process_batch_scan_with_progress(
         return
 
     progress = _batch_scan_jobs[job_id]
-    logger.info(f"[BatchScan] Got progress object, starting processing")
+    logger.info("[BatchScan] Got progress object, starting processing")
 
     try:
         # Stage 1: Scanning (0-10%)
@@ -997,7 +994,7 @@ async def _process_batch_scan_with_progress(
             progress.stage = BatchScanStage.COMPLETE
             progress.progress = 100
             progress.message = "目錄已同步，無新檔案"
-            progress.completed_at = datetime.now(timezone.utc).isoformat()
+            progress.completed_at = datetime.now(UTC).isoformat()
             return
 
         # Stage 2: Classifying (10-30%)
@@ -1011,8 +1008,6 @@ async def _process_batch_scan_with_progress(
                     progress.current_file = Path(file_path).name
                     progress.progress = 15 + int((i / len(new_files)) * 15)
                     progress.message = f"分類中: {progress.current_file}"
-
-                    filename = Path(file_path).name
 
                     if request.use_llm_classification:
                         abs_path = str(Path(file_path).resolve())
@@ -1081,7 +1076,7 @@ async def _process_batch_scan_with_progress(
         progress.stage = BatchScanStage.COMPLETE
         progress.progress = 100
         progress.current_file = None
-        progress.completed_at = datetime.now(timezone.utc).isoformat()
+        progress.completed_at = datetime.now(UTC).isoformat()
 
         if request.extract_metadata:
             progress.message = f"完成：索引 {progress.indexed_files} 個檔案，提取 {progress.metadata_extracted} 個 metadata，{progress.failed_files} 個失敗"
@@ -1093,7 +1088,7 @@ async def _process_batch_scan_with_progress(
         progress.stage = BatchScanStage.ERROR
         progress.error = str(e)
         progress.message = f"錯誤：{str(e)}"
-        progress.completed_at = datetime.now(timezone.utc).isoformat()
+        progress.completed_at = datetime.now(UTC).isoformat()
 
 
 @router.get("/{document_id}")
@@ -1125,7 +1120,7 @@ async def get_document_content(document_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Document file not found: {file_path}")
 
     # Read file content
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         content = f.read()
 
     return {
@@ -1328,7 +1323,7 @@ async def upload_new_version(
             "version": version_num,
             "file_path": str(file_path),
             "size_bytes": len(content),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -1377,7 +1372,7 @@ async def get_version_history(document_id: str) -> list[DocumentVersion]:
                     "version": 1,
                     "file_path": doc.file_path,
                     "size_bytes": size_bytes,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             ]
 
@@ -1407,9 +1402,10 @@ async def _process_upload_with_progress(
     Process file upload and enqueue Celery task for async processing.
     This function handles file saving and initial metadata, then hands off to Celery.
     """
+    import json
+
     from finagent.models.pipeline import DocumentPipeline, PipelineStage, PipelineStatus
     from finagent.tasks.document_processing import process_document_upload
-    import json
 
     print(f"[UPLOAD] Background task started for job {job_id}, filename: {filename}", flush=True)
 
@@ -1433,7 +1429,7 @@ async def _process_upload_with_progress(
         print(f"[UPLOAD] Pipeline created successfully, current stage: {pipeline.current_stage}", flush=True)
 
         # Stage 1: Uploading (simulate - already uploaded in request)
-        print(f"[UPLOAD] Setting initial upload progress", flush=True)
+        print("[UPLOAD] Setting initial upload progress", flush=True)
         _upload_jobs[job_id] = UploadProgress(
             job_id=job_id,
             filename=filename,
@@ -1445,7 +1441,7 @@ async def _process_upload_with_progress(
         await asyncio.sleep(0.1)  # Small delay for UI
 
         # Stage 2: File saved
-        print(f"[UPLOAD] Stage 2: Saving file to disk", flush=True)
+        print("[UPLOAD] Stage 2: Saving file to disk", flush=True)
         file_path = DOCUMENTS_PATH / filename
 
         # Handle duplicate filenames based on action
@@ -1497,18 +1493,18 @@ async def _process_upload_with_progress(
             PipelineStatus.SUCCESS,
             details={"file_size": len(content), "path": str(file_path)}
         )
-        print(f"[UPLOAD] Pipeline updated to UPLOADED SUCCESS", flush=True)
+        print("[UPLOAD] Pipeline updated to UPLOADED SUCCESS", flush=True)
 
         await asyncio.sleep(0.1)
 
         # Stage 3: Create and save initial metadata
-        print(f"[UPLOAD] Stage 3: Creating and saving metadata", flush=True)
+        print("[UPLOAD] Stage 3: Creating and saving metadata", flush=True)
         from finagent.document_processing.metadata_store import DocumentMetadata
 
         pipeline.update_stage(PipelineStage.PARSING, PipelineStatus.IN_PROGRESS)
-        print(f"[UPLOAD] Pipeline updated to PARSING IN_PROGRESS", flush=True)
+        print("[UPLOAD] Pipeline updated to PARSING IN_PROGRESS", flush=True)
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         metadata = DocumentMetadata(
             doc_id=doc_id,
             filename=filename,
@@ -1705,7 +1701,7 @@ async def upload_file_with_progress(
         duplicate_action=duplicate_action,
         document_type=document_type,
     )
-    print(f"[ENDPOINT] Background task added successfully", flush=True)
+    print("[ENDPOINT] Background task added successfully", flush=True)
 
     return UploadWithProgressResponse(
         job_id=job_id,
@@ -1754,8 +1750,9 @@ async def get_celery_task_status(task_id: str):
     Get the current status of a Celery task.
     Frontend can poll this to track document processing progress.
     """
-    from finagent.celery_app import celery_app
     from celery.result import AsyncResult
+
+    from finagent.celery_app import celery_app
 
     task_result = AsyncResult(task_id, app=celery_app)
 
@@ -1990,7 +1987,7 @@ async def extract_document_metadata(
         extracted_metadata = await extractor.extract_metadata(document.content, document.metadata.filename)
 
         # Update document with extracted metadata
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         doc_updated = doc.model_copy()
         doc_updated.document_type = extracted_metadata.get("document_type")
         doc_updated.issuing_authority = extracted_metadata.get("issuing_authority")
@@ -2022,7 +2019,7 @@ async def extract_document_metadata(
         doc_failed = doc.model_copy()
         doc_failed.metadata_extraction_status = "failed"
         doc_failed.metadata_extraction_error = str(e)
-        doc_failed.metadata_last_extracted_at = datetime.now(timezone.utc)
+        doc_failed.metadata_last_extracted_at = datetime.now(UTC)
         store.db.add_document(doc_failed)
 
         return MetadataExtractResponse(
@@ -2126,7 +2123,7 @@ async def update_document_metadata(
         # Mark as user edited
         doc_copy.metadata_edited_by_user = True
         doc_copy.metadata_extraction_status = "user_edited"
-        doc_copy.updated_at = datetime.now(timezone.utc)
+        doc_copy.updated_at = datetime.now(UTC)
 
         # Update database (add_document does upsert)
         store.db.add_document(doc_copy)

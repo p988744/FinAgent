@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .models import Concept, Document, DocumentConcept, History, ModelConfig, Setting
+from .models import Concept, Document, History, ModelConfig, Setting
 
 
 class Database:
@@ -476,7 +476,7 @@ class Database:
             violations_json = json.dumps(document.violation_types, ensure_ascii=False)
             custom_json = json.dumps(document.custom_fields, ensure_ascii=False)
 
-            cursor = conn.execute(
+            conn.execute(
                 """
                 INSERT INTO documents (
                     doc_id, filename, file_path, description, document_type,

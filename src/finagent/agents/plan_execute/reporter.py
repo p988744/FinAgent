@@ -1,11 +1,10 @@
 """Reporter agent for formatting the final response."""
 
 import logging
-from typing import List, Optional
 
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
 
 from finagent.agents.plan_execute.models import PlanExecuteState
 from finagent.config import settings
@@ -49,7 +48,7 @@ class ReporterAgent:
         self.prompt = ChatPromptTemplate.from_template(REPORT_PROMPT)
         self.chain = self.prompt | self.llm | StrOutputParser()
 
-    def _format_steps(self, past_steps: List[tuple]) -> str:
+    def _format_steps(self, past_steps: list[tuple]) -> str:
         """Format past steps for the prompt."""
         formatted = []
         for i, (task, result) in enumerate(past_steps, 1):
@@ -60,15 +59,15 @@ class ReporterAgent:
     async def report(self, state: PlanExecuteState) -> dict:
         """Generate the final report."""
         logger.info("Generating final report...")
-        
+
         input_query = state["input"]
         past_steps = state.get("past_steps", [])
-        
+
         formatted_steps = self._format_steps(past_steps)
-        
+
         response = await self.chain.ainvoke({
             "input": input_query,
             "past_steps": formatted_steps
         })
-        
+
         return {"response": response}

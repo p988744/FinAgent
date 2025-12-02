@@ -2,7 +2,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from finagent.models.answers import LegalAnswer
 from finagent.models.citations import LegalCitation
@@ -41,7 +41,7 @@ class UICallback(ABC):
         pass
 
     @abstractmethod
-    async def on_clarification_request(self, questions: list[str]) -> Optional[str]:
+    async def on_clarification_request(self, questions: list[str]) -> str | None:
         """
         Request clarification from the user.
 
@@ -154,7 +154,7 @@ class UICallback(ABC):
         pass
 
     @abstractmethod
-    async def on_error(self, error: str, context: Optional[dict[str, Any]] = None):
+    async def on_error(self, error: str, context: dict[str, Any] | None = None):
         """
         Called when an error occurs.
 
@@ -180,7 +180,7 @@ class NoOpCallback(UICallback):
         """No-op."""
         pass
 
-    async def on_clarification_request(self, questions: list[str]) -> Optional[str]:
+    async def on_clarification_request(self, questions: list[str]) -> str | None:
         """No-op."""
         return None
 
@@ -224,7 +224,7 @@ class NoOpCallback(UICallback):
         """No-op."""
         pass
 
-    async def on_error(self, error: str, context: Optional[dict[str, Any]] = None):
+    async def on_error(self, error: str, context: dict[str, Any] | None = None):
         """No-op."""
         pass
 
@@ -236,7 +236,7 @@ class LoggingCallback(UICallback):
     Useful for debugging and server-side logging.
     """
 
-    def __init__(self, logger_instance: Optional[logging.Logger] = None):
+    def __init__(self, logger_instance: logging.Logger | None = None):
         """Initialize with optional logger instance."""
         self.logger = logger_instance or logger
 
@@ -250,7 +250,7 @@ class LoggingCallback(UICallback):
         complexity = analysis.get("complexity", "unknown")
         self.logger.info(f"✓ Analysis complete - Intent: {intent}, Complexity: {complexity}")
 
-    async def on_clarification_request(self, questions: list[str]) -> Optional[str]:
+    async def on_clarification_request(self, questions: list[str]) -> str | None:
         """Log clarification request."""
         self.logger.info(f"❓ Clarification needed: {len(questions)} questions")
         return None
@@ -296,7 +296,7 @@ class LoggingCallback(UICallback):
         confidence = answer.confidence_level.value if answer.confidence_level else "unknown"
         self.logger.info(f"✨ Answer complete - Confidence: {confidence}")
 
-    async def on_error(self, error: str, context: Optional[dict[str, Any]] = None):
+    async def on_error(self, error: str, context: dict[str, Any] | None = None):
         """Log error."""
         self.logger.error(f"❌ Error: {error}")
         if context:

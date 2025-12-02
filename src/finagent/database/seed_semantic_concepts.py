@@ -1,7 +1,6 @@
 """Seed semantic concepts and synonyms into database."""
 
 import sqlite3
-from pathlib import Path
 
 # Core concept taxonomy
 SEMANTIC_CONCEPTS = [
@@ -422,7 +421,7 @@ def seed_semantic_concepts(db_path: str = "data/finagent.db"):
 
     conn.close()
 
-    print(f"\n✓ Seeding complete!")
+    print("\n✓ Seeding complete!")
     print(f"  Concepts: {concept_count}")
     print(f"  Synonyms: {synonym_count}")
 

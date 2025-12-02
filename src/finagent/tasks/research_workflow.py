@@ -7,7 +7,7 @@ import sqlite3
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from finagent.agents.orchestrator import AgentOrchestrator
 from finagent.celery_app import celery_app
@@ -87,7 +87,7 @@ def create_research_session(session_id: str, query_text: str, celery_task_id: st
         conn.close()
 
 
-def update_research_session(session_id: str, updates: Dict[str, Any]):
+def update_research_session(session_id: str, updates: dict[str, Any]):
     """
     Update research session with new data.
 
@@ -142,7 +142,7 @@ class SessionProgressCallback:
         self.tool_executions = {}
         self.step_counter = 0
 
-    async def on_step_update(self, step: str, status: str, data: Dict[str, Any] = None):
+    async def on_step_update(self, step: str, status: str, data: dict[str, Any] = None):
         """Handle agent step updates."""
         timestamp = datetime.now().isoformat()
 
@@ -187,17 +187,17 @@ class SessionProgressCallback:
         self.activity_log.append(entry)
         update_research_session(self.session_id, {"activity_log": self.activity_log})
 
-    async def on_plan_created(self, plan: Dict[str, Any]):
+    async def on_plan_created(self, plan: dict[str, Any]):
         """Handle research plan creation."""
         self.plan = plan
         update_research_session(self.session_id, {"research_plan": plan})
 
-    async def on_dynamic_plan(self, dynamic_plan: Dict[str, Any]):
+    async def on_dynamic_plan(self, dynamic_plan: dict[str, Any]):
         """Handle dynamic plan analysis."""
         self.dynamic_plan = dynamic_plan
         update_research_session(self.session_id, {"dynamic_plan": dynamic_plan})
 
-    async def on_tool_execution(self, tool_name: str, status: Dict[str, Any]):
+    async def on_tool_execution(self, tool_name: str, status: dict[str, Any]):
         """Handle tool execution updates."""
         self.tool_executions[tool_name] = status
         update_research_session(self.session_id, {"tool_executions": self.tool_executions})

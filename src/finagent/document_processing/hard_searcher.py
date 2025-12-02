@@ -159,12 +159,12 @@ class HardSearcher:
 
         # Read file
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 lines = f.readlines()
         except UnicodeDecodeError:
             # Try Big5 encoding (common in Taiwan)
             try:
-                with open(file_path, "r", encoding="big5") as f:
+                with open(file_path, encoding="big5") as f:
                     lines = f.readlines()
             except Exception as e:
                 logger.error(f"Cannot decode file {filename}: {e}")

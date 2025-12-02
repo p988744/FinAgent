@@ -4,6 +4,7 @@ Document indexer for Chroma vector database.
 
 import json
 import logging
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -223,7 +224,7 @@ class DocumentIndexer:
 
             # Add extracted metadata fields if available
             if extracted_metadata:
-                from datetime import datetime, timezone
+                from datetime import datetime
                 db_fields.update({
                     "document_type": extracted_metadata.document_type,
                     "issuing_authority": extracted_metadata.issuing_authority,
@@ -238,7 +239,7 @@ class DocumentIndexer:
                     # Metadata extraction status fields
                     "metadata_extracted": True,
                     "metadata_extraction_status": "completed",
-                    "metadata_last_extracted_at": datetime.now(timezone.utc).isoformat(),
+                    "metadata_last_extracted_at": datetime.now(UTC).isoformat(),
                     "metadata_extraction_attempts": 1,
                     # Descriptive fields
                     "title": extracted_metadata.title,
@@ -250,8 +251,8 @@ class DocumentIndexer:
                 )
             # Fallback: Use document.metadata if available (e.g. from process command)
             elif document.metadata:
-                from datetime import datetime, timezone
-                
+                from datetime import datetime
+
                 # Helper to safely get list/dict and dump to JSON
                 def get_json_field(key, default=None):
                     val = document.metadata.get(key, default)
@@ -275,7 +276,7 @@ class DocumentIndexer:
                         # Metadata extraction status fields
                         "metadata_extracted": True,
                         "metadata_extraction_status": "completed",
-                        "metadata_last_extracted_at": datetime.now(timezone.utc).isoformat(),
+                        "metadata_last_extracted_at": datetime.now(UTC).isoformat(),
                         "metadata_extraction_attempts": 1,
                         # Descriptive fields
                         "title": document.metadata.get("title"),

@@ -3,15 +3,12 @@
 import asyncio
 import logging
 import traceback
-from pathlib import Path
-from typing import Optional
 
 from celery import Task
-from celery.exceptions import Retry
 
 from finagent.celery_app import celery_app
-from finagent.document_processing.loader import DocumentLoader
 from finagent.document_processing.indexer import DocumentIndexer
+from finagent.document_processing.loader import DocumentLoader
 from finagent.document_processing.metadata_store import DocumentMetadataStore
 from finagent.models.pipeline import DocumentPipeline, PipelineStage, PipelineStatus
 
@@ -238,7 +235,7 @@ def _save_success_state(
     doc_id: str,
     pipeline: DocumentPipeline,
     chunk_count: int,
-    metadata: Optional[dict],
+    metadata: dict | None,
     task_logs: list,
 ) -> None:
     """Save successful pipeline state to database."""

@@ -4,17 +4,22 @@ Index command - Index documents into ChromaDB vector store
 
 import asyncio
 from pathlib import Path
-from typing import Optional
 
 import click
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeRemainingColumn, TimeElapsedColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
-from finagent.document_processing.loader import DocumentLoader
-from finagent.document_processing.indexer import DocumentIndexer
+from finagent.cli.utils.output import console, print_error, print_success, print_warning
 from finagent.document_processing.chunker import ChineseTextChunker
+from finagent.document_processing.indexer import DocumentIndexer
+from finagent.document_processing.loader import DocumentLoader
 from finagent.document_processing.metadata_extractor import MetadataExtractor
-from finagent.cli.utils.output import print_error, print_success, print_warning, console
 
 
 @click.command()
@@ -69,17 +74,17 @@ def index(
 ):
     """
     Index documents into ChromaDB vector store.
-    
+
     Examples:
-    
+
       \b
       # Index all documents
       finagent index data/documents
-      
+
       \b
       # Clear and re-index with custom collection
       finagent index data/documents --collection my_docs --clear
-      
+
       \b
       # Index with metadata extraction
       finagent index data/documents --extract-metadata
@@ -88,35 +93,35 @@ def index(
         dir_path = Path(directory).resolve()
         console.print(f"[bold]Indexing documents from:[/bold] {dir_path}")
         console.print(f"[dim]Collection: {collection}, Chunk size: {chunk_size}, Overlap: {chunk_overlap}[/dim]\n")
-        
+
         # Initialize components
         loader = DocumentLoader(base_path=str(dir_path))
-        chunker = ChineseTextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        ChineseTextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         indexer = DocumentIndexer(collection_name=collection)
-        
+
         if extract_metadata:
             extractor = MetadataExtractor(use_new_model=True)
-        
+
         # Clear collection if requested
         if clear:
             with console.status("[bold yellow]Clearing collection..."):
                 indexer.clear_collection()
             print_success(f"Cleared collection '{collection}'")
-        
+
         # Load documents
         with console.status("[bold green]Loading documents..."):
             documents = loader.load_directory(str(dir_path), recursive=recursive)
-        
+
         if not documents:
             console.print("[yellow]No documents found[/yellow]")
             return
-        
+
         console.print(f"[green]Found {len(documents)} documents[/green]\n")
-        
+
         # Process documents
         total_chunks = 0
         errors = 0
-        
+
         async def process_documents():
             nonlocal total_chunks, errors
 
@@ -170,26 +175,26 @@ def index(
                         console.print(f"[red]Error indexing {filename}: {str(e)}[/red]")
 
                     progress.update(task, advance=1)
-        
+
         # Run async processing
         asyncio.run(process_documents())
-        
+
         # Get collection stats
         stats = indexer.get_collection_stats()
-        
+
         # Print summary
-        console.print(f"\n[bold]Summary:[/bold]")
+        console.print("\n[bold]Summary:[/bold]")
         console.print(f"  Documents processed: [cyan]{len(documents)}[/cyan]")
         console.print(f"  Total chunks indexed: [green]{total_chunks}[/green]")
         console.print(f"  Average chunks per doc: [cyan]{total_chunks // len(documents) if documents else 0}[/cyan]")
         console.print(f"  Errors: [red]{errors}[/red]")
         console.print(f"  Collection total chunks: [cyan]{stats['total_chunks']}[/cyan]")
-        
+
         if errors == 0:
             print_success("Indexing completed successfully")
         else:
             print_warning(f"Indexing completed with {errors} errors")
-        
+
     except Exception as e:
         print_error(f"Indexing failed: {str(e)}")
         raise click.Abort()

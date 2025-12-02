@@ -1,10 +1,11 @@
 """Query Analyzer agent for understanding user intent before planning."""
 
 import logging
+
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from finagent.agents.plan_execute.models import PlanExecuteState, QueryInsight
 from finagent.config import settings

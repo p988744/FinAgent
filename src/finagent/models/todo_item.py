@@ -1,7 +1,7 @@
 """Todo item model for tracking query execution tasks."""
 
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -26,19 +26,19 @@ class TodoItem(BaseModel):
     dependencies: list[str] = Field(
         default_factory=list, description="IDs of tasks that must complete first"
     )
-    result: Optional[Any] = Field(default=None, description="Result data from execution")
-    error: Optional[str] = Field(default=None, description="Error message if failed")
-    started_at: Optional[datetime] = Field(default=None, description="Task start time")
-    completed_at: Optional[datetime] = Field(
+    result: Any | None = Field(default=None, description="Result data from execution")
+    error: str | None = Field(default=None, description="Error message if failed")
+    started_at: datetime | None = Field(default=None, description="Task start time")
+    completed_at: datetime | None = Field(
         default=None, description="Task completion time"
     )
     progress_percentage: int = Field(
         default=0, description="Progress percentage (0-100)", ge=0, le=100
     )
-    substeps: Optional[list[str]] = Field(
+    substeps: list[str] | None = Field(
         default=None, description="List of substeps for this task"
     )
-    current_substep: Optional[str] = Field(
+    current_substep: str | None = Field(
         default=None, description="Currently executing substep"
     )
 
@@ -65,7 +65,7 @@ class TodoItem(BaseModel):
         self.started_at = datetime.now()
         self.progress_percentage = 0
 
-    def update_progress(self, percentage: int, substep: Optional[str] = None):
+    def update_progress(self, percentage: int, substep: str | None = None):
         """Update progress percentage and current substep."""
         self.progress_percentage = min(100, max(0, percentage))
         if substep:
@@ -93,7 +93,7 @@ class TodoItem(BaseModel):
         return all(dep in completed_ids for dep in self.dependencies)
 
     @property
-    def duration_seconds(self) -> Optional[float]:
+    def duration_seconds(self) -> float | None:
         """Calculate task duration in seconds."""
         if self.started_at and self.completed_at:
             return (self.completed_at - self.started_at).total_seconds()

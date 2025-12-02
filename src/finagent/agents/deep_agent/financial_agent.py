@@ -7,16 +7,13 @@ deepagents library. It provides Claude Code-like capabilities including:
 - Context management via checkpointer
 """
 
-from typing import Any, Dict, List, Optional
 import logging
+from typing import Any
 
 from deepagents import create_deep_agent
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from finagent.agents.deep_agent.tools import (
-    semantic_search,
-    keyword_search,
-    hybrid_search,
     FINAGENT_TOOLS,
 )
 from finagent.config_manager import ConfigManager
@@ -172,7 +169,7 @@ class FinAgentDeepAgent:
 
     def __init__(
         self,
-        model: Optional[str] = None,
+        model: str | None = None,
         enable_subagents: bool = True,
         enable_filesystem: bool = False,
     ):
@@ -231,9 +228,9 @@ class FinAgentDeepAgent:
     async def ainvoke(
         self,
         query: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Invoke the Deep Agent asynchronously.
 
         Args:
@@ -275,9 +272,9 @@ class FinAgentDeepAgent:
     def invoke(
         self,
         query: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Invoke the Deep Agent synchronously.
 
         Args:
@@ -319,7 +316,7 @@ class FinAgentDeepAgent:
     async def astream(
         self,
         query: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
         **kwargs,
     ):
         """Stream the Deep Agent response asynchronously.
@@ -349,7 +346,7 @@ class FinAgentDeepAgent:
 
 
 def create_finagent_deep_agent(
-    model: Optional[str] = None,
+    model: str | None = None,
     enable_subagents: bool = True,
     enable_filesystem: bool = False,
 ) -> FinAgentDeepAgent:

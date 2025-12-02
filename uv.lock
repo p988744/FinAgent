@@ -786,7 +786,7 @@ wheels = [
 
 [[package]]
 name = "finagent"
-version = "0.0.2"
+version = "2.0.0b1"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

@@ -1,9 +1,6 @@
 """Semantic concept mapping for documents."""
 
 import sqlite3
-from pathlib import Path
-
-from finagent.document_processing.metadata_store import DocumentMetadata
 
 
 def lookup_concepts_by_synonym(
@@ -317,8 +314,9 @@ def expand_query_with_concepts(
         - concept_details: List of (concept_key, concept_name_zh, synonyms) tuples
     """
     # Extract terms from query using jieba for Chinese tokenization
-    import jieba
     import re
+
+    import jieba
 
     # Use jieba for better Chinese word segmentation
     terms = list(jieba.cut(query_text))

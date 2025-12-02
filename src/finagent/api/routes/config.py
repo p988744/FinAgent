@@ -4,7 +4,6 @@ Configuration Management API Routes
 Handles settings and preset management for FinAgent Web UI.
 """
 
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException

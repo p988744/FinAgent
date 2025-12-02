@@ -1,6 +1,6 @@
 """Document metadata storage for enhanced document descriptions."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel
@@ -180,13 +180,13 @@ class DocumentMetadataStore:
         Returns:
             Updated DocumentMetadata if exists, newly created if not exists, None on error
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         # Get current document
         doc = self.db.get_document(doc_id)
         if not doc:
             # Document doesn't exist - create a new one with minimal defaults
-            now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(UTC).isoformat()
             meta = DocumentMetadata(
                 doc_id=doc_id,
                 filename=updates.get('filename', f'{doc_id}.txt'),
@@ -249,9 +249,6 @@ class DocumentMetadataStore:
         pipeline_updates = {k: v for k, v in updates.items() if k in pipeline_fields}
 
         # Update metadata fields
-        field_mapping = {
-            "date": "document_date",  # DocumentMetadata.date -> Document.document_date
-        }
 
         for key, value in metadata_updates.items():
             # Use mapped field name if it exists

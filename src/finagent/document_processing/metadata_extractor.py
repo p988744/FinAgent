@@ -14,11 +14,11 @@ from openai import AsyncOpenAI
 
 from finagent.config import settings
 from finagent.config_manager import ConfigManager
-from finagent.models.document_metadata import ExtendedDocumentMetadata
 from finagent.document_processing.metadata_models import (
     DocumentMetadata,
     MetadataExtractionResult,
 )
+from finagent.models.document_metadata import ExtendedDocumentMetadata
 
 logger = logging.getLogger(__name__)
 

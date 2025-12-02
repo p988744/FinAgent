@@ -10,19 +10,19 @@ Features:
 """
 
 from finagent.agents.wiki_search.graph import WikiSearchWorkflow
+from finagent.agents.wiki_search.merger import ResultMerger
 from finagent.agents.wiki_search.models import (
-    WikiSearchState,
-    SearchStrategy,
-    QueryType,
+    MergedResult,
     QueryInsight,
-    SearchTask,
+    QueryType,
     SearchPlan,
     SearchResult,
-    MergedResult,
+    SearchStrategy,
+    SearchTask,
     WikiCitation,
+    WikiSearchState,
 )
 from finagent.agents.wiki_search.planner import SearchPlanner
-from finagent.agents.wiki_search.merger import ResultMerger
 
 __all__ = [
     # Main workflow
