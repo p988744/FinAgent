@@ -73,7 +73,7 @@ def _db_doc_to_summary(doc: dict[str, Any]) -> DocumentSummary:
         filename=doc["filename"],
         document_type=doc.get("document_type"),
         issuing_authority=doc.get("issuing_authority"),
-        date=doc.get("date"),
+        date=doc.get("document_date") or doc.get("date"),
         related_institutions=related_inst,
         violation_types=violation_types,
         extraction_confidence=doc.get("extraction_confidence"),
@@ -107,7 +107,7 @@ def _db_doc_to_detail(doc: dict[str, Any], include_content: bool = True) -> Docu
         file_path=doc.get("file_path", ""),
         document_type=doc.get("document_type"),
         issuing_authority=doc.get("issuing_authority"),
-        date=doc.get("date"),
+        date=doc.get("document_date") or doc.get("date"),
         case_number=doc.get("case_number"),
         related_institutions=related_inst,
         violation_types=violation_types,
@@ -132,7 +132,7 @@ def _db_concept_to_summary(concept: dict[str, Any]) -> CategorySummary:
 
     return CategorySummary(
         id=concept["id"],
-        name=concept["concept_name"],
+        name=concept["name"],
         type=concept["concept_type"],
         document_count=concept.get("document_count", 0),
         description=concept.get("description"),
@@ -152,7 +152,7 @@ def _db_concept_to_detail(concept: dict[str, Any]) -> CategoryDetail:
 
     return CategoryDetail(
         id=concept["id"],
-        name=concept["concept_name"],
+        name=concept["name"],
         type=concept["concept_type"],
         document_count=concept.get("document_count", 0),
         description=concept.get("description"),
@@ -213,7 +213,7 @@ async def get_wiki_overview():
         # Get recent documents (last 10)
         recent_docs = sorted(
             all_docs,
-            key=lambda x: x.get("created_at", ""),
+            key=lambda x: x.get("created_at") or "",  # Handle None values
             reverse=True,
         )[:10]
         recent_summaries = [_db_doc_to_summary(doc) for doc in recent_docs]
@@ -223,7 +223,7 @@ async def get_wiki_overview():
             """Get top entities for a specific concept type"""
             cursor = conn.execute(
                 """
-                SELECT concept_name, document_count
+                SELECT name, document_count
                 FROM concepts
                 WHERE concept_type = ? AND document_count > 0
                 ORDER BY document_count DESC
@@ -293,10 +293,10 @@ async def get_categories(
 
         cursor = conn.execute(
             """
-            SELECT id, concept_name, concept_type, document_count, description, keywords
+            SELECT id, name, concept_type, document_count, description, keywords
             FROM concepts
             WHERE concept_type = ?
-            ORDER BY concept_name
+            ORDER BY name
             """,
             (type,),
         )
@@ -305,7 +305,7 @@ async def get_categories(
         for row in cursor.fetchall():
             concept = {
                 "id": row[0],
-                "concept_name": row[1],
+                "name": row[1],
                 "concept_type": row[2],
                 "document_count": row[3],
                 "description": row[4],
@@ -341,7 +341,7 @@ async def get_category_detail(category_id: int):
 
         cursor = conn.execute(
             """
-            SELECT id, concept_name, concept_type, document_count, description,
+            SELECT id, name, concept_type, document_count, description,
                    keywords, metadata, created_at, updated_at
             FROM concepts
             WHERE id = ?
@@ -355,7 +355,7 @@ async def get_category_detail(category_id: int):
 
         concept = {
             "id": row[0],
-            "concept_name": row[1],
+            "name": row[1],
             "concept_type": row[2],
             "document_count": row[3],
             "description": row[4],
@@ -445,10 +445,10 @@ async def get_documents(
             all_docs = db.list_documents()
             total = len(all_docs)
 
-            # Sort by created_at descending
+            # Sort by created_at descending (handle None values)
             sorted_docs = sorted(
                 all_docs,
-                key=lambda x: x.get("created_at", ""),
+                key=lambda x: x.get("created_at") or "",
                 reverse=True,
             )
 
@@ -698,9 +698,9 @@ async def _category_search(query: str, filters: SearchFilters) -> list[SearchRes
     query_lower = query.lower()
     cursor = conn.execute(
         """
-        SELECT id, concept_name, concept_type
+        SELECT id, name, concept_type
         FROM concepts
-        WHERE LOWER(concept_name) LIKE ?
+        WHERE LOWER(name) LIKE ?
            OR LOWER(description) LIKE ?
         """,
         (f"%{query_lower}%", f"%{query_lower}%"),

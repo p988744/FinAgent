@@ -87,13 +87,13 @@ class DocumentResponse(BaseModel):
     pipeline_completed_at: str | None = None
 
     # Metadata extraction status fields
-    indexed: bool = False
-    metadata_extracted: bool = False
-    metadata_extraction_status: str = "pending"  # pending, processing, completed, failed, user_edited
+    indexed: bool | None = False
+    metadata_extracted: bool | None = False
+    metadata_extraction_status: str | None = "pending"  # pending, processing, completed, failed, user_edited
     metadata_extraction_error: str | None = None
-    metadata_extraction_attempts: int = 0
+    metadata_extraction_attempts: int | None = 0
     metadata_last_extracted_at: str | None = None
-    metadata_edited_by_user: bool = False
+    metadata_edited_by_user: bool | None = False
     extraction_confidence: float | None = None
 
     # Additional metadata fields

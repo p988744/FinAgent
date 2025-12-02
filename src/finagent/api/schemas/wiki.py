@@ -36,8 +36,8 @@ class CategoryDetail(BaseModel):
     description: str | None = None
     keywords: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: str
-    updated_at: str
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class CategoryTree(BaseModel):
@@ -85,8 +85,8 @@ class DocumentDetail(BaseModel):
     chunk_count: int = 0
     indexed: bool = False
     file_size: int | None = None
-    created_at: str
-    updated_at: str
+    created_at: str | None = None
+    updated_at: str | None = None
     related_documents: list["RelatedDocument"] = Field(default_factory=list)
 
 
