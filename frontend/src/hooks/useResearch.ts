@@ -33,7 +33,7 @@ export function useResearch(): UseResearchReturn {
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  const pollIntervalRef = useRef<NodeJS.Timeout>();
+  const pollIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentSessionRef = useRef<string | null>(null);
 
   // Cleanup polling on unmount

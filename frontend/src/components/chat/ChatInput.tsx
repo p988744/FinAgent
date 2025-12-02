@@ -2,7 +2,7 @@
  * ChatInput - Input field for chat messages with send button
  */
 
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -78,11 +78,10 @@ export function ChatInput({
           <button
             onClick={handleSubmit}
             disabled={!canSend}
-            className={`btn btn-primary btn-icon transition-all duration-200 ${
-              canSend
+            className={`btn btn-primary btn-icon transition-all duration-200 ${canSend
                 ? 'opacity-100 translate-y-0'
                 : 'opacity-50 cursor-not-allowed'
-            }`}
+              }`}
           >
             {isLoading ? (
               <div className="spinner w-4 h-4" />

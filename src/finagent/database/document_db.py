@@ -79,10 +79,8 @@ class DocumentDatabase:
                 "indexed",
                 "chunk_count",
                 "file_size",
-                "language",
                 "extraction_method",
                 "extraction_confidence",
-                "document_status",
                 "custom_fields",  # JSON
                 # Metadata extraction status fields
                 "metadata_extracted",
@@ -91,13 +89,18 @@ class DocumentDatabase:
                 "metadata_extraction_attempts",
                 "metadata_last_extracted_at",
                 "metadata_edited_by_user",
-                # Pipeline monitoring fields
-                "pipeline_stage",
-                "pipeline_status",
-                "pipeline_data",  # JSON
-                "pipeline_started_at",
-                "pipeline_completed_at",
+                "metadata_edited_by_user",
             ]
+            
+            # Pipeline fields to separate
+            pipeline_fields_map = {
+                "pipeline_stage": "stage",
+                "pipeline_status": "status",
+                "pipeline_data": "data",
+                "pipeline_started_at": "started_at",
+                "pipeline_completed_at": "completed_at",
+            }
+            pipeline_data = {}
 
             for field in optional_fields:
                 if field in kwargs:
@@ -106,6 +109,11 @@ class DocumentDatabase:
                     if isinstance(value, (list, dict)):
                         value = json.dumps(value, ensure_ascii=False)
                     fields[field] = value
+            
+            # Extract pipeline fields
+            for key, new_key in pipeline_fields_map.items():
+                if key in kwargs:
+                    pipeline_data[new_key] = kwargs[key]
 
             # Check if document exists
             cursor.execute("SELECT id FROM documents WHERE doc_id = ?", (doc_id,))
@@ -137,6 +145,34 @@ class DocumentDatabase:
                 logger.info(f"Inserted document: {doc_id}")
 
             conn.commit()
+            conn.commit()
+            
+            # Upsert pipeline data if present
+            if pipeline_data:
+                pipeline_data["document_id"] = doc_pk  # Use integer PK
+                
+                # Check if pipeline record exists
+                cursor.execute("SELECT id FROM document_pipelines WHERE document_id = ?", (doc_pk,))
+                existing_pipeline = cursor.fetchone()
+                
+                if existing_pipeline:
+                    set_clause = ", ".join([f"{k} = ?" for k in pipeline_data.keys()])
+                    values = list(pipeline_data.values())
+                    values.append(doc_pk)
+                    cursor.execute(
+                        f"UPDATE document_pipelines SET {set_clause}, updated_at = CURRENT_TIMESTAMP WHERE document_id = ?",
+                        values
+                    )
+                else:
+                    columns = ", ".join(pipeline_data.keys())
+                    placeholders = ", ".join(["?" for _ in pipeline_data])
+                    values = list(pipeline_data.values())
+                    cursor.execute(
+                        f"INSERT INTO document_pipelines ({columns}) VALUES ({placeholders})",
+                        values
+                    )
+                conn.commit()
+                
             return doc_pk
 
         except Exception as e:
@@ -185,9 +221,15 @@ class DocumentDatabase:
         try:
             cursor.execute(
                 """
-                SELECT *
-                FROM documents
-                WHERE doc_id = ?
+                SELECT d.*, 
+                       p.stage as pipeline_stage, 
+                       p.status as pipeline_status, 
+                       p.data as pipeline_data, 
+                       p.started_at as pipeline_started_at, 
+                       p.completed_at as pipeline_completed_at
+                FROM documents d
+                LEFT JOIN document_pipelines p ON d.id = p.document_id
+                WHERE d.doc_id = ?
                 """,
                 (doc_id,),
             )
@@ -252,10 +294,16 @@ class DocumentDatabase:
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
 
             query = f"""
-                SELECT *
-                FROM documents
+                SELECT d.*, 
+                       p.stage as pipeline_stage, 
+                       p.status as pipeline_status, 
+                       p.data as pipeline_data, 
+                       p.started_at as pipeline_started_at, 
+                       p.completed_at as pipeline_completed_at
+                FROM documents d
+                LEFT JOIN document_pipelines p ON d.id = p.document_id
                 WHERE {where_clause}
-                ORDER BY {order_by}
+                ORDER BY d.{order_by}
                 LIMIT ? OFFSET ?
             """
 

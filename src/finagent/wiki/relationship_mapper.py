@@ -315,7 +315,7 @@ class RelationshipMapper:
         # Create a pseudo-concept for the related document
         # First, check if concept exists for this document
         cursor = conn.execute(
-            "SELECT id FROM concepts WHERE concept_name = ? AND concept_type = 'related_doc'",
+            "SELECT id FROM concepts WHERE name = ? AND concept_type = 'related_doc'",
             (doc_id2,),
         )
         existing = cursor.fetchone()
@@ -327,7 +327,7 @@ class RelationshipMapper:
             cursor = conn.execute(
                 """
                 INSERT INTO concepts (
-                    concept_name, concept_type, description, document_count
+                    name, concept_type, description, document_count
                 )
                 VALUES (?, ?, ?, 0)
                 """,

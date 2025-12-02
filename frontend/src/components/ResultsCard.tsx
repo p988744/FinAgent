@@ -4,7 +4,7 @@
  * Research results display with editorial-style typography
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { QueryResult, Citation } from '../types/async-api';
 import { DocumentContentModal } from './DocumentContentModal';
 

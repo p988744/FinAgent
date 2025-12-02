@@ -4,7 +4,7 @@
  * Real-time processing status with terminal-style display
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SessionStatusType } from '../types/async-api';
 
 interface StatusCardProps {

@@ -4,7 +4,7 @@
  * Upload, view, and manage legal documents
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface Document {
   id: string;

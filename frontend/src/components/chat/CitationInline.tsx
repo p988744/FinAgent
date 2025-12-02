@@ -12,7 +12,7 @@ interface CitationInlineProps {
 
 export function CitationInline({ citation, onClick }: CitationInlineProps) {
   const [showPreview, setShowPreview] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
   const handleMouseEnter = () => {

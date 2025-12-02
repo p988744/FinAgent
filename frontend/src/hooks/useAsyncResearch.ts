@@ -58,7 +58,7 @@ export function useAsyncResearch(): UseAsyncResearchReturn {
   const [history, setHistory] = useState<Session[]>([]);
 
   // Refs
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Stop polling
   const stopPolling = useCallback(() => {

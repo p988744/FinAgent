@@ -33,25 +33,24 @@ frontend/.next/
 frontend/out/
 frontend/.vercel/
 frontend/node_modules/
+frontend/playwright-report/
+frontend/test-results/
 
-# Backend temporary files
-backend/test_*.py
-!backend/tests/
-backend/patch_*.py
-
-# Root-level test files (should be in scripts/ or .archive/)
-/test_*.sh
-/test_*.txt
-/ws_output.txt
-
-# Data
-backend/data/vector_db/
-backend/data/*.db
-data/**/*.txt
+# Data files (keep structure, ignore contents)
+data/vector_db/
+data/*.db
+data/*.db.bak
+data/*.db-journal
+data/*.db-shm
+data/*.db-wal
+data/documents/**/*.txt
+!data/documents/.gitkeep
 
 # Environment
 .env
 .env.local
+.env.*.local
+frontend/.env.local
 
 # OS
 .DS_Store
@@ -61,9 +60,19 @@ Thumbs.db
 *.log
 logs/
 
+# Temporary/debug files
+*.tmp
+*.temp
+
+# Root-level scripts (should be in scripts/ or .archive/)
+/test_*.sh
+/test_*.py
+/test_*.txt
+/*.py
+!pyproject.toml
+
 # Electron
 node_modules/
-dist/
 python-dist/
 *.dmg
 *.zip
@@ -72,3 +81,6 @@ python-dist/
 .electron-builder.yaml
 electron/build/*.ico
 electron/build/*.icns
+
+# Archive (development history)
+.archive/

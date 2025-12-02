@@ -4,7 +4,7 @@
  * Modal to display original document content for citations
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 interface DocumentContentModalProps {
   isOpen: boolean;

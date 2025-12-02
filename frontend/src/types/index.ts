@@ -304,3 +304,13 @@ export interface WebSocketMessage {
   data?: any;
   timestamp?: string;
 }
+
+// ============================================
+// Type Aliases for Backwards Compatibility
+// ============================================
+
+// QueryResult is an alias for SessionResult
+export type QueryResult = SessionResult;
+
+// QueryState is an alias for SessionStatus  
+export type QueryState = SessionStatus;

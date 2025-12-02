@@ -284,7 +284,7 @@ class CategoryBuilder:
         # Check if concept already exists
         conn = self.db._get_connection()
         cursor = conn.execute(
-            "SELECT id FROM concepts WHERE concept_name = ? AND concept_type = ?",
+            "SELECT id FROM concepts WHERE name = ? AND concept_type = ?",
             (name, concept_type),
         )
         existing = cursor.fetchone()
@@ -309,7 +309,7 @@ class CategoryBuilder:
             # Insert new concept
             cursor = conn.execute(
                 """
-                INSERT INTO concepts (concept_name, concept_type, description, keywords, metadata, document_count)
+                INSERT INTO concepts (name, concept_type, description, keywords, metadata, document_count)
                 VALUES (?, ?, ?, ?, ?, 0)
                 """,
                 (name, concept_type, description, keywords_json, metadata_json),

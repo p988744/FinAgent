@@ -295,7 +295,7 @@ class StatisticsEngine:
 
         # Check if statistics concept exists
         cursor = conn.execute(
-            "SELECT id FROM concepts WHERE concept_name = 'wiki_statistics' AND concept_type = 'statistics'"
+            "SELECT id FROM concepts WHERE name = 'wiki_statistics' AND concept_type = 'statistics'"
         )
         existing = cursor.fetchone()
 
@@ -315,7 +315,7 @@ class StatisticsEngine:
             cursor = conn.execute(
                 """
                 INSERT INTO concepts (
-                    concept_name, concept_type, description, metadata, document_count
+                    name, concept_type, description, metadata, document_count
                 )
                 VALUES (?, ?, ?, ?, ?)
                 """,
@@ -341,7 +341,7 @@ class StatisticsEngine:
         conn = self.db._get_connection()
 
         cursor = conn.execute(
-            "SELECT metadata FROM concepts WHERE concept_name = 'wiki_statistics' AND concept_type = 'statistics'"
+            "SELECT metadata FROM concepts WHERE name = 'wiki_statistics' AND concept_type = 'statistics'"
         )
         result = cursor.fetchone()
 

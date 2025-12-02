@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react';
-import type { ThinkingState, ThinkingStep, GraphState, StepHistoryEntry } from '../../types';
+import type { ThinkingState, ThinkingStep  } from '../../types';
 
 interface ThinkingProcessProps {
   thinking: ThinkingState;

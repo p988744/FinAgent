@@ -1,4 +1,3 @@
-/**
  * HistoryPanel Component
  *
  * Sidebar with query history timeline

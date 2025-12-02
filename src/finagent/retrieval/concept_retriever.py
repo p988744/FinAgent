@@ -100,7 +100,7 @@ class ConceptRetriever:
                 matching_concepts = self.db.search_concepts(keyword)
                 for concept in matching_concepts:
                     if concept.concept_type == "institution":
-                        concepts.append(concept.concept_name)
+                        concepts.append(concept.name)
                         break  # Only add first match
 
         return list(set(concepts))  # Deduplicate
@@ -133,7 +133,7 @@ class ConceptRetriever:
         for concept_name in query_concepts:
             concepts = self.db.search_concepts(concept_name)
             for concept in concepts:
-                matched_concepts.append(concept.concept_name)
+                matched_concepts.append(concept.name)
                 all_concept_ids.add(concept.id)
 
         if not all_concept_ids:
@@ -237,7 +237,7 @@ class ConceptRetriever:
         for concept_name in query_concepts:
             concepts = self.db.search_concepts(concept_name)
             for concept in concepts:
-                matched_concepts.append(concept.concept_name)
+                matched_concepts.append(concept.name)
                 concept_types[concept.concept_name] = concept.concept_type
                 document_counts[concept.concept_name] = concept.document_count
 
