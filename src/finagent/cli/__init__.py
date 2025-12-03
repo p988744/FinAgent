@@ -1,5 +1,3 @@
-"""
-FinAgent CLI - Interactive REPL for Taiwan Legal Research Agent System.
-"""
+"""FinAgent CLI - Document Processing Pipeline"""
 
 __version__ = "0.1.0"

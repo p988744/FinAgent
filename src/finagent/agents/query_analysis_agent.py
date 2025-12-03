@@ -4,12 +4,13 @@ This agent runs BEFORE the planning agent to understand user intent and identify
 ambiguous queries that need clarification.
 """
 
-from typing import Optional
 
 from langchain_core.messages import SystemMessage
+from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from finagent.agents.state import AgentState
+from finagent.config import settings
 
 
 class ClarificationRequest(BaseModel):
@@ -46,9 +47,6 @@ class QueryAnalysisAgent:
         Args:
             ui_callback: Optional UICallback for progress updates
         """
-        from finagent.config import settings
-        from langchain_openai import ChatOpenAI
-
         self.ui_callback = ui_callback
 
         # Initialize LLM using settings (same pattern as other agents)
@@ -153,7 +151,7 @@ class QueryAnalysisAgent:
         if self.ui_callback:
             try:
                 await self.ui_callback.on_analysis_start(query)
-            except Exception as e:
+            except Exception:
                 # If no event loop is running, skip callback
                 pass
 
@@ -210,14 +208,14 @@ class QueryAnalysisAgent:
                 }
                 try:
                     await self.ui_callback.on_analysis_complete(analysis_summary)
-                except Exception as e:
+                except Exception:
                     pass
 
             # Emit clarification request callback if needed
             if result.needs_clarification and self.ui_callback:
                 try:
                     await self.ui_callback.on_clarification_requested(result.questions)
-                except Exception as e:
+                except Exception:
                     pass
 
         except Exception as e:

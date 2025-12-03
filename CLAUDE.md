@@ -8,33 +8,43 @@ FinAgent is a **Financial Legal Research Agent System** (金融法律研究代�
 
 **Target Region:** Taiwan (繁體中文)
 **Domain:** Financial law, banking penalties, regulatory enforcement, legal precedents
-**Status:** v0.0.1-beta - LangGraph multi-agent system with RAG
-**Architecture:** Python CLI + FastAPI backend with LangGraph multi-agent system, SQLite persistence and Chroma vector DB
+**Status:** v1.1.0 (release/v1.1) - Plan-and-Execute agent with LangGraph
+**Architecture:** Python backend + React frontend, LangGraph multi-agent workflows, SQLite + Chroma vector DB
+
+**Latest Release:** v1.1.0 "Strategic Planner"
+- Plan-and-Execute workflow with Planner, Executor, Replanner agents
+- Frontend toggle for workflow selection
+- Retry logic with exponential backoff
+- LangChain v1.0 compliant (StateGraph, LCEL, BaseTool)
 
 ## Development Commands
 
 ### Setup and Installation
 ```bash
-# Install Python dependencies
+# Backend setup
+cd backend
 uv sync
 
-# Run interactive CLI (REPL mode)
-uv run finagent
+# Frontend setup
+cd frontend
+npm install
 
-# Run single query
+# Start backend (port 8000)
+cd backend
+uv run uvicorn finagent.main:app --reload --port 8000
+
+# Start frontend (port 3000)
+cd frontend
+npm run dev
+
+# CLI mode (legacy)
+uv run finagent
 uv run finagent query "玉山銀行洗錢防制裁罰"
 
-# Reindex documents (fast mode without LLM)
-uv run finagent reindex --skip-init
-
-# Reindex documents (full mode with LLM metadata)
-uv run finagent reindex
-
-# Clear and rebuild index
-uv run finagent reindex --clear --yes
-
-# Start FastAPI server directly
-uv run uvicorn finagent.main:app --reload --port 8000
+# Reindex documents
+uv run finagent reindex --skip-init    # Fast mode
+uv run finagent reindex                 # Full mode with LLM
+uv run finagent reindex --clear --yes   # Clear and rebuild
 ```
 
 ### Testing
@@ -84,40 +94,63 @@ git commit -m "feat: add new feature"
 
 ## Core Architecture
 
-### Multi-Agent LangGraph Workflow
+### Documentation Structure
 
+Before implementing features, consult these guides:
+
+1. **[V1_1_RELEASE_PLAN.md](V1_1_RELEASE_PLAN.md)** - Current release status, gaps, implementation roadmap
+2. **[PROJECT_SPEC.md](PROJECT_SPEC.md)** - Technical specifications
+3. **[PROJECT_VISION.md](PROJECT_VISION.md)** - Product vision and roadmap
+
+**Archived documentation** (in `.archive/session-docs-2025-11-25/`):
+- Implementation guides, code reviews, test results from v1.1 development
+
+### Multi-Agent LangGraph Workflows
+
+**Two workflows available (user-selectable in frontend):**
+
+#### 1. V1.0 Workflow (Legacy - 4 agents)
 ```
 User Query → Planning Agent → Action Agent → Validation Agent → Answer Agent → Response
                     ↓              ↓              ↓                    ↓
                   Tasks       RAG Retrieval   Citations           Synthesis
 ```
 
-**Key Components:**
+**Agents:**
+- **Planning Agent** ([planning_agent.py](src/finagent/agents/planning_agent.py)) - Query decomposition
+- **Action Agent** ([action_agent.py](src/finagent/agents/action_agent.py)) - RAG retrieval (0.8 threshold)
+- **Validation Agent** ([validation_agent.py](src/finagent/agents/validation_agent.py)) - Citation integrity
+- **Answer Agent** ([answer_agent.py](src/finagent/agents/answer_agent.py)) - LLM synthesis (GPT-4o-mini)
 
-1. **Planning Agent** ([planning_agent.py](src/finagent/agents/planning_agent.py))
-   - Query decomposition with legal context
-   - Jurisdiction identification (金管會/中央銀行/公平會)
-   - Task sequencing and research plan generation
+#### 2. V1.1 Plan-and-Execute Workflow ⭐ **NEW** (3 agents)
+```
+User Query → Planner → Executor → Replanner → [loop or END]
+                ↓         ↓          ↓
+              Plan     Execute    Replan/Respond
+```
 
-2. **Action Agent** ([action_agent.py](src/finagent/agents/action_agent.py))
-   - RAG retrieval with 0.8 relevance threshold
-   - Document semantic search via Chroma
-   - Multi-source coordination
+**Location:** [src/finagent/agents/plan_execute/](src/finagent/agents/plan_execute/)
 
-3. **Validation Agent** ([validation_agent.py](src/finagent/agents/validation_agent.py))
-   - Citation integrity checking
-   - Source authority validation
-   - Fact statement coverage verification
+**Agents:**
+- **PlannerAgent** ([planner.py](src/finagent/agents/plan_execute/planner.py)) - Creates research plan with tasks
+- **ExecutorAgent** ([executor.py](src/finagent/agents/plan_execute/executor.py)) - Executes tasks using tools
+- **ReplannerAgent** ([replanner.py](src/finagent/agents/plan_execute/replanner.py)) - Reviews progress, replans or responds
 
-4. **Answer Agent** ([answer_agent.py](src/finagent/agents/answer_agent.py))
-   - LLM-powered synthesis (GPT-4o-mini)
-   - Taiwan legal citation formatting
-   - Confidence scoring (高信心/中信心/低信心)
+**Tools** (in [src/finagent/tools/](src/finagent/tools/)):
+- **RetrieverTool** ([retriever.py](src/finagent/tools/retriever.py)) - Semantic vector search
+- **HardSearchTool** ([search.py](src/finagent/tools/search.py)) - Exact keyword matching
+- **HybridRetrieverTool** ([hybrid_retriever.py](src/finagent/tools/hybrid_retriever.py)) - BM25 + Vector (60%/40%)
 
-5. **Orchestrator** ([orchestrator.py](src/finagent/agents/orchestrator.py))
-   - Coordinates entire LangGraph workflow
-   - Manages state transitions
-   - Handles fallback when RAG unavailable
+**Features:**
+- LangChain v1.0 compliant (StateGraph, LCEL, @retry decorator)
+- Retry logic with exponential backoff (3 attempts, 4-10s wait)
+- Dynamic replanning based on intermediate results
+- Robust JSON parsing with fallback
+
+**Orchestrator** ([orchestrator.py](src/finagent/agents/orchestrator.py))
+- Routes to v1.0 or v1.1 workflow based on frontend selection
+- Manages state transitions
+- Handles fallback when RAG unavailable
 
 ### Database Layer (SQLite)
 
@@ -279,16 +312,29 @@ Located in [src/finagent/models/](src/finagent/models/):
 
 ## Important Implementation Notes
 
-1. **Citation Integrity**: Every factual statement MUST have a citation to a verifiable source
-2. **Source Hierarchy**: Prefer primary sources (official documents) over secondary (news)
-3. **Document Size**: Legal documents are 50-200 pages; RAG is REQUIRED, not optional
-4. **Entity Resolution**: Use official legal names (e.g., "玉山商業銀行股份有限公司" not "玉山")
-5. **Date Format**: Use ROC (民國) calendar for Taiwan documents
-6. **Chunking Strategy**: Preserve document structure (sections/chapters) during chunking
-7. **Database Triggers**: SQLite triggers enforce single active config per type - don't bypass
-8. **Configuration Presets**: Use ConfigManager API, not direct database access
-9. **Traditional Chinese**: All system prompts and responses in 繁體中文
-10. **Formal Tone**: Use formal legal writing style with passive voice
+### LangChain v1.0 Standards (CRITICAL)
+1. **Always use StateGraph** - NOT AgentExecutor (deprecated)
+2. **Always use LCEL** - `prompt | llm | parser` NOT LLMChain
+3. **Always use BaseTool** - With Pydantic args_schema
+4. **Always use .ainvoke()** - NOT .arun() or .acall() (deprecated)
+5. **Always use @retry decorator** - For LLM calls with exponential backoff
+6. **Reference existing code** - See [src/finagent/agents/plan_execute/](src/finagent/agents/plan_execute/) for examples
+
+### Domain-Specific Rules
+7. **Citation Integrity**: Every factual statement MUST have a citation to a verifiable source
+8. **Source Hierarchy**: Prefer primary sources (official documents) over secondary (news)
+9. **Document Size**: Legal documents are 50-200 pages; RAG is REQUIRED, not optional
+10. **Entity Resolution**: Use official legal names (e.g., "玉山商業銀行股份有限公司" not "玉山")
+11. **Date Format**: Use ROC (民國) calendar for Taiwan documents
+12. **Chunking Strategy**: Preserve document structure (sections/chapters) during chunking
+13. **Traditional Chinese**: All system prompts and responses in 繁體中文
+14. **Formal Tone**: Use formal legal writing style with passive voice
+
+### System Rules
+15. **Database Triggers**: SQLite triggers enforce single active config per type - don't bypass
+16. **Configuration Presets**: Use ConfigManager API, not direct database access
+17. **Test Scripts Location**: scripts/ or .archive/, NEVER project root (see .gitignore)
+18. **Tool Sharing**: Extract to src/finagent/tools/ for reuse across workflows
 
 ## Key Terminology (繁體中文)
 
@@ -319,14 +365,26 @@ Located in [src/finagent/models/](src/finagent/models/):
 
 ## Common Pitfalls to Avoid
 
-1. **Don't bypass ConfigManager** - Use high-level API, not direct database access
-2. **Don't skip citation validation** - Every fact needs a source
-3. **Don't mix ROC and AD dates** - Be consistent with calendar format
-4. **Don't use simplified Chinese** - Always use Traditional Chinese (繁體中文)
-5. **Don't store model_config.yml in database** - It's file-based for UI choices
-6. **Don't commit .env or finagent.db** - Excluded in .gitignore
-7. **Don't modify triggers manually** - Schema enforcement is critical
-8. **Don't use informal language** - Formal legal writing style required
+### LangChain v1.0 Migration Errors
+1. **Don't use AgentExecutor** - Deprecated, use StateGraph
+2. **Don't use LLMChain** - Use LCEL pipes: `prompt | llm | parser`
+3. **Don't use .arun()/.acall()** - Use .ainvoke()/.astream()
+4. **Don't skip @retry decorator** - LLM calls need retry logic
+5. **Don't forget Pydantic args_schema** - Required for BaseTool
+
+### Project Organization
+6. **Don't put test scripts in project root** - Use scripts/ or .archive/
+7. **Don't duplicate tools** - Extract to src/finagent/tools/ for sharing
+8. **Don't commit .env or finagent.db** - Excluded in .gitignore
+9. **Don't bypass ConfigManager** - Use high-level API, not direct database access
+10. **Don't modify triggers manually** - Schema enforcement is critical
+
+### Domain-Specific
+11. **Don't skip citation validation** - Every fact needs a source
+12. **Don't mix ROC and AD dates** - Be consistent with calendar format
+13. **Don't use simplified Chinese** - Always use Traditional Chinese (繁體中文)
+14. **Don't use informal language** - Formal legal writing style required
+15. **Don't store model_config.yml in database** - It's file-based for UI choices
 
 ## Testing Best Practices
 
@@ -353,3 +411,32 @@ Located in [src/finagent/models/](src/finagent/models/):
 - Check if orchestrator initialized (`self.use_rag`)
 - Verify LLM API key is valid
 - Check RAG retriever collection exists
+
+**Plan Panel Disappears (Known Issue v1.1):**
+- UI bug: Plan appears then disappears after 5-20 seconds
+- Workaround: Workflow still executes correctly, check activity log
+- Root cause: WebSocket reconnection or state management issue
+- See [V1_1_RELEASE_PLAN.md - Known Issues](V1_1_RELEASE_PLAN.md#known-issues)
+
+**LLM JSON Parsing Errors:**
+- Retry logic with exponential backoff already implemented
+- Manual JSON parsing fallback in ReplannerAgent
+- If persistent, check prompt format in planner.py/replanner.py
+
+## Archive Structure
+
+Historical files preserved in `.archive/`:
+```
+.archive/
+├── session-docs-2025-11-25/  # v1.1 development docs (implementation guides, reviews, test results)
+├── legacy-v1.0-agents/       # Deprecated v1.0 agent files (tool_selector, query_flow_graph, etc.)
+├── legacy-tools/             # Deprecated tool implementations (replaced by src/finagent/tools/)
+├── frontend_v1.1_backup/     # Frontend backup from v1.1 refactoring
+├── test-scripts/             # E2E test scripts from v0.1-alpha releases
+├── validation-scripts/       # Legacy alpha validation scripts
+├── implementation-docs/      # v1.0 implementation documentation
+├── V1_0_RELEASE_PLAN.md      # v1.0 release plan (superseded by V1_1_RELEASE_PLAN.md)
+└── legacy_docs_*/            # Old documentation snapshots
+```
+
+**Note**: Never add new test scripts to project root. Use `scripts/` for active scripts or `.archive/` for historical reference.

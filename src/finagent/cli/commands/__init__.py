@@ -1,1 +1,1 @@
-"""CLI command handlers."""
+"""CLI commands package"""

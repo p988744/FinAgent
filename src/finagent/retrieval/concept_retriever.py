@@ -1,6 +1,5 @@
 """Concept-based retrieval for faster and more accurate document search."""
 
-from typing import List, Tuple
 
 from finagent.database.db import Database
 from finagent.database.models import Document
@@ -24,7 +23,7 @@ class ConceptRetriever:
         """Initialize concept retriever."""
         self.db = db or Database()
 
-    def extract_query_concepts(self, query: str) -> List[str]:
+    def extract_query_concepts(self, query: str) -> list[str]:
         """
         Extract potential concepts from query text.
 
@@ -100,14 +99,14 @@ class ConceptRetriever:
                 matching_concepts = self.db.search_concepts(keyword)
                 for concept in matching_concepts:
                     if concept.concept_type == "institution":
-                        concepts.append(concept.concept_name)
+                        concepts.append(concept.name)
                         break  # Only add first match
 
         return list(set(concepts))  # Deduplicate
 
     def get_candidate_documents(
         self, query: str, max_candidates: int = 100, min_relevance: float = 0.5
-    ) -> Tuple[List[Document], List[str]]:
+    ) -> tuple[list[Document], list[str]]:
         """
         Get candidate documents based on concept matching.
 
@@ -133,7 +132,7 @@ class ConceptRetriever:
         for concept_name in query_concepts:
             concepts = self.db.search_concepts(concept_name)
             for concept in concepts:
-                matched_concepts.append(concept.concept_name)
+                matched_concepts.append(concept.name)
                 all_concept_ids.add(concept.id)
 
         if not all_concept_ids:
@@ -162,9 +161,9 @@ class ConceptRetriever:
     def filter_by_concept(
         self,
         query: str,
-        vector_results: List[Tuple[str, float]],
+        vector_results: list[tuple[str, float]],
         boost_factor: float = 1.5,
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """
         Re-rank vector search results based on concept matches.
 
@@ -237,7 +236,7 @@ class ConceptRetriever:
         for concept_name in query_concepts:
             concepts = self.db.search_concepts(concept_name)
             for concept in concepts:
-                matched_concepts.append(concept.concept_name)
+                matched_concepts.append(concept.name)
                 concept_types[concept.concept_name] = concept.concept_type
                 document_counts[concept.concept_name] = concept.document_count
 

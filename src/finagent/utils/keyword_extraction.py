@@ -1,10 +1,8 @@
 """Keyword extraction utilities for query validation."""
 
-import re
-from typing import List, Tuple
 
 
-def extract_critical_keywords(query: str) -> List[str]:
+def extract_critical_keywords(query: str) -> list[str]:
     """
     Extract critical keywords that MUST appear in cited documents.
 
@@ -69,7 +67,7 @@ def extract_critical_keywords(query: str) -> List[str]:
     return keywords
 
 
-def extract_must_have_keywords(query: str) -> List[str]:
+def extract_must_have_keywords(query: str) -> list[str]:
     """
     Extract keywords that are absolutely required in cited documents.
 
@@ -102,7 +100,7 @@ def extract_must_have_keywords(query: str) -> List[str]:
     return must_have
 
 
-def extract_keywords_with_priority(query: str) -> List[Tuple[str, int]]:
+def extract_keywords_with_priority(query: str) -> list[tuple[str, int]]:
     """
     Extract keywords with priority scores for ranking.
 
@@ -211,7 +209,7 @@ def identify_entity_type(text: str) -> str:
     return "unknown"
 
 
-def validate_keyword_presence(keywords: List[str], document_text: str) -> Tuple[bool, List[str]]:
+def validate_keyword_presence(keywords: list[str], document_text: str) -> tuple[bool, list[str]]:
     """
     Check if required keywords are present in document.
 

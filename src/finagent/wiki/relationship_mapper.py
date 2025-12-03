@@ -273,7 +273,7 @@ class RelationshipMapper:
 
         try:
             inst_list = json.loads(related_inst) if isinstance(related_inst, str) else related_inst
-            return set(inst for inst in inst_list if inst)
+            return {inst for inst in inst_list if inst}
         except (json.JSONDecodeError, TypeError):
             return set()
 
@@ -293,7 +293,7 @@ class RelationshipMapper:
 
         try:
             viol_list = json.loads(violations) if isinstance(violations, str) else violations
-            return set(viol for viol in viol_list if viol)
+            return {viol for viol in viol_list if viol}
         except (json.JSONDecodeError, TypeError):
             return set()
 
@@ -315,7 +315,7 @@ class RelationshipMapper:
         # Create a pseudo-concept for the related document
         # First, check if concept exists for this document
         cursor = conn.execute(
-            "SELECT id FROM concepts WHERE concept_name = ? AND concept_type = 'related_doc'",
+            "SELECT id FROM concepts WHERE name = ? AND concept_type = 'related_doc'",
             (doc_id2,),
         )
         existing = cursor.fetchone()
@@ -327,7 +327,7 @@ class RelationshipMapper:
             cursor = conn.execute(
                 """
                 INSERT INTO concepts (
-                    concept_name, concept_type, description, document_count
+                    name, concept_type, description, document_count
                 )
                 VALUES (?, ?, ?, 0)
                 """,

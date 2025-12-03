@@ -155,7 +155,7 @@ class PlanningAgent:
                 try:
                     # Convert ResearchPlan to dict for callback
                     await self.ui_callback.on_plan_created(plan)
-                except Exception as e:
+                except Exception:
                     pass
 
             # Step 5: Update state
@@ -263,7 +263,7 @@ class PlanningAgent:
         # Try semantic query expansion (if concept_synonyms table exists)
         try:
             from finagent.document_processing.semantic_mapper import expand_query_with_concepts
-            
+
             query_expansion = expand_query_with_concepts(query_text)
         except Exception as e:
             # Fallback if concept expansion fails (e.g., missing table)

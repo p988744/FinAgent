@@ -4,21 +4,26 @@ Document Management API Routes
 Handles document upload, versioning, and indexing operations.
 """
 
-import logging
-import os
-import uuid
 import asyncio
-from datetime import datetime, timezone
+import logging
+import uuid
+from datetime import UTC, datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any
-from enum import Enum
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Form
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from finagent.document_processing.metadata_store import DocumentMetadataStore
 from finagent.document_processing.indexer import DocumentIndexer
 from finagent.document_processing.loader import DocumentLoader
+from finagent.document_processing.metadata_store import DocumentMetadataStore
+from finagent.models.document_types import (
+    DocumentCategory,
+    get_allowed_document_types,
+    is_document_type_allowed,
+    validate_document_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,13 +85,13 @@ class DocumentResponse(BaseModel):
     pipeline_completed_at: str | None = None
 
     # Metadata extraction status fields
-    indexed: bool = False
-    metadata_extracted: bool = False
-    metadata_extraction_status: str = "pending"  # pending, processing, completed, failed, user_edited
+    indexed: bool | None = False
+    metadata_extracted: bool | None = False
+    metadata_extraction_status: str | None = "pending"  # pending, processing, completed, failed, user_edited
     metadata_extraction_error: str | None = None
-    metadata_extraction_attempts: int = 0
+    metadata_extraction_attempts: int | None = 0
     metadata_last_extracted_at: str | None = None
-    metadata_edited_by_user: bool = False
+    metadata_edited_by_user: bool | None = False
     extraction_confidence: float | None = None
 
     # Additional metadata fields
@@ -133,6 +138,47 @@ class ReindexRequest(BaseModel):
 
     extract_metadata: bool = False
     clear_existing: bool = False
+
+
+# ===== Batch Scan Progress Tracking =====
+
+class BatchScanStage(str, Enum):
+    """Batch scan operation stages."""
+    SCANNING = "scanning"  # 0-10%
+    CLASSIFYING = "classifying"  # 10-30%
+    INDEXING = "indexing"  # 30-90%
+    EXTRACTING_METADATA = "extracting_metadata"  # 30-90% (parallel with indexing)
+    COMPLETE = "complete"  # 100%
+    ERROR = "error"
+
+
+class BatchScanProgress(BaseModel):
+    """Batch scan operation progress."""
+    model_config = {"validate_assignment": True}  # Allow mutable updates
+
+    job_id: str
+    stage: BatchScanStage
+    progress: int  # 0-100
+    message: str
+    total_files: int = 0
+    processed_files: int = 0
+    indexed_files: int = 0
+    failed_files: int = 0
+    metadata_extracted: int = 0
+    current_file: str | None = None
+    error: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+
+
+class BatchScanStartResponse(BaseModel):
+    """Response when starting a batch scan job."""
+    job_id: str
+    message: str
+
+
+# In-memory batch scan progress tracking
+_batch_scan_jobs: dict[str, BatchScanProgress] = {}
 
 
 def _get_metadata_store() -> DocumentMetadataStore:
@@ -207,8 +253,8 @@ def _metadata_to_response(metadata: Any, file_path: str = "") -> DocumentRespons
         status=status,
         chunk_count=metadata.chunk_count,
         version=version,
-        created_at=metadata.created_at if hasattr(metadata, 'created_at') else datetime.now(timezone.utc).isoformat(),
-        updated_at=metadata.updated_at if hasattr(metadata, 'updated_at') else datetime.now(timezone.utc).isoformat(),
+        created_at=metadata.created_at if hasattr(metadata, 'created_at') else datetime.now(UTC).isoformat(),
+        updated_at=metadata.updated_at if hasattr(metadata, 'updated_at') else datetime.now(UTC).isoformat(),
         description=metadata.description,
         document_type=metadata.document_type,
         # Pipeline monitoring fields
@@ -268,7 +314,7 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentResponse:
     # Create metadata
     from finagent.document_processing.metadata_store import DocumentMetadata
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     metadata = DocumentMetadata(
         doc_id=doc_id,
         filename=file.filename,
@@ -297,7 +343,7 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentResponse:
             "version": 1,
             "file_path": str(file_path),
             "size_bytes": len(content),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
     ]
 
@@ -368,7 +414,7 @@ async def upload_documents_batch(
             # Create metadata
             from finagent.document_processing.metadata_store import DocumentMetadata
 
-            now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(UTC).isoformat()
             metadata = DocumentMetadata(
                 doc_id=doc_id,
                 filename=file.filename,
@@ -397,7 +443,7 @@ async def upload_documents_batch(
                     "version": 1,
                     "file_path": str(file_path),
                     "size_bytes": len(content),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             ]
 
@@ -493,8 +539,556 @@ async def get_index_status() -> IndexStatus:
         pending_documents=pending,
         error_documents=0,
         total_chunks=total_chunks,
-        last_indexed_at=datetime.now(timezone.utc).isoformat() if indexed > 0 else None,
+        last_indexed_at=datetime.now(UTC).isoformat() if indexed > 0 else None,
     )
+
+
+# =============================================================================
+# Directory Scanning and Auto-Discovery APIs
+# =============================================================================
+
+
+class DirectoryInfo(BaseModel):
+    """Information about a subdirectory."""
+    name: str
+    path: str
+    file_count: int
+    total_size_bytes: int
+    subdirectories: list["DirectoryInfo"] = []
+
+
+class ScanRequest(BaseModel):
+    """Request to scan directory for new documents."""
+    extract_metadata: bool = False
+    index_new: bool = True
+    auto_classify: bool = True  # Auto-classify document type based on path/content
+    use_llm_classification: bool = False  # Use LLM for classification (slower but more accurate)
+
+
+class ClassifiedFile(BaseModel):
+    """Information about a classified file."""
+    path: str
+    filename: str
+    document_type: str  # category name
+    document_type_zh: str  # Chinese name
+    confidence: float
+    reasoning: str
+
+
+class ScanResult(BaseModel):
+    """Result of directory scan."""
+    total_files_found: int
+    new_files: int
+    existing_files: int
+    indexed_files: int
+    failed_files: int
+    directories_scanned: int
+    new_file_list: list[str]
+    classified_files: list[ClassifiedFile] = []  # Files with classification info
+    directory_structure: list[DirectoryInfo]
+    message: str
+
+
+class DirectoryStructureResponse(BaseModel):
+    """Response containing directory structure."""
+    base_path: str
+    directories: list[DirectoryInfo]
+    total_files: int
+    total_size_bytes: int
+
+
+def _scan_directory_recursive(
+    base_path: Path,
+    current_path: Path,
+    pattern: str = "*.txt"
+) -> tuple[list[Path], DirectoryInfo]:
+    """
+    Recursively scan directory and return files and structure info.
+
+    Args:
+        base_path: The root documents directory
+        current_path: Current directory being scanned
+        pattern: File pattern to match (default: *.txt)
+
+    Returns:
+        Tuple of (list of file paths, DirectoryInfo for current directory)
+    """
+    files: list[Path] = []
+    subdirs: list[DirectoryInfo] = []
+    total_size = 0
+
+    # Get direct files in this directory
+    for file_path in current_path.glob(pattern):
+        if file_path.is_file():
+            files.append(file_path)
+            total_size += file_path.stat().st_size
+
+    # Recursively scan subdirectories
+    for subdir in sorted(current_path.iterdir()):
+        if subdir.is_dir() and not subdir.name.startswith('.'):
+            sub_files, sub_info = _scan_directory_recursive(base_path, subdir, pattern)
+            files.extend(sub_files)
+            subdirs.append(sub_info)
+            total_size += sub_info.total_size_bytes
+
+    # Create info for current directory
+    relative_path = str(current_path.relative_to(base_path)) if current_path != base_path else ""
+    dir_info = DirectoryInfo(
+        name=current_path.name if current_path != base_path else "root",
+        path=relative_path,
+        file_count=len([f for f in current_path.glob(pattern) if f.is_file()]),
+        total_size_bytes=total_size,
+        subdirectories=subdirs
+    )
+
+    return files, dir_info
+
+
+@router.get("/directory-structure")
+async def get_directory_structure() -> DirectoryStructureResponse:
+    """
+    Get the directory structure of the documents folder.
+
+    Returns a tree structure showing all subdirectories and file counts.
+    Users can organize documents in subdirectories for categorization.
+    """
+    docs_dir = DOCUMENTS_PATH
+    if not docs_dir.exists():
+        return DirectoryStructureResponse(
+            base_path=str(docs_dir),
+            directories=[],
+            total_files=0,
+            total_size_bytes=0
+        )
+
+    all_files, root_info = _scan_directory_recursive(docs_dir, docs_dir)
+
+    return DirectoryStructureResponse(
+        base_path=str(docs_dir),
+        directories=root_info.subdirectories,
+        total_files=len(all_files),
+        total_size_bytes=root_info.total_size_bytes
+    )
+
+
+@router.post("/scan")
+async def scan_directory(
+    request: ScanRequest | None = None,
+    background_tasks: BackgroundTasks = None
+) -> ScanResult:
+    """
+    Scan documents directory for new files and optionally index them.
+
+    This endpoint:
+    1. Scans the documents directory recursively
+    2. Identifies files not yet in the database
+    3. Auto-classifies documents by type (法規, 裁罰資料, 知識)
+    4. Optionally indexes new files to the knowledge base
+
+    Args:
+        request: Scan options (extract_metadata, index_new, auto_classify, use_llm_classification)
+
+    Returns:
+        Scan results including new files found, classifications, and directory structure
+    """
+    from finagent.document_processing.indexer import DocumentIndexer
+    from finagent.document_processing.loader import DocumentLoader
+    from finagent.models.document_types import (
+        ALLOWED_DOCUMENT_TYPES,
+        classify_document_by_path,
+        classify_document_with_llm,
+    )
+
+    if request is None:
+        request = ScanRequest()
+
+    docs_dir = DOCUMENTS_PATH
+    store = _get_metadata_store()
+
+    if not docs_dir.exists():
+        return ScanResult(
+            total_files_found=0,
+            new_files=0,
+            existing_files=0,
+            indexed_files=0,
+            failed_files=0,
+            directories_scanned=0,
+            new_file_list=[],
+            classified_files=[],
+            directory_structure=[],
+            message=f"Documents directory not found: {docs_dir}"
+        )
+
+    # Scan directory
+    all_files, root_info = _scan_directory_recursive(docs_dir, docs_dir)
+
+    # Check which files are already in database
+    existing_docs = {doc.file_path: doc for doc in store.db.get_all_documents()}
+    existing_paths = set(existing_docs.keys())
+
+    new_files = []
+    existing_count = 0
+
+    for file_path in all_files:
+        str_path = str(file_path)
+        if str_path in existing_paths:
+            existing_count += 1
+        else:
+            new_files.append(str_path)
+
+    # Count directories
+    def count_dirs(info: DirectoryInfo) -> int:
+        return 1 + sum(count_dirs(sub) for sub in info.subdirectories)
+
+    dirs_scanned = count_dirs(root_info) if root_info.subdirectories else 1
+
+    # Classify new files
+    classified_files: list[ClassifiedFile] = []
+    file_classifications: dict[str, DocumentCategory] = {}
+
+    if request.auto_classify and new_files:
+        loader = DocumentLoader()
+
+        for file_path in new_files:
+            try:
+                abs_path = str(Path(file_path).resolve())
+                filename = Path(file_path).name
+
+                if request.use_llm_classification:
+                    # LLM-based classification (more accurate but slower)
+                    document = loader.load_txt(abs_path)
+                    result = await classify_document_with_llm(
+                        content=document.content,
+                        filename=file_path,
+                    )
+                    category = result.category
+                    confidence = result.confidence
+                    reasoning = result.reasoning
+                else:
+                    # Rule-based classification (fast)
+                    category = classify_document_by_path(file_path)
+                    confidence = 0.9 if category != DocumentCategory.OTHER else 0.5
+                    reasoning = f"根據路徑分類: {Path(file_path).parent.name}/{filename}"
+
+                doc_type = ALLOWED_DOCUMENT_TYPES.get(category, ALLOWED_DOCUMENT_TYPES[DocumentCategory.OTHER])
+                classified_files.append(ClassifiedFile(
+                    path=file_path,
+                    filename=filename,
+                    document_type=category.value,
+                    document_type_zh=doc_type.name_zh,
+                    confidence=confidence,
+                    reasoning=reasoning,
+                ))
+                file_classifications[file_path] = category
+
+            except Exception as e:
+                logger.warning(f"Failed to classify {file_path}: {e}")
+                # Default to OTHER if classification fails
+                doc_type = ALLOWED_DOCUMENT_TYPES[DocumentCategory.OTHER]
+                classified_files.append(ClassifiedFile(
+                    path=file_path,
+                    filename=Path(file_path).name,
+                    document_type=DocumentCategory.OTHER.value,
+                    document_type_zh=doc_type.name_zh,
+                    confidence=0.0,
+                    reasoning=f"分類失敗: {str(e)[:50]}",
+                ))
+                file_classifications[file_path] = DocumentCategory.OTHER
+
+    # Index new files if requested
+    indexed_count = 0
+    failed_count = 0
+
+    if request.index_new and new_files:
+        loader = DocumentLoader()
+        indexer = DocumentIndexer(extract_metadata=request.extract_metadata)
+
+        for file_path in new_files:
+            try:
+                # Convert to absolute path since file_path is like "data/documents/..."
+                # and DocumentLoader.load_txt expects either absolute or relative to base_path
+                abs_path = str(Path(file_path).resolve())
+
+                # Load document using load_txt method with absolute path
+                document = loader.load_txt(abs_path)
+                if document:
+                    # Add classification to document metadata
+                    if file_path in file_classifications:
+                        category = file_classifications[file_path]
+                        doc_type = ALLOWED_DOCUMENT_TYPES.get(category, ALLOWED_DOCUMENT_TYPES[DocumentCategory.OTHER])
+                        document.metadata["document_type"] = doc_type.name_zh
+                        document.metadata["document_category"] = category.value
+
+                    # Index document (async method)
+                    num_chunks = await indexer.index_document(document)
+                    if num_chunks > 0:
+                        indexed_count += 1
+                        logger.info(f"Indexed {file_path} with {num_chunks} chunks")
+            except Exception as e:
+                logger.error(f"Failed to index {file_path}: {e}")
+                failed_count += 1
+
+    return ScanResult(
+        total_files_found=len(all_files),
+        new_files=len(new_files),
+        existing_files=existing_count,
+        indexed_files=indexed_count,
+        classified_files=classified_files,
+        failed_files=failed_count,
+        directories_scanned=dirs_scanned,
+        new_file_list=new_files,
+        directory_structure=root_info.subdirectories,
+        message=f"掃描完成：發現 {len(new_files)} 個新檔案" if new_files else "目錄已同步，無新檔案"
+    )
+
+
+@router.post("/scan-preview")
+async def scan_preview() -> ScanResult:
+    """
+    Preview scan results without indexing.
+
+    Performs a dry-run scan to show what new files would be indexed.
+    """
+    return await scan_directory(ScanRequest(index_new=False, extract_metadata=False))
+
+
+# ===== Batch Scan with Progress Tracking =====
+
+@router.post("/scan-with-progress", response_model=BatchScanStartResponse)
+async def scan_with_progress(
+    request: ScanRequest = None,
+) -> BatchScanStartResponse:
+    """
+    Start a batch scan operation with progress tracking.
+
+    This endpoint:
+    1. Starts a background task to scan and index documents
+    2. Returns a job_id immediately
+    3. Frontend can poll /scan-progress/{job_id} to get real-time updates
+
+    Args:
+        request: Scan options (extract_metadata, index_new, auto_classify)
+
+    Returns:
+        BatchScanStartResponse with job_id
+    """
+    import asyncio
+
+    if request is None:
+        request = ScanRequest()
+
+    # Generate job ID
+    job_id = str(uuid.uuid4())
+    started_at = datetime.now(UTC).isoformat()
+
+    # Initialize progress tracking
+    _batch_scan_jobs[job_id] = BatchScanProgress(
+        job_id=job_id,
+        stage=BatchScanStage.SCANNING,
+        progress=0,
+        message="開始掃描目錄...",
+        started_at=started_at,
+    )
+
+    # Start background task using asyncio.create_task for true async execution
+    # This ensures the response is returned immediately without waiting
+    asyncio.create_task(_process_batch_scan_with_progress(job_id, request))
+
+    return BatchScanStartResponse(
+        job_id=job_id,
+        message="批次掃描已啟動，請使用 job_id 查詢進度"
+    )
+
+
+@router.get("/scan-progress/{job_id}", response_model=BatchScanProgress)
+async def get_scan_progress(job_id: str) -> BatchScanProgress:
+    """
+    Get the current progress of a batch scan job.
+
+    Frontend polls this endpoint every 500ms-1s to get updates.
+    """
+    if job_id not in _batch_scan_jobs:
+        raise HTTPException(status_code=404, detail="Scan job not found")
+
+    return _batch_scan_jobs[job_id]
+
+
+@router.delete("/scan-progress/{job_id}")
+async def clear_scan_progress(job_id: str):
+    """Clear a completed scan job from memory."""
+    if job_id in _batch_scan_jobs:
+        del _batch_scan_jobs[job_id]
+        return {"message": "Scan job cleared"}
+    raise HTTPException(status_code=404, detail="Scan job not found")
+
+
+async def _process_batch_scan_with_progress(
+    job_id: str,
+    request: ScanRequest,
+) -> None:
+    """
+    Background task to process batch scan with progress updates.
+
+    Updates _batch_scan_jobs[job_id] as it progresses.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[BatchScan] Starting background task for job {job_id}")
+
+    try:
+        from finagent.document_processing.indexer import DocumentIndexer
+        from finagent.document_processing.loader import DocumentLoader
+        from finagent.models.document_types import (
+            ALLOWED_DOCUMENT_TYPES,
+            DocumentCategory,
+            classify_document_by_path,
+            classify_document_with_llm,
+        )
+        logger.info("[BatchScan] Imports successful")
+    except Exception as import_error:
+        logger.error(f"[BatchScan] Import error: {import_error}")
+        if job_id in _batch_scan_jobs:
+            _batch_scan_jobs[job_id].stage = BatchScanStage.ERROR
+            _batch_scan_jobs[job_id].error = f"Import error: {import_error}"
+        return
+
+    progress = _batch_scan_jobs[job_id]
+    logger.info("[BatchScan] Got progress object, starting processing")
+
+    try:
+        # Stage 1: Scanning (0-10%)
+        progress.stage = BatchScanStage.SCANNING
+        progress.progress = 5
+        progress.message = "掃描目錄中..."
+
+        docs_dir = DOCUMENTS_PATH
+        store = _get_metadata_store()
+
+        if not docs_dir.exists():
+            progress.stage = BatchScanStage.ERROR
+            progress.error = f"Documents directory not found: {docs_dir}"
+            progress.message = "錯誤：文件目錄不存在"
+            return
+
+        # Scan directory
+        all_files, root_info = _scan_directory_recursive(docs_dir, docs_dir)
+        progress.total_files = len(all_files)
+        progress.progress = 10
+        progress.message = f"發現 {len(all_files)} 個檔案"
+
+        # Check which files are already in database
+        existing_count = 0
+        new_files = []
+        for file_path in all_files:
+            str_path = str(file_path)
+            if store.get_metadata(str_path.replace("/", "_").replace(".", "_")):
+                existing_count += 1
+            else:
+                new_files.append(str_path)
+
+        progress.total_files = len(new_files)
+        progress.progress = 15
+        progress.message = f"發現 {len(new_files)} 個新檔案需要處理"
+
+        if not new_files:
+            progress.stage = BatchScanStage.COMPLETE
+            progress.progress = 100
+            progress.message = "目錄已同步，無新檔案"
+            progress.completed_at = datetime.now(UTC).isoformat()
+            return
+
+        # Stage 2: Classifying (10-30%)
+        progress.stage = BatchScanStage.CLASSIFYING
+        file_classifications: dict[str, DocumentCategory] = {}
+
+        if request.auto_classify:
+            loader = DocumentLoader()
+            for i, file_path in enumerate(new_files):
+                try:
+                    progress.current_file = Path(file_path).name
+                    progress.progress = 15 + int((i / len(new_files)) * 15)
+                    progress.message = f"分類中: {progress.current_file}"
+
+                    if request.use_llm_classification:
+                        abs_path = str(Path(file_path).resolve())
+                        document = loader.load_txt(abs_path)
+                        result = await classify_document_with_llm(
+                            content=document.content,
+                            filename=file_path,
+                        )
+                        category = result.category
+                    else:
+                        category = classify_document_by_path(file_path)
+
+                    file_classifications[file_path] = category
+
+                except Exception as e:
+                    logger.warning(f"Failed to classify {file_path}: {e}")
+                    file_classifications[file_path] = DocumentCategory.OTHER
+
+        progress.progress = 30
+        progress.message = f"分類完成，準備索引 {len(new_files)} 個檔案"
+
+        # Stage 3: Indexing (30-90%)
+        if request.index_new:
+            progress.stage = BatchScanStage.INDEXING
+            loader = DocumentLoader()
+            indexer = DocumentIndexer(extract_metadata=request.extract_metadata)
+
+            for i, file_path in enumerate(new_files):
+                try:
+                    progress.current_file = Path(file_path).name
+                    progress.processed_files = i
+                    base_progress = 30 + int((i / len(new_files)) * 60)
+                    progress.progress = min(base_progress, 89)
+
+                    if request.extract_metadata:
+                        progress.message = f"索引並提取 metadata: {progress.current_file} ({i+1}/{len(new_files)})"
+                    else:
+                        progress.message = f"索引中: {progress.current_file} ({i+1}/{len(new_files)})"
+
+                    abs_path = str(Path(file_path).resolve())
+                    document = loader.load_txt(abs_path)
+
+                    if document:
+                        # Add classification to document metadata
+                        if file_path in file_classifications:
+                            category = file_classifications[file_path]
+                            doc_type = ALLOWED_DOCUMENT_TYPES.get(category, ALLOWED_DOCUMENT_TYPES[DocumentCategory.OTHER])
+                            document.metadata["document_type"] = doc_type.name_zh
+                            document.metadata["document_category"] = category.value
+
+                        # Index document (async method)
+                        num_chunks = await indexer.index_document(document)
+                        if num_chunks > 0:
+                            progress.indexed_files += 1
+                            if request.extract_metadata:
+                                progress.metadata_extracted += 1
+                            logger.info(f"Indexed {file_path} with {num_chunks} chunks")
+
+                except Exception as e:
+                    logger.error(f"Failed to index {file_path}: {e}")
+                    progress.failed_files += 1
+
+            progress.processed_files = len(new_files)
+
+        # Stage 4: Complete
+        progress.stage = BatchScanStage.COMPLETE
+        progress.progress = 100
+        progress.current_file = None
+        progress.completed_at = datetime.now(UTC).isoformat()
+
+        if request.extract_metadata:
+            progress.message = f"完成：索引 {progress.indexed_files} 個檔案，提取 {progress.metadata_extracted} 個 metadata，{progress.failed_files} 個失敗"
+        else:
+            progress.message = f"完成：索引 {progress.indexed_files} 個檔案，{progress.failed_files} 個失敗"
+
+    except Exception as e:
+        logger.error(f"Batch scan failed: {e}")
+        progress.stage = BatchScanStage.ERROR
+        progress.error = str(e)
+        progress.message = f"錯誤：{str(e)}"
+        progress.completed_at = datetime.now(UTC).isoformat()
 
 
 @router.get("/{document_id}")
@@ -526,7 +1120,7 @@ async def get_document_content(document_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Document file not found: {file_path}")
 
     # Read file content
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         content = f.read()
 
     return {
@@ -729,7 +1323,7 @@ async def upload_new_version(
             "version": version_num,
             "file_path": str(file_path),
             "size_bytes": len(content),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -778,7 +1372,7 @@ async def get_version_history(document_id: str) -> list[DocumentVersion]:
                     "version": 1,
                     "file_path": doc.file_path,
                     "size_bytes": size_bytes,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 }
             ]
 
@@ -801,15 +1395,17 @@ async def _process_upload_with_progress(
     content: bytes,
     auto_index: bool,
     extract_metadata: bool,
-    duplicate_action: str = "version"
+    duplicate_action: str = "version",
+    document_type: str = "penalty",
 ):
     """
     Process file upload and enqueue Celery task for async processing.
     This function handles file saving and initial metadata, then hands off to Celery.
     """
+    import json
+
     from finagent.models.pipeline import DocumentPipeline, PipelineStage, PipelineStatus
     from finagent.tasks.document_processing import process_document_upload
-    import json
 
     print(f"[UPLOAD] Background task started for job {job_id}, filename: {filename}", flush=True)
 
@@ -833,7 +1429,7 @@ async def _process_upload_with_progress(
         print(f"[UPLOAD] Pipeline created successfully, current stage: {pipeline.current_stage}", flush=True)
 
         # Stage 1: Uploading (simulate - already uploaded in request)
-        print(f"[UPLOAD] Setting initial upload progress", flush=True)
+        print("[UPLOAD] Setting initial upload progress", flush=True)
         _upload_jobs[job_id] = UploadProgress(
             job_id=job_id,
             filename=filename,
@@ -845,7 +1441,7 @@ async def _process_upload_with_progress(
         await asyncio.sleep(0.1)  # Small delay for UI
 
         # Stage 2: File saved
-        print(f"[UPLOAD] Stage 2: Saving file to disk", flush=True)
+        print("[UPLOAD] Stage 2: Saving file to disk", flush=True)
         file_path = DOCUMENTS_PATH / filename
 
         # Handle duplicate filenames based on action
@@ -897,23 +1493,23 @@ async def _process_upload_with_progress(
             PipelineStatus.SUCCESS,
             details={"file_size": len(content), "path": str(file_path)}
         )
-        print(f"[UPLOAD] Pipeline updated to UPLOADED SUCCESS", flush=True)
+        print("[UPLOAD] Pipeline updated to UPLOADED SUCCESS", flush=True)
 
         await asyncio.sleep(0.1)
 
         # Stage 3: Create and save initial metadata
-        print(f"[UPLOAD] Stage 3: Creating and saving metadata", flush=True)
+        print("[UPLOAD] Stage 3: Creating and saving metadata", flush=True)
         from finagent.document_processing.metadata_store import DocumentMetadata
 
         pipeline.update_stage(PipelineStage.PARSING, PipelineStatus.IN_PROGRESS)
-        print(f"[UPLOAD] Pipeline updated to PARSING IN_PROGRESS", flush=True)
+        print("[UPLOAD] Pipeline updated to PARSING IN_PROGRESS", flush=True)
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         metadata = DocumentMetadata(
             doc_id=doc_id,
             filename=filename,
             description=f"Uploaded file: {filename}",
-            document_type="uploaded",
+            document_type=document_type,  # Use the user-specified document type
             keywords=[],
             date=None,
             issuing_authority=None,
@@ -1025,6 +1621,7 @@ async def upload_file_with_progress(
     auto_index: bool = Form(True),
     extract_metadata: bool = Form(True),
     duplicate_action: str = Form("ask"),  # "ask", "version", "replace", "skip"
+    document_type: str = Form("penalty"),  # Document type classification
 ):
     """
     Upload a single file and return a job ID for progress tracking.
@@ -1041,12 +1638,26 @@ async def upload_file_with_progress(
             - "version": Automatically create new version
             - "replace": Replace existing file
             - "skip": Skip upload if file exists
+        document_type: Document type classification (required)
+            - "penalty": 裁罰書 - Regulatory penalty documents
+            - "legal_provision": 法條 - Legal provisions
+            - "court_judgment": 判決書 - Court judgments
+            - "regulatory_notice": 監管公告 - Regulatory announcements
+            - "knowledge_base": 知識文件 - Knowledge base documents
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
 
     if not file.filename.endswith(".txt"):
         raise HTTPException(status_code=400, detail="Only .txt files are supported")
+
+    # Validate document type
+    if not is_document_type_allowed(document_type):
+        allowed_types = ", ".join([dt.name_zh for dt in get_allowed_document_types()])
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件類型 '{document_type}' 不允許上傳。允許的類型：{allowed_types}"
+        )
 
     # Read file content
     content = await file.read()
@@ -1079,7 +1690,7 @@ async def upload_file_with_progress(
     job_id = str(uuid.uuid4())
 
     # Start background processing
-    print(f"[ENDPOINT] Adding background task for job {job_id}, file: {file.filename}", flush=True)
+    print(f"[ENDPOINT] Adding background task for job {job_id}, file: {file.filename}, type: {document_type}", flush=True)
     background_tasks.add_task(
         _process_upload_with_progress,
         job_id=job_id,
@@ -1087,9 +1698,10 @@ async def upload_file_with_progress(
         content=content,
         auto_index=auto_index,
         extract_metadata=extract_metadata,
-        duplicate_action=duplicate_action
+        duplicate_action=duplicate_action,
+        document_type=document_type,
     )
-    print(f"[ENDPOINT] Background task added successfully", flush=True)
+    print("[ENDPOINT] Background task added successfully", flush=True)
 
     return UploadWithProgressResponse(
         job_id=job_id,
@@ -1138,8 +1750,9 @@ async def get_celery_task_status(task_id: str):
     Get the current status of a Celery task.
     Frontend can poll this to track document processing progress.
     """
-    from finagent.celery_app import celery_app
     from celery.result import AsyncResult
+
+    from finagent.celery_app import celery_app
 
     task_result = AsyncResult(task_id, app=celery_app)
 
@@ -1374,7 +1987,7 @@ async def extract_document_metadata(
         extracted_metadata = await extractor.extract_metadata(document.content, document.metadata.filename)
 
         # Update document with extracted metadata
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         doc_updated = doc.model_copy()
         doc_updated.document_type = extracted_metadata.get("document_type")
         doc_updated.issuing_authority = extracted_metadata.get("issuing_authority")
@@ -1406,7 +2019,7 @@ async def extract_document_metadata(
         doc_failed = doc.model_copy()
         doc_failed.metadata_extraction_status = "failed"
         doc_failed.metadata_extraction_error = str(e)
-        doc_failed.metadata_last_extracted_at = datetime.now(timezone.utc)
+        doc_failed.metadata_last_extracted_at = datetime.now(UTC)
         store.db.add_document(doc_failed)
 
         return MetadataExtractResponse(
@@ -1510,7 +2123,7 @@ async def update_document_metadata(
         # Mark as user edited
         doc_copy.metadata_edited_by_user = True
         doc_copy.metadata_extraction_status = "user_edited"
-        doc_copy.updated_at = datetime.now(timezone.utc)
+        doc_copy.updated_at = datetime.now(UTC)
 
         # Update database (add_document does upsert)
         store.db.add_document(doc_copy)
@@ -1752,4 +2365,108 @@ async def get_pipeline_stats() -> PipelineStatsResponse:
         by_stage=stage_counts,
         avg_duration_seconds=avg_duration,
         failed_documents=failed_docs
+    )
+
+
+# ===== Document Type Classification Endpoints =====
+
+class DocumentTypeResponse(BaseModel):
+    """Document type information for frontend."""
+    category: str
+    name_zh: str
+    name_en: str
+    description: str
+    allowed: bool
+    requires_authority: bool
+    requires_date: bool
+    example_filename_pattern: str | None = None
+
+
+class AllowedDocumentTypesResponse(BaseModel):
+    """List of allowed document types for upload."""
+    allowed_types: list[DocumentTypeResponse]
+    total_count: int
+
+
+@router.get("/types/allowed")
+async def get_allowed_types() -> AllowedDocumentTypesResponse:
+    """
+    Get list of document types allowed for upload.
+
+    This endpoint returns all document categories that users can upload.
+    Use this to populate document type selector in the upload form.
+
+    Allowed types:
+    - 裁罰書 (penalty) - Regulatory penalty documents
+    - 法條 (legal_provision) - Legal provisions/articles
+    - 判決書 (court_judgment) - Court judgments
+    - 監管公告 (regulatory_notice) - Regulatory announcements
+    - 知識文件 (knowledge_base) - Knowledge base documents
+
+    Not allowed:
+    - 新聞報導 (news) - Secondary source
+    - 分析報告 (analysis) - Secondary source
+    - 銀行聲明 (bank_statement) - Biased source
+    - 其他 (other) - Requires review
+    """
+    allowed_types = get_allowed_document_types()
+
+    return AllowedDocumentTypesResponse(
+        allowed_types=[
+            DocumentTypeResponse(
+                category=dt.category.value,
+                name_zh=dt.name_zh,
+                name_en=dt.name_en,
+                description=dt.description,
+                allowed=dt.allowed,
+                requires_authority=dt.requires_authority,
+                requires_date=dt.requires_date,
+                example_filename_pattern=dt.example_filename_pattern,
+            )
+            for dt in allowed_types
+        ],
+        total_count=len(allowed_types),
+    )
+
+
+class DocumentTypeValidationRequest(BaseModel):
+    """Request to validate a document type before upload."""
+    category: str
+    issuing_authority: str | None = None
+    document_date: str | None = None
+
+
+class DocumentTypeValidationResponse(BaseModel):
+    """Response from document type validation."""
+    valid: bool
+    category: str | None = None
+    name_zh: str | None = None
+    error_message: str | None = None
+    warnings: list[str] = []
+
+
+@router.post("/types/validate")
+async def validate_type(request: DocumentTypeValidationRequest) -> DocumentTypeValidationResponse:
+    """
+    Validate a document type before upload.
+
+    This endpoint checks:
+    1. Whether the category is valid
+    2. Whether the category is allowed for upload
+    3. Whether required fields are provided (warnings if missing)
+
+    Use this endpoint before uploading to ensure the document type is accepted.
+    """
+    result = validate_document_type(
+        category=request.category,
+        issuing_authority=request.issuing_authority,
+        document_date=request.document_date,
+    )
+
+    return DocumentTypeValidationResponse(
+        valid=result.valid,
+        category=result.category.value if result.category else None,
+        name_zh=result.document_type.name_zh if result.document_type else None,
+        error_message=result.error_message,
+        warnings=result.warnings,
     )

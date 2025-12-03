@@ -1,37 +1,158 @@
-# FinAgent - Financial Legal Research Agent System
+<div align="center">
 
-A specialized AI-powered financial legal research system for analyzing bank penalties, regulatory enforcement actions, and legal precedents in Taiwan's financial sector.
+# 🏦 FinAgent
 
-## Features
+**AI-Powered Financial Legal Research System for Taiwan**
 
-- 🤖 **Multi-Agent Architecture**: LangGraph-based workflow with Planning, Action, Validation, and Answer agents
-- 📚 **RAG Pipeline**: Semantic search with OpenAI embeddings and Chroma vector database
-- 🔍 **Document Processing**: TXT files with recursive subfolder indexing and LLM-generated metadata
-- 💬 **CLI Interface**: Interactive REPL with rich formatting
-- 🌐 **FastAPI Backend**: RESTful API for programmatic access
-- 🔧 **Flexible LLM Configuration**: OpenAI-compatible API support (OpenAI, Ollama, custom endpoints)
-- 🇹🇼 **Traditional Chinese**: Full support with Jieba word segmentation
-- 📊 **Todo Tracking**: Real-time task status monitoring in agent workflow
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-v2.0--beta1-orange.svg)](https://github.com/p988744/FinAgent)
 
-## Quick Start
+*Specialized AI system for analyzing bank penalties, regulatory enforcement actions, and legal precedents in Taiwan's financial sector*
+
+[Quick Start](#-quick-start) • [Features](#-features) • [Documentation](#-documentation) • [API](#-api)
+
+</div>
+
+---
+
+## 🆕 What's New in v2.0-beta1
+
+- **Chat-based UI**: Modern React frontend with real-time research progress
+- **Deep Research Agent**: Advanced multi-step reasoning with dynamic replanning
+- **Async Processing**: Celery-based background task processing with Redis
+- **Alembic Migrations**: Professional database schema management
+- **Enhanced RAG**: Hybrid search combining vector similarity and BM25
+- **Real-time Updates**: WebSocket-based progress streaming
+
+---
+
+## 📑 Table of Contents
+
+- [Features](#-features)
+- [Quick Start](#-quick-start)
+- [Installation](#-installation)
+- [Usage](#-usage)
+  - [Web Interface](#web-interface)
+  - [CLI Interface](#cli-interface)
+  - [API Server](#api-server)
+- [Architecture](#-architecture)
+- [Research Tools](#-research-tools)
+- [Database Schema](#-database-schema)
+- [Development](#-development)
+- [Performance](#-performance)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
+## ✨ Features
+
+🤖 **Multi-Agent Architecture**
+- LangGraph-based Deep Research Agent with dynamic planning
+- Real-time task tracking and progress monitoring
+- Automatic query decomposition and synthesis
+
+📚 **Advanced RAG Pipeline**
+- Semantic search with OpenAI embeddings (text-embedding-3-small)
+- Hybrid retrieval: Vector similarity + BM25 keyword matching
+- Paragraph-aware chunking (512 tokens, 128 overlap)
+- LLM-generated metadata extraction
+
+🔍 **Document Processing**
+- Automatic TXT file processing with recursive subfolder indexing
+- 6 specialized research tools (vector search, metadata search, hybrid search, etc.)
+- Taiwan legal citation formatting ([引用1]、[引用2])
+
+🌐 **Modern Web Interface**
+- React-based chat UI with real-time progress
+- Document management with upload/indexing
+- Research history and bookmarking
+- Settings management for LLM configuration
+
+🔧 **LLM Compatibility**
+- OpenAI API support (GPT-4o, GPT-4o-mini)
+- Ollama integration for local models
+- Custom endpoint configuration
+
+🇹🇼 **Traditional Chinese**
+- Full Traditional Chinese support
+- Jieba word segmentation
+- Taiwan-specific legal terminology
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+ (for frontend)
+- Redis (for async processing)
+
+### Installation
 
 ```bash
-# Clone the repository
+# Clone repository
 git clone https://github.com/p988744/FinAgent.git
 cd FinAgent
+
+# Backend setup
+uv sync
+
+# Frontend setup
+cd frontend && npm install && cd ..
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your OpenAI API key
+```
+
+### Start Services
+
+```bash
+# Terminal 1: Backend API
+uv run uvicorn finagent.main:app --reload --port 8000
+
+# Terminal 2: Celery Worker (for async processing)
+uv run celery -A finagent.celery_app worker --loglevel=info
+
+# Terminal 3: Frontend
+cd frontend && npm run dev
+```
+
+### Access
+
+- **Web UI**: http://localhost:5173
+- **API Docs**: http://localhost:8000/docs
+
+---
+
+## 📦 Installation
+
+### Using uv (Recommended)
+
+```bash
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install dependencies
 uv sync
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your API keys
-
-# Run the CLI
-uv run finagent
+# Initialize database
+uv run alembic upgrade head
 ```
 
-### Configuration
+### Using pip
+
+```bash
+pip install -e .
+alembic upgrade head
+```
+
+### Environment Configuration
+
+Create `.env` file:
 
 ```bash
 # OpenAI (default)
@@ -40,103 +161,186 @@ LLM_BASE_URL=                    # Empty = use OpenAI
 LLM_MODEL=gpt-4o-mini
 EMBEDDING_MODEL=text-embedding-3-small
 
-# Custom Endpoint (e.g., Ollama)
-LLM_API_KEY=ollama
-LLM_BASE_URL=http://localhost:11434/v1
-LLM_MODEL=qwen2.5:7b
-EMBEDDING_MODEL=bge-m3
+# Redis (for async processing)
+REDIS_URL=redis://localhost:6379/0
+
+# Ollama (alternative)
+# LLM_API_KEY=ollama
+# LLM_BASE_URL=http://localhost:11434/v1
+# LLM_MODEL=qwen2.5:7b
 ```
 
-## Project Structure
+---
 
-```
-FinAgent/
-├── src/finagent/              # Source code
-│   ├── cli/                   # CLI interface
-│   ├── api/                   # FastAPI routes
-│   ├── agents/                # Multi-agent system
-│   ├── document_processing/   # RAG pipeline
-│   ├── database/              # SQLite persistence
-│   ├── models/                # Pydantic models
-│   └── config.py              # Configuration
-├── tests/                     # Test suite
-│   ├── unit/                  # Unit tests
-│   └── integration/           # Integration tests
-├── data/                      # Data directory
-│   ├── documents/             # Source documents
-│   └── vector_db/             # Chroma database
-├── pyproject.toml             # Project configuration
-├── CLAUDE.md                  # Claude Code instructions
-├── CHANGELOG.md               # Version history
-└── README.md                  # This file
-```
+## 💻 Usage
 
-## Usage
+### Web Interface
 
-### CLI Commands
+The React-based web interface provides:
+
+- **Chat Interface**: Submit research queries and view real-time progress
+- **Document Management**: Upload, index, and manage documents
+- **Research History**: View past queries with bookmarking
+- **Settings**: Configure LLM models and API keys
 
 ```bash
-# Start the CLI
-uv run finagent
-
-# Query examples
-finagent> 玉山銀行洗錢防制裁罰
-finagent> 2020年金管會裁罰案件
-finagent> 內線交易相關判決
-
-# Commands
-finagent> /help       # Show all commands
-finagent> /config     # View/modify configuration
-finagent> /reindex    # Rebuild document index
-finagent> /clear      # Clear screen
-finagent> /exit       # Exit CLI
+cd frontend
+npm run dev
+# Open http://localhost:5173
 ```
 
-### FastAPI Server
+### CLI Interface
 
 ```bash
-# Start API server
+# Process documents from a directory
+uv run finagent process -r data/documents
+
+# Load documents only (no indexing)
+uv run finagent load -r data/documents
+
+# Extract metadata only
+uv run finagent metadata -r data/documents
+
+# Index documents only
+uv run finagent index -r data/documents
+
+# Show help
+uv run finagent --help
+```
+
+### API Server
+
+```bash
+# Start FastAPI server
 uv run uvicorn finagent.main:app --reload --port 8000
 
 # Health check
 curl http://localhost:8000/health
 
-# Submit query
-curl -X POST http://localhost:8000/api/v1/research/query/sync \
+# Submit async query
+curl -X POST http://localhost:8000/api/v1/research/query \
   -H "Content-Type: application/json" \
   -d '{"text": "玉山銀行洗錢防制裁罰"}'
+
+# API documentation
+open http://localhost:8000/docs
 ```
 
-### Importing Documents
+---
 
+## 🏗 Architecture
+
+### System Overview
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   React UI      │────▶│   FastAPI       │────▶│   Celery        │
+│   (Port 5173)   │     │   (Port 8000)   │     │   Worker        │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                               │                        │
+                               ▼                        ▼
+                        ┌─────────────────┐     ┌─────────────────┐
+                        │   SQLite DB     │     │   Redis Queue   │
+                        │   (finagent.db) │     │   (Port 6379)   │
+                        └─────────────────┘     └─────────────────┘
+                               │
+                               ▼
+                        ┌─────────────────┐
+                        │   Chroma        │
+                        │   Vector DB     │
+                        └─────────────────┘
+```
+
+### Deep Research Agent Workflow
+
+```
+User Query
+    │
+    ▼
+┌─────────────┐
+│   Planner   │ ──▶ Creates research plan with tasks
+└─────────────┘
+    │
+    ▼
+┌─────────────┐
+│  Executor   │ ──▶ Executes tasks using RAG tools
+└─────────────┘
+    │
+    ▼
+┌─────────────┐
+│  Replanner  │ ──▶ Reviews progress, replans or responds
+└─────────────┘
+    │
+    ▼
+Final Response with Citations
+```
+
+### RAG Pipeline
+
+- Document loading with LLM-generated metadata
+- Paragraph-aware chunking (512 tokens, 128 overlap)
+- OpenAI embedding generation (text-embedding-3-small)
+- Chroma vector database indexing
+- Hybrid search: Vector similarity (60%) + BM25 (40%)
+- Taiwan legal citation formatting
+
+---
+
+## 🔧 Research Tools
+
+FinAgent includes 6 specialized research tools:
+
+| Tool | Best For | Speed | Key Features |
+|------|----------|-------|--------------|
+| **Vector Search** | General semantic search | Fast | Top-k semantic similarity |
+| **Metadata Search** | Date/entity filtering | Very Fast | SQL-based filters |
+| **Hybrid Search** | Filtered semantic search | Medium | Metadata + vector |
+| **Multi-Entity** | Comparison queries | Slow | Parallel entity analysis |
+| **List Documents** | Comprehensive inventories | Very Fast | Exhaustive results |
+| **Read File** | Direct file access | Very Fast | Exact filename match |
+
+---
+
+## 🗄 Database Schema
+
+SQLite with Alembic migrations for schema management:
+
+**Core Tables:**
+- `documents` - Document metadata and LLM-extracted fields
+- `document_pipelines` - Processing status tracking
+- `research_sessions` - Query sessions and results
+- `tool_executions` - Research tool execution logs
+- `concepts` - Extracted topics and concepts
+
+**Database Commands:**
 ```bash
-# Place documents in data/documents/
-mkdir -p data/documents
-cp your_documents/*.txt data/documents/
+# Apply migrations
+uv run alembic upgrade head
 
-# Reindex with LLM metadata
-uv run finagent
-finagent> /reindex
+# Create new migration
+uv run alembic revision --autogenerate -m "description"
 
-# Or via CLI directly
-uv run finagent reindex --clear --yes
+# View migration history
+uv run alembic history
 ```
 
-## Development
+---
+
+## 👨‍💻 Development
 
 ### Running Tests
 
 ```bash
-# Run all tests
+# All tests
 uv run pytest
 
-# Run with coverage
+# With coverage
 uv run pytest --cov=src/finagent --cov-report=html
 
-# Run unit tests only
+# Unit tests only
 uv run pytest -m unit
 
-# Run integration tests only
+# Integration tests only
 uv run pytest -m integration
 ```
 
@@ -153,331 +357,84 @@ uv run ruff check src/ tests/
 uv run mypy src/
 ```
 
-## Architecture
-
-### Multi-Agent Workflow
+### Project Structure
 
 ```
-User Query → Planning Agent → Action Agent → Validation Agent → Answer Agent → Response
-                    ↓              ↓              ↓                    ↓
-                  Tasks       RAG Retrieval   Citations           Synthesis
+FinAgent/
+├── src/finagent/              # Backend source code
+│   ├── api/                   # FastAPI routes
+│   ├── agents/                # Multi-agent system
+│   │   └── plan_execute/      # Deep Research Agent
+│   ├── cli/                   # CLI commands
+│   ├── database/              # SQLite + Alembic
+│   ├── document_processing/   # RAG pipeline
+│   ├── tools/                 # Research tools
+│   └── wiki/                  # Wiki/knowledge base
+├── frontend/                  # React UI
+│   ├── src/components/        # React components
+│   ├── src/hooks/             # Custom hooks
+│   └── src/pages/             # Page components
+├── tests/                     # Test suite
+├── data/                      # Data directory
+│   ├── documents/             # Source documents
+│   └── vector_db/             # Chroma database
+├── scripts/                   # Utility scripts
+└── logs/                      # Application logs
 ```
-
-1. **Planning Agent** - Analyzes query, creates research plan, generates todo items
-2. **Action Agent** - Retrieves relevant documents via RAG, updates task status
-3. **Validation Agent** - Verifies citation integrity, checks source coverage
-4. **Answer Agent** - Synthesizes LLM-powered response with confidence scoring
-
-### RAG Pipeline
-
-- Document loading with LLM-generated metadata
-- Paragraph-aware chunking (512 tokens, 128 overlap)
-- OpenAI embedding generation (text-embedding-3-small)
-- Chroma vector database indexing
-- Semantic search with 0.8 relevance threshold
-- Taiwan legal citation formatting ([引用1]、[引用2])
-
-## Research Tools
-
-FinAgent includes 6 specialized research tools that the Action Agent uses to retrieve relevant information. Each tool is optimized for specific query types and use cases.
-
-### Tool Selection Strategy
-
-The Planning Agent analyzes the user's query and selects appropriate tools based on:
-- **Query intent** (semantic search, temporal analysis, comparison, etc.)
-- **Required features** (entity names, date ranges, specific filenames)
-- **Execution characteristics** (speed, cost, result completeness)
-
-### Available Tools
-
-#### 1. Vector Search Tool (`vector_search`)
-
-**Best for**: General semantic search, keyword queries, concept-based search
-
-**Capabilities**:
-- Semantic similarity search using OpenAI embeddings
-- Chroma vector database with 0.8 relevance threshold
-- Returns top-k most relevant chunks (default: 10)
-
-**Parameters**:
-```python
-{
-  "query": "玉山銀行洗錢防制",
-  "top_k": 10,                    # Number of results
-  "relevance_threshold": 0.8,     # Max distance threshold
-  "filter_document_ids": ["doc1"] # Optional: filter to specific documents
-}
-```
-
-**Limitations**:
-- Cannot filter by date or metadata
-- Returns top-k only (not exhaustive)
-- May miss exact filename matches
-- Requires vector database index
-
-**Use cases**:
-- "玉山銀行洗錢防制裁罰" (semantic query)
-- "內部控制缺失相關案例" (keyword search)
-- "金融詐欺判決" (general search)
 
 ---
 
-#### 2. Metadata Search Tool (`metadata_search`)
+## 📊 Performance
 
-**Best for**: Date-based queries, entity-specific search, jurisdiction filtering
-
-**Capabilities**:
-- Filter documents by metadata attributes
-- SQL-based database queries (fast, ~1-2 seconds)
-- Returns all matching documents (not limited to top-k)
-
-**Parameters**:
-```python
-{
-  "entity": "玉山銀行",           # Entity name (partial match)
-  "date_from": "2020-01-01",     # Start date (YYYY-MM-DD)
-  "date_to": "2020-12-31",       # End date (YYYY-MM-DD)
-  "penalty_type": "洗錢防制",    # Penalty type (partial match)
-  "jurisdiction": "金管會",      # Jurisdiction (exact match)
-  "year_ad": 2020                # Year in AD
-}
-```
-
-**Limitations**:
-- Requires metadata index
-- Cannot perform semantic matching
-- Returns metadata only (not full content)
-
-**Use cases**:
-- "2020年玉山銀行裁罰" (temporal + entity)
-- "最近的金管會裁罰案件" (temporal)
-- "內線交易相關裁罰" (penalty type)
-
----
-
-#### 3. Hybrid Search Tool (`hybrid_search`)
-
-**Best for**: Filtered semantic search with temporal or entity constraints
-
-**Capabilities**:
-- Two-stage process: metadata filtering → vector search
-- Combines precision of metadata with semantic understanding
-- Balances speed and accuracy
-
-**Process**:
-1. **Stage 1**: Filter documents by metadata (entity, date, jurisdiction)
-2. **Stage 2**: Semantic vector search within filtered candidates
-
-**Parameters**:
-```python
-{
-  "query": "洗錢防制缺失",          # Semantic query
-  "entity": "玉山銀行",            # Metadata filters (optional)
-  "date_from": "2020-01-01",
-  "date_to": "2020-12-31",
-  "top_k": 10,
-  "relevance_threshold": 0.8
-}
-```
-
-**Limitations**:
-- Slower than pure vector or metadata search (~3-7 seconds)
-- Requires both vector index and metadata database
-- Performance depends on candidate count
-
-**Use cases**:
-- "2020年玉山銀行洗錢防制缺失" (temporal + entity + semantic)
-- "金管會最近的內部控制裁罰" (jurisdiction + temporal + semantic)
-
----
-
-#### 4. Multi-Entity Search Tool (`multi_entity_search`)
-
-**Best for**: Comparison queries, parallel entity analysis
-
-**Capabilities**:
-- Search multiple entities in parallel
-- Optimized for "A vs B" queries
-- Groups results by entity for easy comparison
-
-**Parameters**:
-```python
-{
-  "query": "洗錢防制裁罰",
-  "entities": ["玉山銀行", "國泰世華銀行"], # Min 2 entities
-  "top_k_per_entity": 5,                      # Results per entity
-  "relevance_threshold": 0.8,
-  "use_metadata": true                        # Use metadata filtering
-}
-```
-
-**Limitations**:
-- Higher cost (multiple embedding API calls)
-- Requires comparison logic in Answer Agent
-- Recommended max: 5 entities
-
-**Use cases**:
-- "玉山銀行 vs 國泰世華銀行洗錢防制" (comparison)
-- "比較主要銀行的內線交易裁罰" (multi-entity analysis)
-
----
-
-#### 5. List Documents Tool (`list_documents`)
-
-**Best for**: Comprehensive inventories, catalog queries
-
-**Capabilities**:
-- Returns ALL matching documents (exhaustive, not top-k)
-- Fast database queries
-- Useful for "list all" queries
-
-**Parameters**:
-```python
-{
-  "entity": "玉山銀行",        # Entity name (required or penalty_type)
-  "penalty_type": "洗錢防制"   # Penalty type (optional)
-}
-```
-
-**Limitations**:
-- Returns metadata only (not full content)
-- Requires subsequent read for details
-- Needs metadata index
-
-**Use cases**:
-- "列出所有玉山銀行的裁罰案件" (comprehensive list)
-- "金管會所有洗錢防制裁罰目錄" (catalog)
-
----
-
-#### 6. Read File Tool (`read_file`)
-
-**Best for**: Direct file access by filename
-
-**Capabilities**:
-- Read specific file directly by name or path
-- Fast file I/O
-- Returns full file content and metadata
-
-**Parameters**:
-```python
-{
-  "filename": "玉山銀行_洗錢防制裁罰_2020.txt"  # Exact filename or path
-}
-```
-
-**Limitations**:
-- Requires exact filename or path
-- Cannot perform semantic search
-- File must exist in system
-
-**Use cases**:
-- "讀取玉山銀行_洗錢防制裁罰_2020.txt" (specific file)
-- After list_documents returns a filename for deep read
-
----
-
-### Tool Execution Tracking
-
-All tool executions are tracked with:
-- **Execution time**: Performance monitoring
-- **Parameters**: Request details for verification
-- **Results**: Sample results (top 3) with relevance scores
-- **Metadata**: Tool-specific statistics
-
-**Database Schema**: `tool_executions` table
-```sql
-CREATE TABLE tool_executions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    query_id TEXT NOT NULL,
-    tool_name TEXT NOT NULL,
-    parameters TEXT NOT NULL,
-    execution_time_ms INTEGER NOT NULL,
-    results_count INTEGER NOT NULL,
-    sample_results TEXT,
-    metadata TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### API Integration
-
-**Tool Registry**:
-```python
-from finagent.tools import get_registry
-
-# Get global registry
-registry = get_registry()
-
-# List all tools
-tools = registry.list_tools()
-
-# Get tool capabilities
-capabilities = registry.get_all_capabilities()
-
-# Find tools for specific intent
-tools = registry.find_tools_for_intent("temporal")
-```
-
-**Execute Tool with Tracking**:
-```python
-from finagent.tools.base import ToolInput
-from finagent.tools import get_registry
-
-# Get tool
-registry = get_registry()
-tool = registry.get_tool("vector_search")
-
-# Create input
-tool_input = ToolInput(
-    query="玉山銀行洗錢防制",
-    parameters={"top_k": 10, "relevance_threshold": 0.8}
-)
-
-# Execute with tracking
-output = await tool.execute_with_tracking(
-    tool_input=tool_input,
-    query_id="query_123"
-)
-
-# Check results
-if output.success:
-    print(f"Found {len(output.results)} results")
-    print(f"Execution time: {output.metadata['execution_time_ms']}ms")
-```
-
-## Performance
-
-- **Query time**: ~40 seconds
-- **Cost per query**: ~$0.0015 USD (~NT$0.05)
-- **True positive rate**: 95%
-- **False positive rate**: 0%
+- **Query time**: 30-60 seconds (depending on complexity)
+- **Cost per query**: ~$0.002-0.005 USD
+- **Documents supported**: 500+ TXT files
+- **Vector dimensions**: 1536 (text-embedding-3-small)
 - **Confidence scoring**: 高信心/中信心/低信心
 
-## Requirements
+---
 
-- Python 3.11+
-- OpenAI API key (or compatible endpoint)
-- 2GB+ RAM for vector database
-- macOS, Linux, or Windows
+## 📚 Documentation
 
-## Documentation
-
-- [CLAUDE.md](CLAUDE.md) - Claude Code development instructions
+- [CLAUDE.md](CLAUDE.md) - Development instructions for AI assistants
 - [CHANGELOG.md](CHANGELOG.md) - Version history
-- [PROJECT_SPEC.md](PROJECT_SPEC.md) - Project specifications
-- [UNIMPLEMENTED_FEATURES.md](UNIMPLEMENTED_FEATURES.md) - Feature backlog
-
-## License
-
-MIT License
-
-## Support
-
-For issues and questions:
-- GitHub Issues: https://github.com/p988744/FinAgent/issues
 
 ---
 
-**Status**: Beta (v0.0.1-beta)
-**Last Updated**: 2025-11-17
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- LangChain & LangGraph for the agent framework
+- OpenAI for embeddings and LLM
+- Chroma for vector database
+- FastAPI for the API framework
+- React & Vite for the frontend
+
+---
+
+<div align="center">
+
+**[⬆ Back to Top](#-finagent)**
+
+Made with ❤️ for Taiwan's financial sector
+
+**Version**: v2.0-beta1 | **Last Updated**: 2025-12-02
+
+</div>

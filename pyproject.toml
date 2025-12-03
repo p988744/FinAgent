@@ -1,6 +1,6 @@
 [project]
 name = "finagent"
-version = "0.0.2"
+version = "2.0.0-beta1"
 description = "Taiwan Legal Research Agent System - AI-powered legal research for banking penalties and regulatory enforcement"
 authors = [
     { name = "FinAgent Team", email = "team@finagent.example.com" }
@@ -34,6 +34,9 @@ dependencies = [
     "pyyaml>=6.0.1",
     "celery>=5.5.3",
     "redis>=7.0.1",
+    "deepagents>=0.2.8",
+    "rank-bm25>=0.2.2",
+    "alembic>=1.17.2",
 ]
 
 [project.optional-dependencies]
@@ -98,6 +101,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+"*/alembic/env.py" = ["E402"]  # sys.path modification must come before imports
+"*/retriever.py" = ["B019"]  # lru_cache on method is intentional for caching
 
 [tool.mypy]
 python_version = "3.11"

@@ -5,10 +5,10 @@ Handles LLM and embedding model selection and monitoring.
 """
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from finagent.config_manager import get_config_manager
@@ -336,7 +336,7 @@ async def get_usage_stats() -> UsageStats:
         total_tokens=0,
         total_cost=0.0,
         queries_count=0,
-        session_start=datetime.now(timezone.utc).isoformat(),
+        session_start=datetime.now(UTC).isoformat(),
         current_llm_model=current_llm,
         current_embedding_model=current_embedding,
     )

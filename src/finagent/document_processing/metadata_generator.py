@@ -77,6 +77,27 @@ class MetadataGenerator:
 
         self.model = settings.llm_model
 
+        # Create an llm-like wrapper for compatibility with concept_extractor
+        self.llm = self._LLMWrapper(self)
+
+    class _LLMWrapper:
+        """Wrapper to provide .generate() method for concept_extractor compatibility."""
+
+        def __init__(self, generator: "MetadataGenerator"):
+            self._generator = generator
+
+        def generate(self, prompt: str) -> str:
+            """Generate a response from the LLM."""
+            response = self._generator.client.chat.completions.create(
+                model=self._generator.model,
+                messages=[
+                    {"role": "system", "content": "你是專業的法律文件分析助手。"},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.0,
+            )
+            return response.choices[0].message.content or ""
+
     def generate_metadata(
         self, doc_id: str, filename: str, content: str, max_content_length: int = 4000
     ) -> DocumentMetadata:

@@ -4,6 +4,7 @@ Document indexer for Chroma vector database.
 
 import json
 import logging
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -223,7 +224,7 @@ class DocumentIndexer:
 
             # Add extracted metadata fields if available
             if extracted_metadata:
-                from datetime import datetime, timezone
+                from datetime import datetime
                 db_fields.update({
                     "document_type": extracted_metadata.document_type,
                     "issuing_authority": extracted_metadata.issuing_authority,
@@ -238,13 +239,52 @@ class DocumentIndexer:
                     # Metadata extraction status fields
                     "metadata_extracted": True,
                     "metadata_extraction_status": "completed",
-                    "metadata_last_extracted_at": datetime.now(timezone.utc).isoformat(),
+                    "metadata_last_extracted_at": datetime.now(UTC).isoformat(),
                     "metadata_extraction_attempts": 1,
+                    # Descriptive fields
+                    "title": extracted_metadata.title,
+                    "description": extracted_metadata.description,
                 })
                 logger.debug(
                     f"Storing metadata fields: document_type={extracted_metadata.document_type}, "
                     f"confidence={extracted_metadata.extraction_confidence}"
                 )
+            # Fallback: Use document.metadata if available (e.g. from process command)
+            elif document.metadata:
+                from datetime import datetime
+
+                # Helper to safely get list/dict and dump to JSON
+                def get_json_field(key, default=None):
+                    val = document.metadata.get(key, default)
+                    if isinstance(val, (list, dict)):
+                        return json.dumps(val, ensure_ascii=False)
+                    return val
+
+                # Only update if we have meaningful metadata (check for a key field)
+                if "document_type" in document.metadata or "title" in document.metadata:
+                    db_fields.update({
+                        "document_type": document.metadata.get("document_type"),
+                        "issuing_authority": document.metadata.get("issuing_authority"),
+                        "case_number": document.metadata.get("case_number"),
+                        "document_date": document.metadata.get("document_date"),
+                        "related_institutions": get_json_field("related_institutions", []),
+                        "violation_types": get_json_field("violation_types", []),
+                        "penalty_amount": document.metadata.get("penalty_amount"),
+                        "keywords": get_json_field("keywords", []),
+                        "extraction_confidence": document.metadata.get("extraction_confidence"),
+                        "extraction_method": document.metadata.get("extraction_method"),
+                        # Metadata extraction status fields
+                        "metadata_extracted": True,
+                        "metadata_extraction_status": "completed",
+                        "metadata_last_extracted_at": datetime.now(UTC).isoformat(),
+                        "metadata_extraction_attempts": 1,
+                        # Descriptive fields
+                        "title": document.metadata.get("title"),
+                        "description": document.metadata.get("description"),
+                    })
+                    logger.debug(
+                        f"Storing metadata fields from document.metadata: {document.metadata.get('document_type')}"
+                    )
 
             # Upsert document metadata
             self.document_db.upsert_document(**db_fields)

@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from finagent.database.models import Concept
 from finagent.document_processing.metadata_store import DocumentMetadata
 
 
@@ -38,12 +37,12 @@ def extract_document_concepts(metadata: DocumentMetadata) -> list[str]:
     return list(set(concepts))
 
 
-def infer_concept_type(concept_name: str, metadata: DocumentMetadata | None = None) -> str:
+def infer_concept_type(name: str, metadata: DocumentMetadata | None = None) -> str:
     """
     Infer concept type from name and metadata context.
 
     Args:
-        concept_name: Concept name
+        name: Concept name
         metadata: Optional document metadata for context
 
     Returns:
@@ -51,26 +50,26 @@ def infer_concept_type(concept_name: str, metadata: DocumentMetadata | None = No
     """
     # Authority keywords
     authority_keywords = ["金管會", "中央銀行", "公平會", "證期局", "銀行局", "保險局"]
-    if any(keyword in concept_name for keyword in authority_keywords):
+    if any(keyword in name for keyword in authority_keywords):
         return "authority"
 
     # Institution keywords (bank names, etc.)
     institution_keywords = ["銀行", "保險", "證券", "金控", "Bank", "Insurance"]
-    if any(keyword in concept_name for keyword in institution_keywords):
+    if any(keyword in name for keyword in institution_keywords):
         return "institution"
 
     # Violation type keywords
     violation_keywords = ["洗錢", "內線", "詐欺", "違規", "裁罰", "防制", "交易", "揭露"]
-    if any(keyword in concept_name for keyword in violation_keywords):
+    if any(keyword in name for keyword in violation_keywords):
         return "violation_type"
 
     # Check metadata context if provided
     if metadata:
-        if concept_name in metadata.violation_types:
+        if name in metadata.violation_types:
             return "violation_type"
-        if concept_name == metadata.issuing_authority:
+        if name == metadata.issuing_authority:
             return "authority"
-        if concept_name in metadata.related_institutions:
+        if name in metadata.related_institutions:
             return "institution"
 
     # Default to topic
@@ -160,7 +159,7 @@ concept_type 必須是以下之一：
             ):
                 validated_concepts.append(
                     {
-                        "concept_name": concept["concept_name"],
+                        "name": concept["concept_name"],
                         "concept_type": concept["concept_type"],
                         "description": concept.get("description", ""),
                         "keywords": concept.get("keywords", []),
@@ -217,11 +216,11 @@ def extract_concepts_basic(toc_content: str, max_concepts: int = 50) -> list[dic
 
     # Convert to concept format
     concepts = []
-    for concept_name, count in top_concepts:
+    for name, count in top_concepts:
         concepts.append(
             {
-                "concept_name": concept_name,
-                "concept_type": infer_concept_type(concept_name),
+                "name": name,
+                "concept_type": infer_concept_type(name),
                 "description": f"出現在 {count} 份文件中",
                 "keywords": [],
             }

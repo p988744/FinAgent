@@ -75,17 +75,17 @@ class Document(BaseModel):
     updated_at: datetime | None = None
 
     # Metadata extraction status fields (added 2025-01-19)
-    metadata_extracted: bool = Field(default=False, description="Whether metadata has been extracted by LLM")
-    metadata_extraction_status: str = Field(default="pending", description="Status: pending, processing, completed, failed, user_edited")
+    metadata_extracted: bool | None = Field(default=False, description="Whether metadata has been extracted by LLM")
+    metadata_extraction_status: str | None = Field(default="pending", description="Status: pending, processing, completed, failed, user_edited")
     metadata_extraction_error: str | None = Field(None, description="Error message if extraction failed")
-    metadata_extraction_attempts: int = Field(default=0, description="Number of extraction attempts")
+    metadata_extraction_attempts: int | None = Field(default=0, description="Number of extraction attempts")
     metadata_last_extracted_at: datetime | None = Field(None, description="Timestamp of last extraction")
-    metadata_edited_by_user: bool = Field(default=False, description="Whether user manually edited metadata")
+    metadata_edited_by_user: bool | None = Field(default=False, description="Whether user manually edited metadata")
     extraction_confidence: float | None = Field(None, description="Extraction confidence score (0-1)")
 
     # Pipeline monitoring fields (added 2025-11-19)
-    pipeline_stage: str = Field(default="uploaded", description="Current pipeline stage")
-    pipeline_status: str = Field(default="in_progress", description="Overall pipeline status")
+    pipeline_stage: str | None = Field(default="uploaded", description="Current pipeline stage")
+    pipeline_status: str | None = Field(default="in_progress", description="Overall pipeline status")
     pipeline_data: str | None = Field(None, description="JSON data with detailed pipeline stage information")
     pipeline_started_at: datetime | None = Field(None, description="Pipeline start time")
     pipeline_completed_at: datetime | None = Field(None, description="Pipeline completion time")
@@ -95,7 +95,7 @@ class Concept(BaseModel):
     """Concept/topic extracted from documents for faster retrieval."""
 
     id: int | None = None
-    concept_name: str = Field(..., description="Concept name (e.g., 洗錢防制, 內線交易)")
+    name: str = Field(..., description="Concept name (e.g., 洗錢防制, 內線交易)")
     concept_type: str | None = Field(None, description="Type: violation_type, institution, authority, topic")
     description: str | None = Field(None, description="Brief description")
     keywords: list[str] = Field(default_factory=list, description="Related keywords")

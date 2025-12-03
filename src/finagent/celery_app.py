@@ -1,8 +1,9 @@
 """Celery application configuration for FinAgent background tasks."""
 
 import os
+
 from celery import Celery
-from celery.signals import task_prerun, task_postrun, task_failure
+from celery.signals import task_failure, task_postrun, task_prerun
 
 # Redis connection URL from environment or default
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")

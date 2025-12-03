@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .models import Concept, Document, DocumentConcept, History, ModelConfig, Setting
+from .models import Concept, Document, History, ModelConfig, Setting
 
 
 class Database:
@@ -24,14 +24,22 @@ class Database:
         self._init_db()
 
     def _init_db(self):
-        """Initialize database schema."""
-        schema_path = Path(__file__).parent / "schema.sql"
-        with open(schema_path) as f:
-            schema_sql = f.read()
+        """Verify database exists.
 
+        Note: Schema is managed by Alembic migrations.
+        Run 'alembic upgrade head' to initialize/update the schema.
+        """
+        # Just verify database file exists and is accessible
         with self.get_connection() as conn:
-            conn.executescript(schema_sql)
-            conn.commit()
+            # Check if core tables exist
+            cursor = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'"
+            )
+            if not cursor.fetchone():
+                raise RuntimeError(
+                    "Database schema not initialized. "
+                    "Run 'alembic upgrade head' to create tables."
+                )
 
     @contextmanager
     def get_connection(self):
@@ -468,7 +476,7 @@ class Database:
             violations_json = json.dumps(document.violation_types, ensure_ascii=False)
             custom_json = json.dumps(document.custom_fields, ensure_ascii=False)
 
-            cursor = conn.execute(
+            conn.execute(
                 """
                 INSERT INTO documents (
                     doc_id, filename, file_path, description, document_type,
@@ -768,10 +776,10 @@ class Database:
             cursor = conn.execute(
                 """
                 INSERT INTO concepts (
-                    concept_name, concept_type, description, keywords,
+                    name, concept_type, description, keywords,
                     document_count, metadata
                 ) VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(concept_name) DO UPDATE SET
+                ON CONFLICT(name) DO UPDATE SET
                     concept_type = excluded.concept_type,
                     description = excluded.description,
                     keywords = excluded.keywords,
@@ -779,7 +787,7 @@ class Database:
                 RETURNING *
                 """,
                 (
-                    concept.concept_name,
+                    concept.name,
                     concept.concept_type,
                     concept.description,
                     keywords_json,
@@ -794,7 +802,7 @@ class Database:
             # Parse back
             return Concept(
                 id=row["id"],
-                concept_name=row["concept_name"],
+                name=row["name"],
                 concept_type=row["concept_type"],
                 description=row["description"],
                 keywords=json.loads(row["keywords"]) if row["keywords"] else [],
@@ -815,7 +823,7 @@ class Database:
 
             return Concept(
                 id=row["id"],
-                concept_name=row["concept_name"],
+                name=row["name"],
                 concept_type=row["concept_type"],
                 description=row["description"],
                 keywords=json.loads(row["keywords"]) if row["keywords"] else [],
@@ -825,11 +833,11 @@ class Database:
                 updated_at=datetime.fromisoformat(row["updated_at"]),
             )
 
-    def get_concept_by_name(self, concept_name: str) -> Concept | None:
+    def get_concept_by_name(self, name: str) -> Concept | None:
         """Get concept by name."""
         with self.get_connection() as conn:
             cursor = conn.execute(
-                "SELECT * FROM concepts WHERE concept_name = ?", (concept_name,)
+                "SELECT * FROM concepts WHERE name = ?", (name,)
             )
             row = cursor.fetchone()
 
@@ -838,7 +846,7 @@ class Database:
 
             return Concept(
                 id=row["id"],
-                concept_name=row["concept_name"],
+                name=row["name"],
                 concept_type=row["concept_type"],
                 description=row["description"],
                 keywords=json.loads(row["keywords"]) if row["keywords"] else [],
@@ -858,7 +866,7 @@ class Database:
                 concepts.append(
                     Concept(
                         id=row["id"],
-                        concept_name=row["concept_name"],
+                        name=row["name"],
                         concept_type=row["concept_type"],
                         description=row["description"],
                         keywords=json.loads(row["keywords"]) if row["keywords"] else [],
