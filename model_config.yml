@@ -1,0 +1,136 @@
+# FinAgent LLM Model Configuration
+# This file allows you to customize available model choices without modifying code.
+# Edit this file and run `/config reload` in the CLI to apply changes.
+
+# OpenAI Chat Models
+# These models will appear in the /config llm wizard
+openai_chat_models:
+  - id: "gpt-4o"
+    name: "GPT-4o (Latest, Multimodal)"
+    description: "Most capable model with vision capabilities"
+    recommended: true
+
+  - id: "gpt-4o-mini"
+    name: "GPT-4o Mini (Fast & Cheap)"
+    description: "Affordable and fast, suitable for most tasks"
+    recommended: true
+    default: true  # This will be the default selection
+
+  - id: "gpt-4-turbo"
+    name: "GPT-4 Turbo"
+    description: "High performance, large context window"
+    recommended: true
+
+  - id: "gpt-4"
+    name: "GPT-4"
+    description: "Previous generation flagship model"
+    recommended: false
+
+  - id: "gpt-3.5-turbo"
+    name: "GPT-3.5 Turbo"
+    description: "Legacy model, cheaper but less capable"
+    recommended: false
+
+# OpenAI Embedding Models
+openai_embedding_models:
+  - id: "text-embedding-3-small"
+    name: "Text Embedding 3 Small"
+    description: "Best performance/cost ratio"
+    recommended: true
+    default: true
+    dimensions: 1536
+
+  - id: "text-embedding-3-large"
+    name: "Text Embedding 3 Large"
+    description: "Highest quality embeddings"
+    recommended: true
+    dimensions: 3072
+
+  - id: "text-embedding-ada-002"
+    name: "Ada 002 (Legacy)"
+    description: "Previous generation embedding model"
+    recommended: false
+    dimensions: 1536
+
+# Local LLM Presets
+# Common local model configurations for quick setup
+local_llm_presets:
+  - name: "Ollama (Qwen 2.5)"
+    base_url: "http://localhost:11434/v1"
+    model: "qwen2.5:7b"
+    api_key: "ollama"
+    description: "Qwen 2.5 7B via Ollama"
+    recommended: true
+
+  - name: "Ollama (Llama 3.1)"
+    base_url: "http://localhost:11434/v1"
+    model: "llama3.1:8b"
+    api_key: "ollama"
+    description: "Llama 3.1 8B via Ollama"
+    recommended: true
+
+  - name: "Ollama (Mistral)"
+    base_url: "http://localhost:11434/v1"
+    model: "mistral:7b"
+    api_key: "ollama"
+    description: "Mistral 7B via Ollama"
+    recommended: false
+
+  - name: "LM Studio"
+    base_url: "http://localhost:1234/v1"
+    model: "local-model"
+    api_key: "lm-studio"
+    description: "LM Studio local server"
+    recommended: true
+
+  - name: "vLLM"
+    base_url: "http://localhost:8000/v1"
+    model: "your-model-name"
+    api_key: "vllm"
+    description: "vLLM inference server"
+    recommended: false
+
+  - name: "Custom OpenAI-Compatible"
+    base_url: "http://localhost:8080/v1"
+    model: "custom-model"
+    api_key: "custom-key"
+    description: "Custom OpenAI-compatible endpoint"
+    recommended: false
+
+# Model Selection Behavior
+settings:
+  # If true, always fetch latest models from OpenAI API (overrides static list)
+  fetch_openai_models_dynamically: true
+
+  # If false, use only models defined in this file
+  use_static_model_list: false
+
+  # Maximum number of models to show in selection menu
+  max_models_to_display: 10
+
+  # Show only recommended models by default
+  show_only_recommended: false
+
+  # Temperature presets
+  temperature_presets:
+    deterministic: 0.0    # For factual tasks (default)
+    balanced: 0.3         # Slightly creative
+    creative: 0.7         # More variety
+    very_creative: 1.0    # Maximum creativity
+
+# Cost Information (for reference, updated 2025-01)
+# Prices are approximate and may change
+cost_info:
+  gpt-4o:
+    input_per_1k_tokens: 0.0025    # USD
+    output_per_1k_tokens: 0.01
+
+  gpt-4o-mini:
+    input_per_1k_tokens: 0.00015
+    output_per_1k_tokens: 0.0006
+
+  text-embedding-3-small:
+    per_1k_tokens: 0.00002
+
+  text-embedding-3-large:
+    per_1k_tokens: 0.00013

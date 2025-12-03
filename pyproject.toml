@@ -1,0 +1,125 @@
+[project]
+name = "finagent"
+version = "2.0.0-beta1"
+description = "Taiwan Legal Research Agent System - AI-powered legal research for banking penalties and regulatory enforcement"
+authors = [
+    { name = "FinAgent Team", email = "team@finagent.example.com" }
+]
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "langchain-community>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langgraph>=0.2.0",
+    "openai>=1.10.0",
+    "chromadb>=0.4.22",
+    "pymupdf>=1.23.0",
+    "jieba>=0.42.1",
+    "httpx>=0.26.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.1.0",
+    "python-multipart>=0.0.6",
+    "aiofiles>=23.2.0",
+    "python-dotenv>=1.0.0",
+    "click>=8.1.7",
+    "rich>=13.7.0",
+    "prompt-toolkit>=3.0.43",
+    "pyyaml>=6.0.1",
+    "celery>=5.5.3",
+    "redis>=7.0.1",
+    "deepagents>=0.2.8",
+    "rank-bm25>=0.2.2",
+    "alembic>=1.17.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "black>=24.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+    "httpx>=0.26.0",
+]
+
+[project.scripts]
+finagent = "finagent.cli.main:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "B904",  # raise from exception handling
+    "B007",  # loop control variable not used
+    "B905",  # zip without explicit strict
+    "E722",  # bare except (used for fallback in some cases)
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"*/alembic/env.py" = ["E402"]  # sys.path modification must come before imports
+"*/retriever.py" = ["B019"]  # lru_cache on method is intentional for caching
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --strict-markers --disable-warnings"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]

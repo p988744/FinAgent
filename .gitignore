@@ -4,96 +4,89 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
+dist/
+build/
 *.egg
-MANIFEST
 
-# Virtual Environments
+# Virtual environments
+.venv/
 venv/
 ENV/
 env/
-.venv/
 
-# uv
-.uv/
-uv.lock
-
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.DS_Store
-
-# Environment Variables
-.env
-.env.local
-.env.*.local
-*.env
+.ruff_cache/
+.mypy_cache/
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
 *.cover
-.hypothesis/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Data & Logs
-*.log
-data/
-logs/
-*.db
-*.sqlite
-
-# Vector Database
-backend/data/vector_db/
-chroma_db/
-
-# Documents
-backend/data/documents/
-*.pdf
-
-# Next.js / Frontend
+# Frontend
 frontend/.next/
 frontend/out/
+frontend/.vercel/
 frontend/node_modules/
-frontend/build/
-frontend/.turbo/
+frontend/playwright-report/
+frontend/test-results/
 
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-package-lock.json
-yarn.lock
+# Data files (keep structure, ignore contents)
+data/vector_db/
+data/*.db
+data/*.db.bak
+data/*.db-journal
+data/*.db-shm
+data/*.db-wal
+data/documents/**/*.txt
+!data/documents/.gitkeep
 
-# Docker
-*.log
-docker-compose.override.yml
+# Environment
+.env
+.env.local
+.env.*.local
+frontend/.env.local
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Temporary files
+# Logs
+*.log
+logs/
+backend.log
+
+# Test results
+test-results/
+
+# Temporary/debug files
 *.tmp
 *.temp
-.cache/
+
+# Root-level scripts (should be in scripts/ or .archive/)
+/test_*.sh
+/test_*.py
+/test_*.txt
+/*.py
+!pyproject.toml
+
+# Electron
+node_modules/
+python-dist/
+*.dmg
+*.zip
+*.exe
+*.AppImage
+.electron-builder.yaml
+electron/build/*.ico
+electron/build/*.icns
+
+# Archive (development history)
+.archive/
